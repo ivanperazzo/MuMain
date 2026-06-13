@@ -345,8 +345,19 @@ file(MAKE_DIRECTORY "${MU_NUGET_CACHE_DIR}")
 # the entire OpenMU repository as a submodule.
 set(OPENMU_PACKETS_VERSION "0.9.9" CACHE STRING
     "Version of MUnique.OpenMU.Network.Packets to source packet XML from")
-set(OPENMU_PACKETS_XML
-    "${MU_NUGET_CACHE_DIR}/munique.openmu.network.packets/${OPENMU_PACKETS_VERSION}/contentFiles/any/net10.0/ServerToClient/ServerToClientPackets.xml")
+# Monorepo wiring: source the packet XML from the LOCAL OpenMU repo (sibling of
+# MuMain under I:/MuOnline), the same place the ClientLibrary now references via
+# ProjectReference. This keeps client and server packet definitions in lockstep
+# without depending on a published NuGet version. Falls back to the NuGet cache
+# path below only if the local repo XML is not present.
+set(OPENMU_LOCAL_PACKETS_XML
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../OpenMU/src/Network/Packets/ServerToClient/ServerToClientPackets.xml")
+if (EXISTS "${OPENMU_LOCAL_PACKETS_XML}")
+  set(OPENMU_PACKETS_XML "${OPENMU_LOCAL_PACKETS_XML}")
+else()
+  set(OPENMU_PACKETS_XML
+      "${MU_NUGET_CACHE_DIR}/munique.openmu.network.packets/${OPENMU_PACKETS_VERSION}/contentFiles/any/net10.0/ServerToClient/ServerToClientPackets.xml")
+endif()
 
 # Restore the package on demand at configure time if it isn't cached yet.
 # dotnet restore is fast on cache-hit, so re-configuring stays cheap.
@@ -387,7 +398,7 @@ add_custom_command(
   OUTPUT "${WIRE_SIZES_GEN_HEADER}"
   COMMAND "${Python3_EXECUTABLE}" "${WIRE_SIZES_GEN_SCRIPT}"
           --xml "${OPENMU_PACKETS_XML}"
-          --source-label "MUnique.OpenMU.Network.Packets v${OPENMU_PACKETS_VERSION} (NuGet)"
+          --source-label "MUnique.OpenMU.Network.Packets (local OpenMU repo, fallback NuGet v${OPENMU_PACKETS_VERSION})"
           --output "${WIRE_SIZES_GEN_HEADER}"
   DEPENDS "${WIRE_SIZES_GEN_SCRIPT}" "${OPENMU_PACKETS_XML}"
   COMMENT "Generating wire_sizes.generated.h from OpenMU NuGet packet XML..."
