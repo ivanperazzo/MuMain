@@ -52,4 +52,6 @@ endfunction()
 
 add_subdirectory(text)
 
+add_subdirectory(diagnostics)
+
 add_subdirectory(editor)
