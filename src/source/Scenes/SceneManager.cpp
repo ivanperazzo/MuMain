@@ -31,6 +31,7 @@ FrameTimingState g_frameTiming;
 #include "Engine/Physics/PhysicsManager.h"
 #include "Core/Time/Timer.h"
 #include "Core/Input/Input.h"
+#include "Core/Diagnostics/TemporalCsvLogger.h"
 #include "UI/Legacy/UIMng.h"
 #include "Network/Server/WSclient.h"
 #include "Network/Reconnect/ReconnectManager.h"
@@ -65,6 +66,7 @@ extern CHARACTER* Hero;
 extern int HeroTile;
 extern bool Destroy;
 extern double WorldTime;
+extern double FPS;
 extern float FPS_ANIMATION_FACTOR;
 
 static bool g_bShowDebugInfo =
@@ -1045,6 +1047,17 @@ void RenderScene(HDC hDC)
 {
     CalcFPS();
     UpdateSceneState();
+
+    // Stage 0 temporal instrumentation: record hero speed against frame rate so
+    // every later stage can be verified against this baseline. Off (and free)
+    // unless MU_TEMPORAL_CSV is set; steps/alpha stay 0 until Stage 1b. Sampled
+    // after UpdateSceneState() so the position reflects this frame's movement.
+    if (auto& csv = Core::Diagnostics::TemporalCsvLogger::Instance();
+        csv.Enabled() && SceneFlag == MAIN_SCENE && Hero != nullptr)
+    {
+        csv.LogFrame(WorldTime, FPS, Hero->Object.Position[0],
+                     Hero->Object.Position[1], 0, 0.0f);
+    }
 
     // Drive auto-reconnect after the scene loops have advanced this frame. It
     // runs across all scenes because reconnect passes through the login,
