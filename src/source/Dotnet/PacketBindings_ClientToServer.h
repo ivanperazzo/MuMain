@@ -320,6 +320,12 @@ inline SendAddMasterSkillPoint dotnet_SendAddMasterSkillPoint = reinterpret_cast
 typedef void(CORECLR_DELEGATE_CALLTYPE* SendHitRequest)(int32_t, uint16_t , BYTE , BYTE );
 inline SendHitRequest dotnet_SendHitRequest = reinterpret_cast<SendHitRequest>(symLoad(munique_client_library_handle, "SendHitRequest"));
 
+typedef void(CORECLR_DELEGATE_CALLTYPE* SendAttackIntent)(int32_t, uint32_t , uint16_t , BYTE , BYTE );
+inline SendAttackIntent dotnet_SendAttackIntent = reinterpret_cast<SendAttackIntent>(symLoad(munique_client_library_handle, "SendAttackIntent"));
+
+typedef void(CORECLR_DELEGATE_CALLTYPE* SendStopAttackIntent)(int32_t, uint32_t );
+inline SendStopAttackIntent dotnet_SendStopAttackIntent = reinterpret_cast<SendStopAttackIntent>(symLoad(munique_client_library_handle, "SendStopAttackIntent"));
+
 typedef void(CORECLR_DELEGATE_CALLTYPE* SendTargetedSkill)(int32_t, uint16_t , uint16_t );
 inline SendTargetedSkill dotnet_SendTargetedSkill = reinterpret_cast<SendTargetedSkill>(symLoad(munique_client_library_handle, "SendTargetedSkill"));
 

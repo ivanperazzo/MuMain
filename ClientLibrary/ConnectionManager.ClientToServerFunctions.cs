@@ -3567,6 +3567,80 @@ public unsafe partial class ConnectionManager
     }
 
     /// <summary>
+    /// Sends a <see cref="AttackIntent" /> to this connection.
+    /// </summary>
+    /// <param name="handle">The handle of the connection.</param>
+    /// <param name="inputSeq">A client-side input sequence number, used to correlate the intent with the client's prediction.</param>
+    /// <param name="targetId">The target id.</param>
+    /// <param name="kind">The kind of attack intent. Reserved for future use (e.g. melee vs. ranged); currently only basic melee auto-attack is implemented.</param>
+    /// <param name="animationHint">A hint for the attack animation to play on the observers, mirroring the AttackAnimation of the legacy HitRequest.</param>
+    /// <remarks>
+    /// Is sent by the client when: A player wants to start auto-attacking a target without using a skill. The client sends one intent per engagement; the server then auto-repeats the swings at its own attack-speed cadence until the player disengages or the engagement becomes invalid.
+    /// Causes reaction on server side: The server engages the player on the target and schedules the first swing. Subsequent swings are scheduled by the server-authoritative cadence loop, without further client packets.
+    /// </remarks>
+    [UnmanagedCallersOnly(EntryPoint = "SendAttackIntent")]
+    public static void SendAttackIntent(int handle, uint @inputSeq, ushort @targetId, byte @kind, byte @animationHint)
+    {
+        if (!Connections.TryGetValue(handle, out var connection))
+        {
+            return;
+        }
+
+        try
+        {
+            connection.CreateAndSend(pipeWriter =>
+            {
+                var length = AttackIntentRef.Length;
+                var packet = new AttackIntentRef(pipeWriter.GetSpan(length)[..length]);
+                packet.InputSeq = @inputSeq;
+                packet.TargetId = @targetId;
+                packet.Kind = @kind;
+                packet.AnimationHint = @animationHint;
+
+                return length;
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+    /// <summary>
+    /// Sends a <see cref="StopAttackIntent" /> to this connection.
+    /// </summary>
+    /// <param name="handle">The handle of the connection.</param>
+    /// <param name="inputSeq">A client-side input sequence number, used to correlate the intent with the client's prediction.</param>
+    /// <remarks>
+    /// Is sent by the client when: A player wants to stop auto-attacking. It ends the engagement started by an AttackIntent.
+    /// Causes reaction on server side: The server disengages the player, stopping the server-authoritative cadence loop.
+    /// </remarks>
+    [UnmanagedCallersOnly(EntryPoint = "SendStopAttackIntent")]
+    public static void SendStopAttackIntent(int handle, uint @inputSeq)
+    {
+        if (!Connections.TryGetValue(handle, out var connection))
+        {
+            return;
+        }
+
+        try
+        {
+            connection.CreateAndSend(pipeWriter =>
+            {
+                var length = StopAttackIntentRef.Length;
+                var packet = new StopAttackIntentRef(pipeWriter.GetSpan(length)[..length]);
+                packet.InputSeq = @inputSeq;
+
+                return length;
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+    /// <summary>
     /// Sends a <see cref="TargetedSkill" /> to this connection.
     /// </summary>
     /// <param name="handle">The handle of the connection.</param>

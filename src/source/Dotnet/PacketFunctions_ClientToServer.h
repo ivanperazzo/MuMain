@@ -1118,6 +1118,29 @@ public:
     void SendHitRequest(uint16_t targetId, BYTE attackAnimation, BYTE lookingDirection);
 
     /// <summary>
+    /// Sends a AttackIntent to this connection.
+    /// </summary>
+    /// <param name="inputSeq">A client-side input sequence number, used to correlate the intent with the client's prediction.</param>
+    /// <param name="targetId">The target id.</param>
+    /// <param name="kind">The kind of attack intent. Reserved for future use (e.g. melee vs. ranged); currently only basic melee auto-attack is implemented.</param>
+    /// <param name="animationHint">A hint for the attack animation to play on the observers, mirroring the AttackAnimation of the legacy HitRequest.</param>
+    /// <remarks>
+    /// Is sent by the client when: A player wants to start auto-attacking a target without using a skill. The client sends one intent per engagement; the server then auto-repeats the swings at its own attack-speed cadence until the player disengages or the engagement becomes invalid.
+    /// Causes reaction on server side: The server engages the player on the target and schedules the first swing. Subsequent swings are scheduled by the server-authoritative cadence loop, without further client packets.
+    /// </remarks>
+    void SendAttackIntent(uint32_t inputSeq, uint16_t targetId, BYTE kind, BYTE animationHint);
+
+    /// <summary>
+    /// Sends a StopAttackIntent to this connection.
+    /// </summary>
+    /// <param name="inputSeq">A client-side input sequence number, used to correlate the intent with the client's prediction.</param>
+    /// <remarks>
+    /// Is sent by the client when: A player wants to stop auto-attacking. It ends the engagement started by an AttackIntent.
+    /// Causes reaction on server side: The server disengages the player, stopping the server-authoritative cadence loop.
+    /// </remarks>
+    void SendStopAttackIntent(uint32_t inputSeq);
+
+    /// <summary>
     /// Sends a TargetedSkill to this connection.
     /// </summary>
     /// <param name="skillId">The skill id.</param>

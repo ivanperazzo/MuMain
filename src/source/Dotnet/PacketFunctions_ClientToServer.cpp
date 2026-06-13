@@ -518,6 +518,16 @@ void PacketFunctions_ClientToServer::SendHitRequest(uint16_t targetId, BYTE atta
     dotnet_SendHitRequest(this->GetHandle(), targetId, attackAnimation, lookingDirection);
 }
 
+void PacketFunctions_ClientToServer::SendAttackIntent(uint32_t inputSeq, uint16_t targetId, BYTE kind, BYTE animationHint)
+{
+    dotnet_SendAttackIntent(this->GetHandle(), inputSeq, targetId, kind, animationHint);
+}
+
+void PacketFunctions_ClientToServer::SendStopAttackIntent(uint32_t inputSeq)
+{
+    dotnet_SendStopAttackIntent(this->GetHandle(), inputSeq);
+}
+
 void PacketFunctions_ClientToServer::SendTargetedSkill(uint16_t skillId, uint16_t targetId)
 {
     dotnet_SendTargetedSkill(this->GetHandle(), skillId, targetId);
