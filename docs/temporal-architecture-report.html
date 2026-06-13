@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MuMain — Acoplamiento Simulación/FPS · Reporte v2 (corregido)</title>
+<style>
+  :root{
+    --bg:#0d1117; --bg2:#161b22; --bg3:#1c2330; --fg:#e6edf3; --muted:#9da7b3;
+    --accent:#ff7b39; --accent2:#58a6ff; --ok:#3fb950; --bad:#f85149; --warn:#d29922;
+    --border:#30363d; --code:#0b0f14;
+    --mono:"SF Mono","JetBrains Mono","Cascadia Code",Consolas,"Courier New",monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.6;font-size:16px}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px 120px}
+  header.hero{padding:56px 0 28px;border-bottom:1px solid var(--border);margin-bottom:8px}
+  .tag{display:inline-block;font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:3px 9px;margin-bottom:18px}
+  .ver{display:inline-block;font-family:var(--mono);font-size:12px;color:var(--ok);border:1px solid var(--ok);border-radius:4px;padding:3px 9px;margin-bottom:18px;margin-left:8px}
+  h1{font-size:34px;line-height:1.2;margin:0 0 10px;font-weight:700}
+  h1 .sub{color:var(--muted);font-weight:400;font-size:20px;display:block;margin-top:6px}
+  .meta{color:var(--muted);font-size:13px;font-family:var(--mono);margin-top:14px}
+  .meta b{color:var(--fg)}
+  h2{font-size:24px;margin:52px 0 16px;padding-top:14px;border-top:1px solid var(--border);scroll-margin-top:20px}
+  h2 .num{color:var(--accent);font-family:var(--mono);margin-right:10px}
+  h3{font-size:17px;margin:26px 0 10px;color:var(--accent2)}
+  p{margin:12px 0}
+  a{color:var(--accent2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  code{font-family:var(--mono);font-size:13.5px;background:var(--bg3);padding:1.5px 6px;border-radius:4px;color:#ffd9c4;white-space:nowrap}
+  pre{background:var(--code);border:1px solid var(--border);border-radius:8px;padding:16px 18px;overflow-x:auto;margin:16px 0;line-height:1.55}
+  pre code{background:none;padding:0;color:#c9d1d9;white-space:pre;font-size:13px}
+  .cmt{color:#6e7781}.kw{color:#ff7b72}.fn{color:#d2a8ff}.num2{color:#79c0ff}.str{color:#a5d6ff}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:14px}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--bg3);font-weight:600;color:var(--fg)}
+  tr:nth-child(even) td{background:var(--bg2)}
+  td code{white-space:normal}
+  .ok{color:var(--ok);font-weight:600}.bad{color:var(--bad);font-weight:600}.warn{color:var(--warn);font-weight:600}
+  .callout{border-left:4px solid var(--accent);background:var(--bg2);padding:14px 18px;border-radius:0 8px 8px 0;margin:20px 0}
+  .callout.danger{border-color:var(--bad)}.callout.good{border-color:var(--ok)}.callout.note{border-color:var(--accent2)}
+  .callout b{color:var(--fg)}
+  ul,ol{padding-left:24px}li{margin:6px 0}
+  .toc{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:18px 22px;margin:28px 0}
+  .toc h4{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-family:var(--mono)}
+  .toc ol{columns:2;column-gap:40px;margin:0;padding-left:18px}
+  .toc li{margin:5px 0}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--border);color:var(--muted);font-size:13px;font-family:var(--mono)}
+  .filemap{font-family:var(--mono);font-size:12.5px}
+  .filemap pre{background:var(--bg2)}
+  hr.soft{border:none;border-top:1px dashed var(--border);margin:28px 0}
+  mark{background:rgba(255,123,57,.18);color:#ffd9c4;padding:1px 4px;border-radius:3px}
+  .badge{font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:4px;border:1px solid var(--border)}
+  .v{color:var(--ok);border-color:var(--ok)}.a{color:var(--accent);border-color:var(--accent)}
+  .legend{font-size:12.5px;color:var(--muted);font-family:var(--mono);margin:8px 0 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <span class="tag">Reporte de Arquitectura · Cliente</span><span class="ver">v2 · CORREGIDO</span>
+  <h1>Acoplamiento Simulación ↔ FPS en MuMain
+    <span class="sub">Causa raíz confirmada · mapa exhaustivo de 6 categorías · spec de medición</span>
+  </h1>
+  <div class="meta">
+    Proyecto: <b>I:\MuOnline\MuMain</b> · Engine: <b>C++ / SDL3 / OpenGL</b> · Fecha: <b>2026-06-13</b><br>
+    Supersede v1. Asunciones del v1 cerradas con lectura directa + barrido exhaustivo.
+    <span class="badge v">✓ verificado por mí</span> <span class="badge a">⚠ reportado por barrido (confirmar línea)</span>
+  </div>
+</header>
+
+<div class="callout danger">
+  <b>Resumen ejecutivo (corregido).</b>
+  MuMain no tiene <em>fixed timestep</em> ni hilo de simulación: toda la lógica corre dentro de
+  <code>RenderScene()</code>, 1× por frame renderizado <span class="badge v">✓</span>. La compensación es un factor global
+  <code>FPS_ANIMATION_FACTOR = clamp(differenceMs/40ms, 0, 1)</code> (REFERENCE_FPS = 25), aplicado en
+  <b>3363 sitios / 56 archivos</b>. Dos mecanismos distintos explican tus dos síntomas:
+  <br><br>
+  ① <b>Lento &lt;25 FPS:</b> el <mark>clamp a 1.0</mark> impide compensar bajo 25 FPS → velocidad = <code>FPS/25 · normal</code>
+  (a 10fps = 40%). Afecta TODO. → tu "muchos jugadores → lento".<br>
+  ② <b>Speedhack &gt;25 FPS:</b> el movimiento lineal es <span class="ok">exactamente invariante</span> sobre 25fps.
+  Acelera lo que <em>rompe</em> esa invariancia: física compuesta (proyectiles), enteros/densidad, cámara cinemática,
+  decays mal hechos. → tu "subo FPS → speedhack" en efectos.
+</div>
+
+<h3>Qué cambió respecto al v1</h3>
+<table>
+  <thead><tr><th>v1 afirmaba</th><th>Realidad verificada (v2)</th></tr></thead>
+  <tbody>
+    <tr><td>Cámara sin factor → speedhack</td><td><b>Corregido.</b> <code>m_iDelayCount</code> es <code>double</code> y escala (CameraMove.h:52). La cámara de <em>gameplay</em> usa lerp exponencial correcto (<code>x += delta·(1-expf(-dt/tau))</code>, DefaultCamera.cpp:556-562 <span class="badge v">✓</span>). Solo la cámara <em>cinematográfica</em> (cutscenes) tiene travel sin escalar.</td></tr>
+    <tr><td>Speedhack = falta de factor (general)</td><td><b>Corregido.</b> El factor está en 3363 sitios. El movimiento lineal es invariante &gt;25fps (probado matemáticamente). El speedhack viene de categorías específicas (D/C/E/B✗), no de "falta el factor".</td></tr>
+    <tr><td>Freeze-on-skip (era asunción)</td><td><b>Confirmado</b> por lectura directa de la cadena del loop <span class="badge v">✓</span>.</td></tr>
+    <tr><td>Scope no cuantificado</td><td><b>Cuantificado:</b> 6 categorías, ~65 sitios defectuosos clasificados, archivos rankeados por riesgo.</td></tr>
+  </tbody>
+</table>
+
+<div class="toc">
+  <h4>Contenido</h4>
+  <ol>
+    <li><a href="#s1">Causa raíz — confirmada</a></li>
+    <li><a href="#s2">Mapa exhaustivo (6 categorías)</a></li>
+    <li><a href="#s3">Spec de medición / repro</a></li>
+    <li><a href="#s4">Rediseño del game loop</a></li>
+    <li><a href="#s5">Migración incremental</a></li>
+    <li><a href="#s6">Riesgos técnicos</a></li>
+    <li><a href="#s7">Decisión de renderer</a></li>
+    <li><a href="#s8">Instrumentación / overlay</a></li>
+    <li><a href="#s9">Criterios de éxito</a></li>
+    <li><a href="#s10">Entregables</a></li>
+  </ol>
+</div>
+
+<h2 id="s1"><span class="num">1.</span>Causa raíz — confirmada</h2>
+
+<h3>Cadena del loop (freeze-on-skip confirmado)</h3>
+<pre><code>MainLoop()  <span class="cmt">// Winmain.cpp ~980-1152</span>
+  IncomingPacketQueue.DrainTo(...)        <span class="cmt">// 1097 — corre SIEMPRE (red)</span>
+  ReconnectManager.Begin()                <span class="cmt">// 1101</span>
+  FrameTimerScheduler.Tick()              <span class="cmt">// 1104 — corre SIEMPRE (buffs/cooldowns wall-clock)</span>
+  <span class="kw">if</span> (CheckRenderNextFrame())             <span class="cmt">// 1106 — el gate</span>
+      RenderScene()                       <span class="cmt">// 1134</span>
+        CalcFPS()                         <span class="cmt">// 1046 — WorldTime + factor avanzan AQUÍ</span>
+        UpdateSceneState()                <span class="cmt">// 1047</span>
+        MainScene()                       <span class="cmt">// 1070 — movimiento / animación / efectos AQUÍ</span>
+  <span class="kw">else</span>
+      WaitForNextActivity()               <span class="cmt">// 1141 — sim CONGELADA, solo pacing</span></code></pre>
+<p>Toda la simulación vive dentro de <code>RenderScene</code>. Si no renderiza, <code>WorldTime</code> y el mundo se
+congelan; solo la red y los timers wall-clock siguen. <code>CalcFPS()</code> tiene <b>un único sitio de llamada</b>
+(SceneManager.cpp:1046 <span class="badge v">✓</span>).</p>
+
+<h3>Mecanismo ① — lento bajo 25 FPS (probado)</h3>
+<pre><code><span class="cmt">// ZzzAI.cpp:725-730</span>
+<span class="kw">const</span> <span class="kw">double</span> differenceMs = std::max&lt;<span class="kw">double</span>&gt;(WorldTime - last, <span class="num2">0.001</span>);
+FPS = <span class="num2">1000.0</span> / differenceMs;
+FPS_ANIMATION_FACTOR = std::clamp(<span class="kw">float</span>(REFERENCE_FPS / FPS), <span class="num2">0.f</span>, <span class="num2">1.f</span>);  <span class="cmt">// = clamp(differenceMs/40, 0, 1)</span></code></pre>
+<p>Distancia/seg = <code>paso · Σfactor = paso · (Σ differenceMs)/40 = paso · 1000/40 = 25·paso</code> —
+<b>invariante</b> mientras <code>differenceMs ≤ 40ms</code> (FPS ≥ 25). Cuando FPS &lt; 25, <code>differenceMs &gt; 40</code>
+pero el factor se clampa a 1.0 → se pierde la compensación → velocidad = <code>(FPS/25)·normal</code>.
+A 10 fps = <span class="bad">40%</span>. Idéntico efecto con un cap de FPS explícito.</p>
+
+<h3>Mecanismo ② — speedhack sobre 25 FPS (probado)</h3>
+<p>El movimiento lineal NO acelera (invariante, arriba). Acelera lo que rompe la invariancia: <b>doble integración</b>
+(cat D), <b>enteros/densidad</b> (cat C), <b>sin escalar</b> (cat E), <b>decay roto</b> (cat B✗). Detalle en §2.</p>
+
+<div class="callout note">
+  <b>Dependencia del monitor (runtime por defecto).</b>
+  <code>EnableVSync()</code> + <code>SetTargetFps(-1)</code> ⟹ el loop corre a Hz del monitor; la rama freeze solo
+  dispara con cap explícito o ventana inactiva. ⟹ Mismo binario, <b>físicas de efectos distintas según el monitor</b>:
+  60 Hz → factor 0.42; 144 Hz → factor 0.17.
+</div>
+
+<h2 id="s2"><span class="num">2.</span>Mapa exhaustivo de acoplamiento (6 categorías)</h2>
+<p>Total <code>FPS_ANIMATION_FACTOR</code>: <b>3363 usos / 56 archivos</b>. Los <em>counts por categoría son estimados</em>
+del barrido; los sitios marcados <span class="badge v">✓</span> los verifiqué directamente.</p>
+<table>
+  <thead><tr><th>Cat</th><th>Patrón</th><th>≈Count</th><th>¿Correcto?</th><th>Alto FPS</th><th>Bajo FPS</th><th>Acción migración</th></tr></thead>
+  <tbody>
+    <tr><td><b>A</b> Lineal</td><td><code>x += k·factor</code></td><td>~1500</td><td class="ok">✓ invariante &gt;25</td><td>ok</td><td>lento (clamp)</td><td>trivial → <code>x += k·dt</code></td></tr>
+    <tr><td><b>B</b> Decay pow</td><td><code>x *= pow(base,factor)</code></td><td>~280</td><td class="ok">✓ correcto</td><td>ok</td><td>lento (clamp)</td><td>trivial → <code>pow(base,dt)</code></td></tr>
+    <tr><td><b>B✗</b> Decay roto</td><td><code>x *= (1 - factor)</code> sin pow</td><td>~4</td><td class="bad">✗</td><td>mal</td><td>mal</td><td><b>arreglar</b></td></tr>
+    <tr><td><b>C</b> Entero/inverso</td><td><code>(int)(k/factor)</code>, <code>(BYTE)(k/factor)</code></td><td>~6</td><td class="bad">✗</td><td>densidad↑, overflow</td><td>densidad↓</td><td><b>rediseñar</b></td></tr>
+    <tr><td><b>D</b> Compounding</td><td><code>vel+=a·factor; pos+=vel·factor</code></td><td>~50+</td><td class="bad">✗ aun &gt;25</td><td>arcos/alcance drift</td><td>drift</td><td><b>re-integrar</b></td></tr>
+    <tr><td><b>E</b> Sin escalar</td><td><code>x += k</code> en update</td><td>~5</td><td class="bad">✗</td><td>speedhack ∝FPS</td><td>ok</td><td><b>escalar/portar</b></td></tr>
+    <tr><td><b>F</b> Wall-clock</td><td>GetTickCount / scheduler</td><td>~15</td><td class="ok">✓</td><td>ok</td><td>ok</td><td>dejar</td></tr>
+  </tbody>
+</table>
+
+<h3>Sitios peligrosos concretos</h3>
+<table>
+  <thead><tr><th>Cat</th><th>Sitio</th><th>Problema</th></tr></thead>
+  <tbody>
+    <tr><td>B✗</td><td><code>ZzzEffectParticle.cpp:3957-3959,3964</code> <span class="badge a">⚠</span></td><td><code>Light *= 0.98f + (0.02f*1 - factor)</code> — precedencia ⟹ multiplicador ≈ <code>1.0 - factor</code>: a factor=1 mata la luz, a 0.17 casi nada. No exponencial.</td></tr>
+    <tr><td>C</td><td><code>GOBoid.cpp:763</code> <span class="badge v">✓</span></td><td><code>(BYTE)(19.f / factor)</code> — &gt;255 a FPS extremo → overflow, condición rota.</td></tr>
+    <tr><td>C</td><td><code>ZzzEffectJoint.cpp:2709</code> <span class="badge v">✓</span></td><td><code>(int)(MaxTails / factor)</code> — nº de colas ∝ FPS (más densidad a alto FPS).</td></tr>
+    <tr><td>C</td><td><code>GMCryingWolf2nd.cpp:77,84</code> · <code>GM3rdChangeUp.cpp:144,151,190,204</code> <span class="badge a">⚠</span></td><td><code>(int)(Timer += factor) % 4</code> — eventos corridos fuera de 25fps.</td></tr>
+    <tr><td>D</td><td><code>ZzzEffect.cpp:13130-13184</code> <span class="badge a">⚠</span></td><td>Misiles/proyectiles: <code>Velocity += a·factor; Gravity += g·factor; Position += vel·factor</code> → arco/alcance dependen del FPS.</td></tr>
+    <tr><td>D</td><td><code>CSPetSystem.cpp:511-530</code> <span class="badge a">⚠</span></td><td>Salto de pet: misma doble integración (gravedad acumulada).</td></tr>
+    <tr><td>D</td><td><code>PhysicsManager.cpp:76-106</code> <span class="badge a">⚠</span></td><td>Cloth: fuerza → velocidad → posición, todo con factor.</td></tr>
+    <tr><td>E</td><td><code>CameraMove.cpp:388-389,402-407,428-429</code> <span class="badge v">✓</span></td><td>Travel + zoom de cámara cinematográfica sin factor (el delay sí escala). Cutscenes más rápidas a alto FPS.</td></tr>
+  </tbody>
+</table>
+
+<h3>Archivos por riesgo de migración (C/D/E)</h3>
+<ol>
+  <li><code>Render/Effects/ZzzEffect.cpp</code> — D masivo (proyectiles).</li>
+  <li><code>Render/Effects/ZzzEffectParticle.cpp</code> — D + B✗.</li>
+  <li><code>Camera/CameraMove.cpp</code> — E (cinemático).</li>
+  <li><code>Engine/AI/GOBoid.cpp</code> — C + D.</li>
+  <li><code>Render/Effects/ZzzEffectJoint.cpp</code> — C.</li>
+  <li><code>Engine/Physics/PhysicsManager.cpp</code> — D + B✗.</li>
+  <li><code>GameLogic/Pets/CSPetSystem.cpp</code> — D.</li>
+</ol>
+
+<div class="callout">
+  <b>Insight estructural.</b> El modelo "factor por frame" obliga a aplicar a mano <b>5 reglas de corrección distintas</b>
+  (lineal <code>·factor</code> · decay <code>pow(·,factor)</code> · evitar enteros · evitar doble integración ·
+  no olvidar escalar) en 3363 sitios. Eso <em>garantiza</em> los ~65 bugs hallados. El fixed-timestep las colapsa:
+  con <code>dt</code> fijo y determinista, A y B "simplemente funcionan", se borra el clamp, y los umbrales enteros pasan
+  a ser conteos de tick.
+</div>
+
+<h2 id="s3"><span class="num">3.</span>Spec de medición / repro (medir ANTES de tocar)</h2>
+<p><b>Controles ya en el cliente:</b> <code>SetTargetFps(fps)</code> (SceneManager.cpp:176),
+<code>EnableVSync()/DisableVSync()</code> (ZzzOpenglUtil.cpp). Para forzar FPS: <code>DisableVSync()</code> + <code>SetTargetFps(N)</code>.</p>
+<p><b>Instrumentación a loguear</b> (CSV por frame): <code>WorldTime</code>, <code>differenceMs</code>, <code>FPS</code>,
+<code>FPS_ANIMATION_FACTOR</code>, <code>Hero.Position</code>, contador de partículas/colas, tiempo wall-clock real.</p>
+<table>
+  <thead><tr><th>#</th><th>Escena</th><th>Forzar</th><th>Métrica</th><th>Predicción (confirma el diagnóstico)</th></tr></thead>
+  <tbody>
+    <tr><td>E1</td><td>Héroe camina recto fijo</td><td>60 / 144 / 240 fps</td><td>unidades/seg reales</td><td class="ok">iguales ±2% (cat A invariante)</td></tr>
+    <tr><td>E2</td><td>Mismo, cap bajo</td><td>15 fps</td><td>unidades/seg</td><td class="bad">~60% (clamp; mecanismo bajo)</td></tr>
+    <tr><td>E3</td><td>Proyectil/skill con arco</td><td>30 vs 240</td><td>alcance / altura del arco</td><td class="bad">difieren (cat D)</td></tr>
+    <tr><td>E4</td><td>Efecto con colas (joint)</td><td>30 vs 240</td><td>nº de colas/partículas</td><td class="bad">más a 240 (cat C)</td></tr>
+    <tr><td>E5</td><td>Cutscene (tour cam)</td><td>30 vs 240</td><td>duración del travel</td><td class="bad">más rápido a 240 (cat E)</td></tr>
+    <tr><td>E6</td><td>Efecto con fade de luz</td><td>30 vs 240</td><td>tiempo hasta apagar</td><td class="bad">difiere (cat B✗)</td></tr>
+  </tbody>
+</table>
+<p><b>E1 + E2 son el par crítico:</b> demuestran que el movimiento base ya es correcto &gt;25fps y que el bug real es
+(a) el clamp abajo y (b) los subsistemas D/C/E/B✗ arriba. Evita "arreglar" lo que no está roto.</p>
+
+<h2 id="s4"><span class="num">4.</span>Rediseño del game loop (fixed timestep + render interpolado)</h2>
+<p><code>FIXED_DT = 40ms</code> mantiene 25 tps idénticos al feel actual → <b>0 cambio de balance</b>.</p>
+<pre><code><span class="kw">constexpr</span> <span class="kw">double</span> FIXED_DT_MS = <span class="num2">40.0</span>;   <span class="cmt">// 25 sim-ticks/s == REFERENCE_FPS</span>
+<span class="kw">constexpr</span> <span class="kw">int</span>    MAX_STEPS   = <span class="num2">5</span>;      <span class="cmt">// anti spiral-of-death</span>
+<span class="kw">double</span> accumulator = <span class="num2">0.0</span>, prevMs = Timer::NowMs();
+
+<span class="kw">while</span> (!Destroy)
+{
+    <span class="kw">double</span> nowMs = Timer::NowMs(), frameMs = nowMs - prevMs; prevMs = nowMs;
+    <span class="kw">if</span> (frameMs &gt; <span class="num2">250.0</span>) frameMs = <span class="num2">250.0</span>;     <span class="cmt">// pausa/breakpoint: no acumular deuda</span>
+
+    <span class="fn">PumpNetwork</span>();        <span class="cmt">// drenar cola -&gt; buffer de estado (no aplicar aún)</span>
+    <span class="fn">SampleInput</span>();        <span class="cmt">// SDL_PollEvent: acumular intención</span>
+
+    accumulator += frameMs;
+    <span class="kw">int</span> steps = <span class="num2">0</span>;
+    <span class="kw">while</span> (accumulator &gt;= FIXED_DT_MS &amp;&amp; steps &lt; MAX_STEPS) {
+        <span class="fn">SimulationSnapshotBegin</span>();   <span class="cmt">// estado previo para interpolar</span>
+        <span class="fn">FixedUpdate</span>(FIXED_DT_MS);      <span class="cmt">// movimiento, path, animación lógica, efectos</span>
+        accumulator -= FIXED_DT_MS; ++steps;
+    }
+    <span class="kw">if</span> (steps == MAX_STEPS) accumulator = <span class="num2">0.0</span>;   <span class="cmt">// descartar deuda</span>
+
+    <span class="kw">const</span> <span class="kw">float</span> alpha = <span class="kw">float</span>(accumulator / FIXED_DT_MS);   <span class="cmt">// 0..1</span>
+    <span class="kw">if</span> (<span class="fn">CheckRenderNextFrame</span>()) <span class="fn">RenderScene</span>(alpha, frameMs);
+    <span class="kw">else</span>                       <span class="fn">WaitForNextActivity</span>();
+}</code></pre>
+<p>Dentro de <code>FixedUpdate</code> el movimiento abandona el factor global (<code>Position += Velocity_perTick</code>).
+El render interpola: <code>renderPos = lerp(prevTickPos, curTickPos, alpha)</code>. Cámara y blend de animación usan
+<code>frameMs</code> (dt real), NO alpha. Durante la migración, <code>FPS_ANIMATION_FACTOR ≡ 1.0</code> para el código aún no portado.</p>
+
+<h2 id="s5"><span class="num">5.</span>Estrategia de migración incremental</h2>
+<p>Scheduler debajo del código actual con <code>FPS_ANIMATION_FACTOR=1.0</code>; migrar subsistema por subsistema.
+Cada etapa = un PR verificable con la prueba de §3.</p>
+<table>
+  <thead><tr><th>#</th><th>Etapa</th><th>Cambiar primero</th><th>Categorías que toca</th><th>Verificación</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td>Instrumentación</td><td>overlay + log CSV (§3/§8)</td><td>—</td><td>baseline E1/E2</td></tr>
+    <tr><td>1</td><td>Scheduler</td><td>acumulador + <code>FixedUpdate</code>; <code>FIXED_DT=40ms</code>; factor≡1.0</td><td>marco para A/B</td><td>velocidad idéntica al baseline a todo FPS</td></tr>
+    <tr><td>2</td><td>Movimiento local</td><td>A → u/tick; snapshot+lerp del Hero</td><td>A</td><td>E1 plano 30↔240; sin jitter</td></tr>
+    <tr><td>3</td><td>Entidades remotas</td><td>interp a estado servidor; buffer de paquetes</td><td>A</td><td>otros players suaves; menos rubber-band</td></tr>
+    <tr><td>4</td><td>Animaciones</td><td>avance lógico en tick; blend con <code>frameMs</code></td><td>A/B</td><td>misma duración 30↔240</td></tr>
+    <tr><td>5</td><td>Cámara cinemática</td><td>portar travel/zoom (cat E) a dt real</td><td>E</td><td>E5 plano</td></tr>
+    <tr><td>6</td><td>Física de efectos</td><td>re-integrar proyectiles/pet/cloth; arreglar B✗; rediseñar C</td><td>D, C, B✗</td><td>E3/E4/E6 planos</td></tr>
+    <tr><td>7</td><td>UI / networking visual</td><td>UI ya usa delta; formalizar buffer de interp</td><td>—</td><td>sin regresión</td></tr>
+    <tr><td>8</td><td>Limpieza</td><td>borrar factor/clamp/REFERENCE_FPS</td><td>todas</td><td><code>grep</code> 0 referencias</td></tr>
+  </tbody>
+</table>
+
+<h2 id="s6"><span class="num">6.</span>Riesgos técnicos</h2>
+<ul>
+  <li><b>Animaciones que asumen 25 fps</b> (comentario ZzzAI.cpp:728): usar <code>FIXED_DT=40ms</code> evita re-tunear.</li>
+  <li><b>Cat D (re-integración)</b>: los arcos de proyectiles cambiarán al pasar a dt fijo — re-tunear constantes para igualar el feel a 25fps; testear alcance/altura.</li>
+  <li><b>Cat C (rediseño)</b>: convertir conteos enteros <code>k/factor</code> en tiempos/ticks; cuidar overflow ya existente (GOBoid BYTE).</li>
+  <li><b>Frame counters absolutos</b> (<code>iFrame</code>, seeds GOBoid): mapear a tick count o <code>WorldTime</code>.</li>
+  <li><b>Interpolación / rubber-band</b>: buffer de 1–2 ticks de retraso, interpolar (no extrapolar) entre estados servidor.</li>
+  <li><b>Desync con servidor</b>: OpenMU es autoridad; la interp es cosmética, snap suave si divergencia &gt; umbral.</li>
+  <li><b>Spiral of death</b>: <code>MAX_STEPS</code> + clamp de <code>frameMs</code> lo cortan.</li>
+</ul>
+
+<h2 id="s7"><span class="num">7.</span>Decisión de renderer</h2>
+<div class="callout"><b>Arreglar el game loop PRIMERO; no migrar engine todavía.</b></div>
+<table>
+  <thead><tr><th>Opción</th><th>¿Resuelve el bug temporal?</th><th>Costo</th><th>Cuándo</th></tr></thead>
+  <tbody>
+    <tr><td>Mantener OpenGL + arreglar loop</td><td class="ok">Sí (causa raíz)</td><td>bajo-medio</td><td><b>ahora</b></td></tr>
+    <tr><td>Modernizar OpenGL (3.3+ core)</td><td class="bad">No</td><td>medio</td><td>después, si draw calls son cuello</td></tr>
+    <tr><td>Abstraer rendering (RHI)</td><td class="bad">No</td><td>medio</td><td>preparar swap futuro</td></tr>
+    <tr><td>Migrar de engine</td><td class="bad">No</td><td>alto</td><td>solo al rehacer assets/tooling</td></tr>
+  </tbody>
+</table>
+<p>El problema es integración temporal por frame, no el pipeline gráfico. Un renderer mejor sin fixed timestep
+<b>amplifica</b> el speedhack (más FPS → más drift en D/C/E). Migrá engine solo al atacar el goal de gráficos — con un loop sano debajo.</p>
+
+<h2 id="s8"><span class="num">8.</span>Instrumentación / overlay de debug</h2>
+<p>Overlay con toggle (F9; ImGui ya disponible en builds <code>-mueditor</code>). Métricas:
+<code>sim_ms</code>/<code>render_ms</code>, <code>updates_per_frame</code> (steps), <code>dropped_updates</code> (steps==MAX),
+<code>interp_alpha</code>, histograma <code>frame_time</code> (p50/p99), <code>fps</code>/<code>fps_avg</code> (ya existen),
+<code>entity_count</code>/<code>particle_count</code>, <code>draw_calls</code>, <code>camera_update_ms</code>/<code>net_drain_ms</code>,
+y la métrica de éxito <b><code>hero_units_per_sec</code></b> (debe ser plana ante cambios de FPS — el log CSV de §3 alimenta esto).</p>
+
+<h2 id="s9"><span class="num">9.</span>Criterios de éxito (verificables)</h2>
+<ol>
+  <li>Hero recorre misma distancia/seg ±2% a 30/60/144/240 fps (E1).</li>
+  <li>Cap a 10 fps: simulación mantiene velocidad (no el 40% actual) — clamp eliminado (E2).</li>
+  <li>Render fluido a 144 fps con sim a 25 tps por interpolación (sin stutter de 25 Hz).</li>
+  <li>Sin spiral of death: stall de 1s no produce avance acelerado posterior.</li>
+  <li>Proyectiles: mismo alcance/arco a 30 y 240 (cat D resuelta — E3).</li>
+  <li>Densidad de partículas/colas idéntica a todo FPS (cat C resuelta — E4).</li>
+  <li>Cutscenes y fades misma duración a todo FPS (cat E/B✗ resueltas — E5/E6).</li>
+  <li><code>grep FPS_ANIMATION_FACTOR</code> → 0 resultados al cerrar la migración.</li>
+</ol>
+
+<h2 id="s10"><span class="num">10.</span>Entregables concretos</h2>
+<ol>
+  <li><code>docs/temporal-architecture.md</code> — este diseño + invariante de 40ms + las 6 categorías.</li>
+  <li><code>Core/Time/SimulationClock</code> — acumulador + fixed-step + <code>MAX_STEPS</code> (reemplaza <code>CalcFPS</code>).</li>
+  <li>Nuevo <code>MainLoop</code> (Winmain.cpp) con sample-input → fixed-update → render(α).</li>
+  <li><code>Render/Interpolation</code> — snapshot prev/cur + <code>lerp</code>; API <code>RenderScene(alpha, frameMs)</code>.</li>
+  <li>Refactor movimiento (A) → unidades por tick.</li>
+  <li>Refactor física de efectos (D): re-integración determinista de proyectiles/pet/cloth.</li>
+  <li>Fix decays rotos (B✗) → forma <code>pow</code>/exponencial.</li>
+  <li>Rediseño de conteos enteros (C) → tiempos/ticks, sin overflow.</li>
+  <li>Port de cámara cinemática (E) a dt real.</li>
+  <li>Buffer de interpolación de red (estado servidor → 1–2 ticks).</li>
+  <li>Performance/debug overlay (§8) con <code>hero_units_per_sec</code>.</li>
+  <li>Benchmark scenes + regression test de velocidad (E1–E6 automatizados).</li>
+</ol>
+
+<div class="callout note">
+  <b>Asunciones restantes.</b> Counts por categoría son estimados; sitios C/E verificados, D/B✗ del barrido
+  (archivo/función correctos, confirmar línea al editar). Orden de integración en algunos cat-D (<code>MoveHumming</code>)
+  no trazado al 100%. <code>MIN_FRAME_TIME_MS=0.001</code> despreciable (no causa el speedhack).
+</div>
+
+<footer>
+  Generado por Claude Code · v2 corregido · I:\MuOnline\MuMain · 2026-06-13<br>
+  Próximo paso sugerido: Etapa 0+1 (overlay + log CSV + scheduler, FIXED_DT=40ms, factor≡1.0) — menor riesgo, deja todo medible.
+</footer>
+
+</div>
+</body>
+</html>
