@@ -1240,6 +1240,46 @@ void SendRequestAction(OBJECT& obj, BYTE action)
 int ItemKey = 0;
 int ActionTarget = -1;
 
+namespace
+{
+    // Server-authoritative auto-attack intent (Phase 1 of the L2-style move-off-client work):
+    // the client announces "I am engaging this target" once per engagement instead of relying on
+    // the server inferring intent from every per-swing HitRequest. The server runs the swing
+    // cadence; the client still sends HitRequest below for now (see the Phase 2 TODO at the swing
+    // site). These statics only track *what we last told the server* so we emit one intent on
+    // engage and one stop on disengage -- they are not gameplay state, just send-debounce state.
+    uint32_t g_AttackIntentSeq = 0;       // Monotonic input-sequence; lets the server correlate intents.
+    int g_LastAttackIntentTargetKey = -1; // Server target key of the active engagement, -1 when disengaged.
+
+    // Begin/refresh an auto-attack engagement on targetKey. Sends exactly one AttackIntent when the
+    // engaged target changes; repeat calls for the same target are no-ops (no per-swing spam).
+    void SendAttackIntentIfNewEngagement(int targetKey, BYTE animationHint)
+    {
+        if (targetKey < 0 || targetKey == g_LastAttackIntentTargetKey)
+        {
+            return;
+        }
+
+        g_LastAttackIntentTargetKey = targetKey;
+        constexpr BYTE kAttackIntentKindMelee = 0;
+        SocketClient->ToGameServer()->SendAttackIntent(
+            ++g_AttackIntentSeq, static_cast<uint16_t>(targetKey), kAttackIntentKindMelee, animationHint);
+    }
+
+    // End the current auto-attack engagement. Sends exactly one StopAttackIntent if an engagement
+    // was active; a no-op when already disengaged.
+    void SendStopAttackIntentIfEngaged()
+    {
+        if (g_LastAttackIntentTargetKey < 0)
+        {
+            return;
+        }
+
+        g_LastAttackIntentTargetKey = -1;
+        SocketClient->ToGameServer()->SendStopAttackIntent(++g_AttackIntentSeq);
+    }
+}
+
 void Action(CHARACTER* c, OBJECT* o, bool Now)
 {
     float Range = 1.8f;
@@ -1261,7 +1301,11 @@ void Action(CHARACTER* c, OBJECT* o, bool Now)
         }
 
         if (ActionTarget == -1)
+        {
+            // The attack movement lost its target -> the engagement is over; tell the server once.
+            SendStopAttackIntentIfEngaged();
             return;
+        }
 
         // To debounce repeat left-clicks while a swing animation is still
         // playing, gate on a small *include* list of the actual swing
@@ -1309,6 +1353,15 @@ void Action(CHARACTER* c, OBJECT* o, bool Now)
         c->TargetCharacter = ActionTarget;
         int Dir = ((BYTE)((Hero->Object.Angle[2] + 22.5f) / 360.f * 8.f + 1.f) % 8);
         c->Skill = 0;
+
+        // Announce the engagement once (on target change) so the server can drive the swing cadence
+        // itself. AnimationHint mirrors the legacy HitRequest's AttackAnimation so observers animate.
+        SendAttackIntentIfNewEngagement(CharactersClient[ActionTarget].Key, AT_ATTACK1);
+
+        // TODO Phase 2 (needs runtime tuning): replace per-swing HitRequest with intent-only +
+        // client-side prediction/reconciliation. The server already runs an authoritative cadence
+        // loop from AttackIntent; this per-swing HitRequest stays only until prediction lands so the
+        // current feel (local swing timing/damage echo) is preserved.
         SocketClient->ToGameServer()->SendHitRequest(CharactersClient[ActionTarget].Key, AT_ATTACK1, Dir);
     }
     break;
@@ -2898,6 +2951,16 @@ void MoveHero()
 
     if (c->Object.Live == 0)
         return;
+
+    // Catch-all disengage: `Attacking` is cleared to -1 from many code paths (target died, manual
+    // stop, zone change, skill cast, selection cleared) across several files. Rather than emit a
+    // StopAttackIntent at each of those sites, observe the flag here in the per-frame hero loop and
+    // send exactly one stop when an engagement we announced has ended. SendStopAttackIntentIfEngaged
+    // is a no-op when not engaged, so this stays cheap on the hot path (no alloc, one int compare).
+    if (Attacking == -1)
+    {
+        SendStopAttackIntentIfEngaged();
+    }
 
     if (HandleHeroPositionSlide(c))
     {
