@@ -30,6 +30,7 @@ FrameTimingState g_frameTiming;
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Engine/Physics/PhysicsManager.h"
 #include "Core/Time/Timer.h"
+#include "Core/Time/SimulationClock.h"
 #include "Core/Input/Input.h"
 #include "Core/Diagnostics/TemporalCsvLogger.h"
 #include "UI/Legacy/UIMng.h"
@@ -1048,15 +1049,40 @@ void RenderScene(HDC hDC)
     CalcFPS();
     UpdateSceneState();
 
+    // Stage 1b: advance the main-scene world at a fixed 25 tps, decoupled from
+    // the render frame rate. The number of steps comes from real elapsed wall
+    // time (WorldTime delta), so raising or lowering FPS no longer speeds up or
+    // slows down the game. Input/UI already ran once in UpdateSceneState above;
+    // only the world (MainSceneFixedUpdate) is stepped here. SimulationClock
+    // clamps stalls and caps steps to avoid the spiral of death.
+    int   simSteps = 0;
+    float simAlpha = 0.0f;
+    if (SceneFlag == MAIN_SCENE)
+    {
+        static Core::Time::SimulationClock s_simClock;
+        static double s_prevWorldMs = WorldTime;   // first frame -> 0 delta
+        const double frameMs = WorldTime - s_prevWorldMs;
+        s_prevWorldMs = WorldTime;
+
+        const auto step = s_simClock.Advance(frameMs);
+        for (int i = 0; i < step.steps; ++i)
+        {
+            MainSceneFixedUpdate();
+        }
+
+        simSteps = step.steps;
+        simAlpha = step.alpha;   // render interpolation factor, consumed in Stage 2
+    }
+
     // Stage 0 temporal instrumentation: record hero speed against frame rate so
     // every later stage can be verified against this baseline. Off (and free)
-    // unless MU_TEMPORAL_CSV is set; steps/alpha stay 0 until Stage 1b. Sampled
-    // after UpdateSceneState() so the position reflects this frame's movement.
+    // unless MU_TEMPORAL_CSV is set. Sampled after the fixed steps so the
+    // position reflects this frame's movement, with the actual steps/alpha.
     if (auto& csv = Core::Diagnostics::TemporalCsvLogger::Instance();
         csv.Enabled() && SceneFlag == MAIN_SCENE && Hero != nullptr)
     {
         csv.LogFrame(WorldTime, FPS, Hero->Object.Position[0],
-                     Hero->Object.Position[1], 0, 0.0f);
+                     Hero->Object.Position[1], simSteps, simAlpha);
     }
 
     // Drive auto-reconnect after the scene loops have advanced this frame. It

@@ -337,9 +337,28 @@ void MoveMainScene()
     if (ErrorMessage != 0)
         MouseOnWindow = true;
 
-    UpdateGameEntities();
-
+    // Stage 1b: the world advance (UpdateGameEntities) moved to
+    // MainSceneFixedUpdate(), driven at a fixed 25 tps by RenderScene. This
+    // function now runs once per render frame (init, gating, UI, input) only.
     g_ConsoleDebug->UpdateMainScene();
+}
+
+/**
+ * @brief Advances the game world by one fixed simulation tick (25 tps).
+ *
+ * Called N times per render frame by the fixed-timestep driver in RenderScene
+ * (N derived from real elapsed wall time), so the world advances at a constant
+ * rate independent of frame rate. Guarded by EnableMainRender like
+ * MoveMainScene so the world does not tick before the server join completes.
+ */
+void MainSceneFixedUpdate()
+{
+    if (EnableMainRender == false)
+    {
+        return;
+    }
+
+    UpdateGameEntities();
 }
 
 /**

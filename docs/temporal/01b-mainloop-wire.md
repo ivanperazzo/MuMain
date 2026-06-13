@@ -128,6 +128,19 @@ Cambio acotado a 4 archivos. Rollback = `git revert` del commit de la etapa o `g
 
 ---
 
+## Refinamiento as-built (implementado)
+
+Tras leer el dispatch de escenas, el diseño se **concentró en `RenderScene` y se acotó a `MAIN_SCENE`**, más simple y de menor riesgo que la propuesta original (que tocaba `Winmain.cpp` y cambiaba la firma de `RenderScene`):
+
+- **`Winmain.cpp` NO se toca.** El acumulador vive en `RenderScene` (que ya corre 0..1 vez por frame, gated por `CheckRenderNextFrame`). `Advance()` se llama una vez por **frame de render** con el delta `WorldTime` desde el render anterior → la deuda sub-tick queda en el acumulador. Sin pérdida de steps entre frames.
+- **Fixed-step solo en `MAIN_SCENE`.** Las escenas de menú (login/character/loading) siguen corriendo una vez por render con su compensación `FPS_ANIMATION_FACTOR` clampeada intacta. Por eso `CalcFPS` fuerza `factor=1.0` **solo** si `SceneFlag==MAIN_SCENE`; el resto mantiene `clamp(REFERENCE_FPS/FPS)`. Esto evita un speedhack de menú y hace que el smoke-test de login/character sea representativo.
+- **Costura real:** `UpdateGameEntities()` se extrajo de `MoveMainScene()` a una función pública nueva **`MainSceneFixedUpdate()`** (mundo). `MoveMainScene()` queda con init/gating/UI/**input** (corre una vez por frame vía `UpdateSceneState`, satisfaciendo "input una vez por frame de render" sin refactor cross-scene). `RenderScene` corre `for(steps) MainSceneFixedUpdate()`.
+- **Firma intacta:** `RenderScene(HDC)` no cambia; `alpha` se calcula y queda disponible (`simAlpha`) para que Stage 2 lo consuma. El CSV ahora registra `steps`/`alpha` reales.
+
+Archivos realmente tocados: `Engine/AI/ZzzAI.cpp` (CalcFPS), `Scenes/MainScene.cpp` + `.h` (split), `Scenes/SceneManager.cpp` (driver en RenderScene). `Winmain.cpp`, `SceneCore.h` → **sin cambios**.
+
+> **Verificación:** test puro `tests/time/test_fixedstep_drive.cpp` (driver con jitter, invariancia de ticks). Empírico E1/E2 **diferido** — el cliente no conecta al server mientras está en curso el trabajo de servidor autoritativo (ver memoria `authoritative-server-empirical-deferred`). Smoke-test posible: login/character (corren sin server).
+
 ## Decisiones tomadas (Gate A — aprobado)
 
 1. **Input rate:** **una vez por frame de render.** `UpdateUIAndInput()` se **extrae** de `MoveMainScene()` y se llama una sola vez en el path de render (no N veces en el tick fijo). `UpdateGameEntities()` (mundo) queda en el tick fijo. Implica refactor de `MoveMainScene` (separar input de mundo) — parte de la cirugía 1b.
