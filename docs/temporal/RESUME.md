@@ -1,11 +1,10 @@
 # Desacople temporal — Estado y guía de reanudación
 
-> **Pausado a propósito** (junio 2026) a pedido del usuario: *"dejemos el avance grabado en un md y luego retomo una vez finalizado lo del servidor."*
-> Se retoma cuando el trabajo de **servidor autoritativo** esté listo y el cliente vuelva a **conectar** (hoy los cambios de packets impiden la conexión → no se puede verificar nada en runtime/`MAIN_SCENE`).
+> **Estado (junio 2026):** Stage 1b **verificado empíricamente** (tag `temporal/stage-01b`). El cliente temporal **conecta** al server local (vía cmd/bat, sin fix de código — ver `authoritative-server-empirical-deferred` en memoria). Siguiente: Stage 2.
 
 ## TL;DR
 
-El cambio central — **desacoplar la simulación del FPS de render (fix del speedhack)** — está **implementado y commiteado** en código, con tests puros verdes. Lo único que falta es la **verificación empírica en runtime** (baseline + E1–E6), bloqueada por el server. Todo el trabajo vive aislado en una worktree/branch propia; **no afecta `main` ni el trabajo de servidor**.
+El cambio central — **desacoplar la simulación del FPS de render (fix del speedhack)** — está **implementado, commiteado y verificado en runtime**: velocidad del Hero plana a 30/60/144 FPS (288/283/301 u/s, ver `01b-results.md`). Todo el trabajo vive aislado en una worktree/branch propia; **no afecta `main` ni el trabajo de servidor**. El cliente temporal conecta al OpenMU local lanzándolo por `run-temporal-client.bat`.
 
 ## Dónde vive todo
 
@@ -29,7 +28,7 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 |---|---|---|---|
 | 0 — MovementProbe + CSV | ✅ | ✅ 3/3 | ⏸ baseline diferido |
 | 1 — SimulationClock | ✅ | ✅ 6/6 | n/a (puro) |
-| 1b — fixed-step MAIN_SCENE | ✅ | ✅ 2/2 | ⏸ E1/E2 + runtime diferido |
+| 1b — fixed-step MAIN_SCENE | ✅ | ✅ 2/2 | ✅ E1 verificado (tag stage-01b); E2 pendiente |
 | 2 — movimiento local (interp) | 📄 deep-dive listo (Gate A sin aprobar) | — | ⏸ |
 | 3–8 | ⬜ pendiente | — | ⏸ |
 
