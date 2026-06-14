@@ -61,21 +61,26 @@ Quedan más, listados abajo, repartidos por etapa.
 
 ## Issues abiertos
 
-### #1 — Crash de shutdown del cliente (exit 139 / SIGSEGV) — ABIERTO
-- **Síntoma:** al CERRAR el cliente, segfault (exit 139). Reproducible en cada cierre
-  de las corridas de prueba (Stage 3 y 4a).
-- **Evidencia:** `MuError.log` termina en teardown de bitmaps (`Bitmap Data\... RefCount`)
-  + línea `Destroy`. El crash es en el path de destrucción, post-sesión.
-- **Impacto:** NINGUNO sobre la sesión ni la captura de CSV (la data se escribe completa
-  antes del cierre). Molesto, no bloqueante.
-- **No confirmado** que derive del desacople (puede ser pre-existente). Investigar aparte:
-  correr bajo debugger, ver orden de destrucción de singletons/recursos GL.
+### #1 — Crash de shutdown del cliente (exit 139 / SIGSEGV) — ✅ RESUELTO (commit 8465d990)
+- **Síntoma:** al CERRAR el cliente, segfault (exit 139), en cada cierre desde Stage 3.
+- **Causa real (localizada con cdb):** null deref en
+  `std::_Hash<...FrameTimerScheduler::Timer...>::_Find_last` (ecx=0) = operación de mapa
+  sobre `m_timers` ya liberado. **Fiasco de orden de destrucción estática:** otros
+  globals/statics (UI widgets, buff timers) llaman `Kill()`/`SetRepeating()` desde SUS
+  destructores al salir, después de que el Meyers-singleton `FrameTimerScheduler` ya se
+  destruyó → mapa liberado. Pre-existente, NO derivado del desacople.
+- **Fix:** heap-allocate el singleton y nunca destruirlo (leak intencional) →
+  `m_timers` válido durante todo el teardown estático. Verificado con cdb: cierre limpio
+  (exit 0, sin AV).
 
-### #2 — Pose del cuerpo choppy a alto FPS (Stage 4b, P2) — PENDIENTE
-- `o->AnimationFrame` del cuerpo avanza en sim @25Hz; `BMD::Animation` interpola por la
-  fracción, pero la fracción queda congelada entre ticks ⇒ miembros a 25 fps aunque la
-  posición sea suave. Plan: blend de pose entre ticks (snapshot `prevAnimationFrame` por
-  entidad + lerp por alpha). Ver `04-animaciones.md` §P2. Decidido: 4b aparte.
+### #2 — Pose del cuerpo choppy a alto FPS (Stage 4b, P2) — ✅ RESUELTO (commit 0b1de350, tag stage-04b)
+- Implementado: blend de pose entre ticks (`Render::AnimInterp`), estado prev en arrays
+  paralelos (NO en OBJECT), toggle `$poseinterp` default ON. Verificado: @~60fps la pose
+  render avanza 97.3% de frames vs 41.9% la cruda. Ver `04-animaciones.md` §4b.
+- **Lección (regla nueva):** NO agregar estado de render al struct `OBJECT`
+  (`w_ObjectInfo.h`, header incluidísimo). El 1er intento lo hizo → el cliente crasheaba
+  **antes del server-select**. Usar arrays paralelos en `Render::Interpolation` (patrón
+  Stage 3). Confirmado con cdb que el revert lo arregló.
 
 ### #3 — Sitios render-path con factor=1.0 sin compensar — PENDIENTE (por etapa)
 - Efectos/partículas, física, cámara cinemática, agua, decays de luz de mapas. Ver
@@ -89,12 +94,34 @@ Quedan más, listados abajo, repartidos por etapa.
   Arreglar el índice si se vuelve a usar la métrica (1). `analyze_anim.py` ya usa el
   esquema 10-col correcto.
 
-## Esquema CSV actual (10 col) — `TemporalCsvLogger`
+## Debugging de crashes (cdb / WinDbg)
+
+WinDbg instalado (winget `Microsoft.WinDbg`). El cdb x86 (para el cliente x86) está en
+`C:\Users\ipera\AppData\Local\Microsoft\WindowsApps\cdbX86.exe`. Receta para capturar el
+stack de un crash sin IDE (lo que localizó el #1):
+
+```bash
+export MSYS2_ARG_CONV_EXCL="*"          # no manglear /u /p
+cd <Debug dir>                          # cwd = donde está Main.exe (assets/DLLs)
+CDB="/c/Users/ipera/AppData/Local/Microsoft/WindowsApps/cdbX86.exe"
+"$CDB" -g -G -lines -cf "<repo>/cdb-crash.txt" "$PWD/Main.exe" connect /u127.0.0.1 /p44406
+```
+
+`cdb-crash.txt` (en el root del worktree):
+```
+sxe -c "kvn 80;.echo ===CDB-CRASH-STACK-END===;qd" av
+g
+```
+En cualquier access-violation (arranque, runtime o shutdown) vuelca el call stack y sale.
+Necesita `Main.pdb` junto al exe (build Debug ya lo genera).
+
+## Esquema CSV actual (12 col) — `TemporalCsvLogger`
 
 ```
-t_ms, fps, hero_x, hero_y, hero_render_x, hero_render_y, hero_units_per_sec, steps, interp_alpha, frame_ms
-  0    1      2       3          4              5                6             7        8            9
+t_ms, fps, hero_x, hero_y, hero_render_x, hero_render_y, hero_units_per_sec, steps, interp_alpha, frame_ms, hero_anim, hero_anim_render
+  0    1      2       3          4              5                6             7        8            9        10          11
 ```
 - `hero_x/y` = posición cruda de sim (salta @25Hz). `hero_render_x/y` = interpolada (Stage 2/3).
 - `steps` = ticks de sim ese frame. `interp_alpha` = alpha de render. `frame_ms` = duración real del frame (Stage 4a).
-- Analizadores: `analyze.py` (velocidad), `analyze_interp.py` (interp render vs raw), `analyze_anim.py` (tasa de avance de animación).
+- `hero_anim` = frame de animación del cuerpo crudo; `hero_anim_render` = interpolado (Stage 4b).
+- Analizadores: `analyze.py` (velocidad), `analyze_interp.py` (interp posición render vs raw), `analyze_anim.py` (tasa de avance de animación 4a), `analyze_pose.py` (suavidad de pose 4b).

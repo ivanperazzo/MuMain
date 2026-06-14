@@ -1,6 +1,6 @@
 # Desacople temporal — Estado y guía de reanudación
 
-> **Estado (junio 2026):** Stages 1b, 2, 3 y 4a **verificados empíricamente con logs** (tags `temporal/stage-01b`, `-02`, `-03`, `-04a`). El cliente temporal **conecta** al server local. Siguiente: **Stage 4b** (suavidad de pose del cuerpo) o Stage 5 (cámara). **Antes de tocar animación/física/efectos/cámara: leer [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md)** (riesgos derivados del factor=1.0).
+> **Estado (junio 2026):** Stages 1b, 2, 3, 4a y 4b **verificados empíricamente con logs** (tags `-01b`, `-02`, `-03`, `-04a`, `-04b`). **Stage 4 COMPLETO.** Bonus: crash de shutdown (exit 139) **localizado con cdb y arreglado** (`FrameTimerScheduler`). El cliente conecta, entra al mundo y **cierra limpio**. Siguiente: **Stage 5** (cámara cinemática, user-gate). **Antes de tocar animación/física/efectos/cámara: leer [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md)** (riesgos del factor=1.0 + regla: no meter estado de render en `OBJECT`).
 >
 > **Lanzar cliente (recetas que funcionan):** `Main.exe` directo desde Bash con `export MSYS2_ARG_CONV_EXCL="*"` (evita el mangle de `/u.../p...`) + `cd` al dir `Debug` + path absoluto al exe. Para capturar CSV: `export MU_TEMPORAL_CSV="<path absoluto>"` antes. El `run-temporal-client.bat` falla por `cmd.exe //c` con paths relativos (NoDefaultCurrentDirectoryInExePath). **No lanzar sin OK del usuario.**
 
@@ -18,6 +18,8 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 
 | Commit | Qué |
 |---|---|
+| `0b1de350` | **Stage 4b** — pose del cuerpo suave entre ticks (tag `temporal/stage-04b`) |
+| `8465d990` | **fix** — leak de `FrameTimerScheduler` → cierre limpio (mata exit-139) |
 | `36db325b` | **Stage 4a** — avance de animación render-path independiente del FPS (tag `temporal/stage-04a`) |
 | `deaf8a18` | **Stage 3** — interp de render de entidades remotas + toggle `$interp` (tag `temporal/stage-03`) |
 | `22bf9c6a` | **Stage 2** — interp de render del Hero (tag `temporal/stage-02`) |
@@ -37,7 +39,7 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 | 2 — movimiento local (interp Hero) | ✅ | ✅ 4/4 | ✅ visual suave + regresión 1.8% (tag stage-02) |
 | 3 — entidades remotas (interp + `$interp`) | ✅ | ✅ reusa 4/4 | ✅ logs: render-mov 64.8% vs raw 24.3% @144; toggle off→render==raw 100% (tag stage-03) |
 | 4a — animación render-path (partes) | ✅ | ✅ 5/5 | ✅ logs: tasa avance plana 25.0/s @30/60/144 (vs OLD ∝FPS) (tag stage-04a) |
-| 4b — pose del cuerpo suave (P2) | ⬜ pendiente | — | — |
+| 4b — pose del cuerpo suave (P2) | ✅ | ✅ 7/7 | ✅ logs: pose render-chg 97.3% vs raw 41.9% @60; render≠raw 95.4% (tag stage-04b) |
 | 5–8 | ⬜ pendiente | — | — |
 
 **Tests puros totales: 11 casos / 23 assertions, todo verde.** Build `Main.exe` exit 0.
@@ -64,9 +66,9 @@ cmd.exe /c "C:\Users\ipera\AppData\Local\Temp\mu_build.bat cmake --build --prese
 ./out/build/windows-x86/tests/time/Debug/test_fixedstep_drive.exe
 ```
 
-## Cómo retomar (Stage 4b en adelante)
+## Cómo retomar (Stage 5 en adelante)
 
-1. **Siguiente = Stage 4b (suavidad de pose) o Stage 5 (cámara).** 4a ya cerró el avance render-path de partes (`RenderLinkObject`). 4b = blend de pose del cuerpo entre ticks (P2 en `04-animaciones.md`): snapshot `prevAnimationFrame` por entidad + lerp por alpha, para que los miembros no se vean a 25 fps a alto FPS. Ver plan `docs/superpowers/plans/2026-06-13-temporal-decoupling.md`.
+1. **Siguiente = Stage 5 (cámara cinemática) — USER-GATE.** Portar travel/zoom de la cámara cinemática (sitios cat E en `CameraMove.cpp` 388-389, 402-407, 428-429) a dt real, para que cutscenes duren igual a todo FPS. Es render-path con factor=1.0 → acoplado (ver `KNOWN-ISSUES.md` #3). Flujo: deep-dive `05-camara-cinematica.md` → Gate A → función pura + doctest (`tests/camera`) → integración → log → commit + tag. Plan: `docs/superpowers/plans/2026-06-13-temporal-decoupling.md`.
 2. **Flujo por etapa:** deep-dive doc → Gate A (OK del usuario) → función pura + doctest → integración → verificar empírico con **logs/CSV** → commit + tag `temporal/stage-0N`.
 3. **Verificación = logs, no inspección visual.** El usuario entra in-game y hace las acciones pedidas; la prueba debe dejar CSV analizable (extender `TemporalCsvLogger` + analizador en `baseline/`). **No lanzar el cliente sin OK explícito.**
 4. **Toggles en chat para A/B en vivo:** `$vsync off`, `$fps <n>` (`-1`=ilimitado), `$interp on/off`.
@@ -84,7 +86,8 @@ cmd.exe /c "C:\Users\ipera\AppData\Local\Temp\mu_build.bat cmake --build --prese
 - **No lanzar el cliente sin OK del usuario** (él coordina el estado del server). Memoria: `no-launch-client-without-confirmation`.
 - **Toda verificación se apoya en logs analizables** (CSV crudo vs render), no solo inspección visual.
 - El cliente temporal **conecta** al server local; la verificación empírica ya **no** está diferida.
-- **Issues abiertos:** ver [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md) — crash de shutdown (exit 139), pose choppy 4b, sitios render-path con factor=1.0 sin compensar (efectos/física/cámara). No bloquean.
+- **Issues:** ver [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md). Resueltos: #1 crash shutdown (exit 139, `FrameTimerScheduler`), #2 pose choppy (4b). Abierto #3: sitios render-path con factor=1.0 sin compensar (efectos/física → Stage 6; cámara → Stage 5). No bloquean.
+- **Debugger:** WinDbg instalado; cdb x86 en `WindowsApps/cdbX86.exe`. Receta de captura de stack en `KNOWN-ISSUES.md` (`cdb-crash.txt`).
 
 ## Índice de docs
 
