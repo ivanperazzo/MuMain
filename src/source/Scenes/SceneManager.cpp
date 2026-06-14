@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <numeric>
+#include <cstdlib>      // getenv_s (MU_FPS overlay toggle)
 #include "SceneManager.h"
 #include "Core/Utilities/FrameProfiler.h"
 
@@ -81,7 +82,11 @@ static bool g_bShowDebugInfo =
 #ifdef _DEBUG
     true;
 #else
-    false;
+    // Release: off by default, but MU_FPS=1 turns on the debug overlay (FPS / avg / 1%%
+    // low / frame ms + the per-pass "Frame ms T/O/C/I/E" breakdown) so perf can be read
+    // in a Release build without a debug toggle. Also toggleable in-game via the key.
+    [] { char b[8] = {}; size_t n = 0;
+         return getenv_s(&n, b, sizeof(b), "MU_FPS") == 0 && n > 0 && b[0] == '1'; }();
 #endif
 
 static bool g_bShowFpsCounter = false;

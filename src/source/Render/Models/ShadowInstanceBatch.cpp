@@ -108,13 +108,17 @@ namespace Render::Models
         const GLint iBase = sh.AttrPaletteBase(), iScale = sh.AttrBodyScale(),
                     iOrig = sh.AttrBodyOrigin(), iGround = sh.AttrGroundZ();
 
-        // Replicate RenderBodyShadow's GL state: alpha test off, 50% alpha blend,
-        // no depth write (depth test stays on so shadows are occluded by geometry in
-        // front), stencil INCR/ALWAYS (matches the legacy default stencil func).
+        // Replicate RenderBodyShadow's GL state THROUGH the cached state helpers
+        // (EnableAlphaTest/DisableTexture/DisableDepthMask) — NOT raw glEnable/glDepthMask.
+        // The helpers track AlphaBlendType/TextureEnable/depth-mask in statics to elide
+        // redundant GL calls; bypassing them with raw calls desyncs the cache, so a later
+        // DisableDepthMask()/EnableAlphaBlend() (e.g. the elf-wing additive effect) becomes
+        // a no-op against stale cache -> wrong depth-mask/blend -> screen flicker.
+        // EnableAlphaTest(false): blend = SRC_ALPHA/ONE_MINUS_SRC_ALPHA (50% black over bg),
+        // alpha test on; depth test stays on so shadows are occluded by geometry in front.
         EnableAlphaTest(false);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glDepthMask(GL_FALSE);
+        DisableTexture();      // shader outputs solid uColor; keep the texture cache in sync
+        DisableDepthMask();    // shadows must not write depth
         glEnable(GL_STENCIL_TEST);
         glStencilFunc(GL_ALWAYS, 0, 0xFFFFFFFF);
         glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
@@ -165,8 +169,11 @@ namespace Render::Models
         BindBuffer(GL_ARRAY_BUFFER, 0);
         UseProgram(0);
 
+        // Restore through the cached helpers (mirror legacy RenderBodyShadow's end-state:
+        // depth write on, stencil off) + EnableAlphaTest() = the opaque end-state InstFlush
+        // guaranteed, so downstream effects/legacy draws see a consistent cached state.
         glDisable(GL_STENCIL_TEST);
-        glDepthMask(GL_TRUE);
+        EnableDepthMask();
         EnableAlphaTest();
     }
 
