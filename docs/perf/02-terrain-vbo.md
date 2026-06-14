@@ -96,3 +96,65 @@ pantalla el motor llega a 573 fps (debug) ⇒ el techo lo pone el BMD, no el res
 
 **P2 descartado por datos** (terreno ~2 ms). Pivot al render BMD a GPU (props estáticos a VBO
 rígido + GPU skinning de personajes). Siguiente doc: `03-bmd-gpu.md`.
+
+---
+
+## REVIVIDO (jun 2026) — aprobado por el usuario pese a ROI modesto (~2ms)
+
+Tras completar chrome-instancing + skip-skin (chars 60→11ms harness) y descartar UI/threading
+como rediseños grandes, el terreno vuelve como única palanca limpia/bajo-riesgo. Datos hoy lo
+confirman: terreno **~2ms crowded, ~2.5ms empty** (empty 5-7ms total → terrain VBO lo baja a
+~3-4ms = 200→~300fps; NO llega a 500, falta objects+UI+loop). El usuario eligió hacerlo igual
+(ahorro + calienta pipeline VBO).
+
+### Enfoque elegido: **A+ (batched fixed-function, sin shader)**
+
+Interceptar los `Vertex*()` (que YA tienen pos/uv/color calculados por frame en globals) para
+**acumular en buckets por (textura, modo-estado)** en vez de `glBegin/glVertex`; al final de
+cada pasada, **un `glDrawArrays(GL_QUADS)` por bucket**. Colapsa miles de `glBegin`+binds en
+~N-textura draws. Sin shader (textura única por bucket; color per-vértice via color-array;
+alpha en el canal A). Geometría/uv estáticos pero el color (`PrimaryTerrainLight`, dinámico por
+`AddTerrainLight`) va en el array cada frame — igual que ya se recalcula.
+
+### Puntos de interceptación exactos (`ZzzLodTerrain.cpp`)
+
+- **Helper** `EmitTerrainVertex(const float pos[3], float u,float v, float r,float g,float b,float a)`:
+  si `g_TerrainBatch` → `s_curBucket->push(pos,uv,rgba)` (9 floats); si no → `glTexCoord2f`+
+  `glColor4f`+`glVertex3fv` (legacy idéntico).
+- **Reescribir** `Vertex0..3` (1229-1255), `VertexAlpha0..3` (1292-1322), `VertexBlend0..3`
+  (1364-1394) para llamar `EmitTerrainVertex` con sus mismos pos/uv/color (Vertex* → a=1;
+  VertexAlpha* → a=`TerrainMappingAlpha[idx]`; VertexBlend* → rgb=alpha, a=1). Los LOD
+  (`Vertex01/12/23/30/02`+alpha) quedan legacy (LOD desactivado, `lodi=1`); gate batch solo
+  cuando no haya subdivisión, o rutarlos también si aparece regresión.
+- **`RenderFace`/`RenderFace_After`/`RenderFaceAlpha`/`RenderFaceBlend`** (1396-1505): conservar
+  el if-chain que decide el modo-estado (`EnableAlphaTest`/`DisableAlphaBlend`/`EnableAlphaBlend`
+  por mapa+textura) PERO en batch mode, en vez de setear GL+`glBegin`, hacer
+  `s_curBucket = &BucketFor(BITMAP_MAPTILE+Texture, modeFlag)` y llamar los 4 `Vertex`. modeFlag
+  ∈ {DISABLE_BLEND, ALPHA_TEST, ALPHA_BLEND}.
+- **`TerrainBatchFlush()`** nuevo: ordenar buckets por modo (DISABLE_BLEND → ALPHA_TEST →
+  ALPHA_BLEND, preserva "overlay después de base"; tiles coplanares distintos → orden intra-modo
+  irrelevante). Por bucket: aplicar estado, `BindTexture`, `glEnableClientState`+`glVertexPointer/
+  glTexCoordPointer/glColorPointer` (stride 9*4, interleaved) + `glDrawArrays(GL_QUADS,0,n)`.
+  Limpiar buckets. Llamar al final de cada `RenderTerrainFrustrum` (o tras cada pasada en
+  `RenderTerrain`: normal + grass).
+- **Flag** `g_TerrainBatch` = env `MU_TERRAINVBO` (default OFF → legacy intacto). Leer lazy.
+
+### Formato de vértice del bucket
+`struct V { float x,y,z, u,v, r,g,b,a; }` (9 floats). `std::unordered_map<uint64_t,Bucket>`
+key = `(texture<<8)|modeFlag`. Reusar entre frames (clear, no free).
+
+### Verificación
+Harness no cubre terreno bien (login town) → validar **in-game A/B**: `MU_TERRAINVBO=0` vs `1`
+mismo spot, comparar screenshot (sin regresión: agua animada, grass, alpha entre texturas,
+bordes) + leer `terrain=` del log `[frame]` (esperado ~2→~0.4ms). Probar varios mapas
+(Lorencia, Devias-agua, Atlans-agua, un mapa con grass). Cuidado casos especiales (Kanturu3rd,
+CursedTemple, Empire, Karutan, BattleCastle agua reversa).
+
+### Incrementos
+1. Infra: helper + buckets + flush + flag (compila, flag OFF).
+2. Rutar Vertex0..3 + RenderFace (base opaca) → A/B Lorencia.
+3. VertexAlpha + RenderFaceAlpha (overlay) → A/B mapa con blend.
+4. VertexBlend + RenderFaceBlend + agua → A/B Devias/Atlans.
+5. Grass pass → A/B. 6. Medir, commit detrás de MU_TERRAINVBO.
+
+**Estado: PLAN FIJADO, listo para implementar** (interceptación mapeada). Pendiente: ejecutar.
