@@ -43,7 +43,7 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 | 4a — animación render-path (partes) | ✅ | ✅ 5/5 | ✅ logs: tasa avance plana 25.0/s @30/60/144 (vs OLD ∝FPS) (tag stage-04a) |
 | 4b — pose del cuerpo suave (P2) | ✅ | ✅ 7/7 | ✅ logs: pose render-chg 97.3% vs raw 41.9% @60; render≠raw 95.4% (tag stage-04b) |
 | 5 — cámara cinemática | ⏸ diferido a Stage 8 | — | login-only, no roto (ver `05-camara-cinematica.md`) |
-| 6a — decays/lifetimes/timers de efectos | ✅ | ✅ 6/6 | ✅ logs: decay lineal plano 25.0/s @30/60/144 (disp 0.0%) + exp 0.8²⁵ a todo FPS (tag stage-06a) |
+| 6a — decays/lifetimes/timers de efectos | ✅ | ✅ 6/6 | ✅ **in-game glue real** (run09): lineal 25/s (disp 0.4%) + exp 0.8²⁵ @30/60/144; eff_step~dt OK (tag stage-06a) |
 | 6b–6c, 7–8 | ⬜ pendiente | — | — |
 
 **Tests puros totales: 29 casos / 70 assertions, todo verde.** Build `Main.exe` exit 0.

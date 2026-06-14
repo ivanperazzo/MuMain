@@ -118,6 +118,18 @@ no decays per-frame; en MAIN_SCENE con factor=1.0 YA son correctos y el swap los
   ya capturada):
   - **Decay lineal:** NEW **25.0/s** plano @30/60/144 (disp **0.0%**) vs OLD 30/67/100 (∝FPS = bug).
   - **Decay exp:** NEW **0.0038 = 0.8²⁵** a todo FPS; OLD colapsa a ~0 (0.8^FPS) a alto FPS.
-- Pendiente opcional: captura in-game de un fade/lifetime real (gateada por launch del usuario).
+- **Empírico in-game (glue REAL, no por equivalencia):** se agregaron columnas
+  `eff_step`/`eff_decay` al CSV (14-col) que muestrean `EffectStep()`/`EffectDecayExp(0.8)`
+  vivos 1×/frame en MAIN_SCENE. Captura `baseline/run09_s6a.csv` (7674 frames, $fps 30/60/144),
+  `analyze_effect_live.py`:
+  | bin FPS | lineal/s | exp/s | eff_step~dt |
+  |---|---|---|---|
+  | ~30 | 24.91 | 0.0039 | OK |
+  | ~60 | 25.00 | 0.0038 | OK |
+  | ~144 | 25.00 | 0.0038 | OK |
 
-**Commit/tag:** `temporal/stage-06a`.
+  lineal plano ~25/s (disp **0.4%**), exp = **0.8²⁵** a todo FPS, y `eff_step~dt = OK` ⇒ el
+  glue resolvió a `clamp(frame_ms)/40` en **runtime** (no al 1.0 fijado). Esto prueba el path
+  vivo que el doctest puro stubea. El cliente cerró limpio (exit 0).
+
+**Commit/tag:** `temporal/stage-06a` (+ probe `84aabec8`). CSV: `run09_s6a.csv`.
