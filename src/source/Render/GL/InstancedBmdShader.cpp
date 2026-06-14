@@ -14,8 +14,11 @@ namespace Render::GL
             "#version 150 compatibility\n"
             "uniform samplerBuffer uPalette;\n"
             "uniform vec3 uLightPos;\n"
-            "uniform int  uChromeMode;\n"   // 0 = textured (aUV), 1 = chrome (sphere-map from normal)
+            "uniform int  uChromeMode;\n"   // 0=textured(aUV) 1=CHROME 2=CHROME2 3=CHROME3 4=CHROME4 6=CHROME6 8=METAL
             "uniform float uWave;\n"        // chrome reflection scroll (WorldTime-based)
+            "uniform float uWave2;\n"       // CHROME2/6 scroll (WorldTime%5000*0.00024-0.4)
+            "uniform vec3  uChromeL;\n"     // CHROME4 light vec (cos t*.001, sin t*.002, 1)
+            "uniform vec3  uChromeLightVec;\n" // CHROME3 LightVector
             "in vec3  aPos;\n"
             "in float aVBone;\n"
             "in vec3  aNormal;\n"
@@ -39,13 +42,28 @@ namespace Render::GL
             "    vp = vp * aBodyScale + aBodyOrigin;\n"
             "    gl_Position = gl_ModelViewProjectionMatrix * vec4(vp, 1.0);\n"
             "    if (uChromeMode > 0) {\n"
-            // sphere-map texcoord from the skinned normal (matches legacy RENDER_CHROME:
-            // uv = (n.z*0.5 + wave, n.y*0.5 + wave*2)); body light modulates the reflection.
+            // sphere-map texcoord from the skinned normal; per-variant formula matching
+            // legacy BMD::RenderMesh (g_chrome[]). Body light modulates the reflection.
             "        int nb = (int(aPaletteBase) + int(aNBone)) * 3;\n"
             "        vec3 n = vec3(dot(texelFetch(uPalette, nb + 0).xyz, aNormal),\n"
             "                      dot(texelFetch(uPalette, nb + 1).xyz, aNormal),\n"
             "                      dot(texelFetch(uPalette, nb + 2).xyz, aNormal));\n"
-            "        vUV = vec2(n.z * 0.5 + uWave, n.y * 0.5 + uWave * 2.0);\n"
+            "        vec2 uv;\n"
+            "        if (uChromeMode == 2) {\n"            // CHROME2
+            "            uv = vec2((n.z+n.x)*0.8 + uWave2*2.0, (n.y+n.x)*1.0 + uWave2*3.0);\n"
+            "        } else if (uChromeMode == 3) {\n"     // CHROME3
+            "            float d = dot(n, uChromeLightVec); uv = vec2(d, 1.0 - d);\n"
+            "        } else if (uChromeMode == 4) {\n"     // CHROME4
+            "            float d = dot(n, uChromeL);\n"
+            "            uv = vec2(d + n.y*0.5 + uChromeL.y*3.0, (1.0 - d) - n.z*0.5 - uWave*3.0);\n"
+            "        } else if (uChromeMode == 6) {\n"     // CHROME6
+            "            float s = (n.z+n.x)*0.8 + uWave2*2.0; uv = vec2(s, s);\n"
+            "        } else if (uChromeMode == 8) {\n"     // METAL (legacy else formula)
+            "            uv = vec2(n.z*0.5 + 0.2, n.y*0.5 + 0.5);\n"
+            "        } else {\n"                            // CHROME (plain)
+            "            uv = vec2(n.z*0.5 + uWave, n.y*0.5 + uWave*2.0);\n"
+            "        }\n"
+            "        vUV = uv;\n"
             "        vColor = aColor;\n"
             "    } else {\n"
             "        float lum = 1.0;\n"
@@ -90,6 +108,9 @@ namespace Render::GL
         m_uTex        = m_prog.Uniform("uTex");
         m_uChromeMode = m_prog.Uniform("uChromeMode");
         m_uWave       = m_prog.Uniform("uWave");
+        m_uWave2      = m_prog.Uniform("uWave2");
+        m_uChromeL    = m_prog.Uniform("uChromeL");
+        m_uChromeLightVec = m_prog.Uniform("uChromeLightVec");
 
         const GLuint id = m_prog.Id();
         m_aPos         = GetAttribLocation(id, "aPos");
@@ -134,6 +155,13 @@ namespace Render::GL
     void InstancedBmdShader::SetWave(float wave) const
     {
         if (m_uWave >= 0) Uniform1f(m_uWave, wave);
+    }
+
+    void InstancedBmdShader::SetChromeParams(float wave2, const float L[3], const float lightVec[3]) const
+    {
+        if (m_uWave2 >= 0)         Uniform1f(m_uWave2, wave2);
+        if (m_uChromeL >= 0)       Uniform3fv(m_uChromeL, 1, L);
+        if (m_uChromeLightVec >= 0) Uniform3fv(m_uChromeLightVec, 1, lightVec);
     }
 
     InstancedBmdShader& GetInstancedBmdShader()

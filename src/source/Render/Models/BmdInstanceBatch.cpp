@@ -48,6 +48,9 @@ namespace Render::Models
         int s_instCount = 0;
         float s_instLight[3] = { 0.f, 0.f, 0.f };   // global lit light dir (lit instances)
         float s_instWave = 0.f;                     // global chrome reflection scroll
+        float s_chromeWave2 = 0.f;                  // CHROME2/6 scroll (frame-global)
+        float s_chromeL[3] = { 0.f, 0.f, 1.f };     // CHROME4 light vec
+        float s_chromeLightVec[3] = { 0.f, 0.f, 1.f }; // CHROME3 LightVector
 
         // mode/blend in the top nibble (bits 60-63): on the x86 build a 32-bit model
         // pointer <<24 reaches bit 56 at most, so chrome/additive variants never collide
@@ -71,6 +74,9 @@ namespace Render::Models
         s_instCount = 0;
         s_instLight[0] = s_instLight[1] = s_instLight[2] = 0.f;
         s_instWave = 0.f;
+        s_chromeWave2 = 0.f;
+        s_chromeL[0] = s_chromeL[1] = 0.f; s_chromeL[2] = 1.f;
+        s_chromeLightVec[0] = s_chromeLightVec[1] = 0.f; s_chromeLightVec[2] = 1.f;
     }
 
     int InstAppendPalette(const float (*boneMatrix)[3][4], int boneCount)
@@ -86,6 +92,13 @@ namespace Render::Models
     void InstSetWave(float wave)
     {
         s_instWave = wave;
+    }
+
+    void InstSetChromeParams(float wave2, const float L[3], const float lightVec[3])
+    {
+        s_chromeWave2 = wave2;
+        s_chromeL[0] = L[0]; s_chromeL[1] = L[1]; s_chromeL[2] = L[2];
+        s_chromeLightVec[0] = lightVec[0]; s_chromeLightVec[1] = lightVec[1]; s_chromeLightVec[2] = lightVec[2];
     }
 
     void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec, int mode, int blend)
@@ -123,6 +136,7 @@ namespace Render::Models
         sh.SetPaletteUnit(1);
         sh.SetTextureUnit(0);
         sh.SetLight(s_instLight);   // global lit dir set during collect (lit instances)
+        sh.SetChromeParams(s_chromeWave2, s_chromeL, s_chromeLightVec);   // chrome variants
         ActiveTexture(GL_TEXTURE0);
 
         const GLint aPos = sh.AttrPos(), aVB = sh.AttrVBone(), aN = sh.AttrNormal(),

@@ -26,8 +26,11 @@ namespace Render::GL
         void SetLight(const float lightPos[3]) const;
         void SetPaletteUnit(int unit) const;   // samplerBuffer texture unit
         void SetTextureUnit(int unit) const;   // sampler2D texture unit
-        void SetChromeMode(int mode) const;    // 0 = textured (aUV), 1 = chrome sphere-map
+        void SetChromeMode(int mode) const;    // 0=textured 1=CHROME 2/3/4/6=variant 8=METAL
         void SetWave(float wave) const;        // chrome reflection scroll (WorldTime-based)
+        // CHROME2/3/4/6 extra inputs (frame-global): Wave2 scroll, CHROME4 light vec L,
+        // CHROME3 LightVector.
+        void SetChromeParams(float wave2, const float L[3], const float lightVec[3]) const;
 
         // Per-vertex attribute locations (divisor 0).
         GLint AttrPos()    const { return m_aPos; }
@@ -45,6 +48,7 @@ namespace Render::GL
     private:
         ShaderProgram m_prog;
         GLint m_uLightPos = -1, m_uPalette = -1, m_uTex = -1, m_uChromeMode = -1, m_uWave = -1;
+        GLint m_uWave2 = -1, m_uChromeL = -1, m_uChromeLightVec = -1;
         GLint m_aPos = -1, m_aVBone = -1, m_aNormal = -1, m_aNBone = -1, m_aUV = -1;
         GLint m_aPaletteBase = -1, m_aBodyScale = -1, m_aBodyOrigin = -1, m_aColor = -1, m_aLit = -1;
         bool  m_tried = false;

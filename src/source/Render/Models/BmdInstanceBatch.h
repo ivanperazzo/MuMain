@@ -33,6 +33,8 @@ namespace Render::Models
     void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec, int mode = 0, int blend = 0);
     void InstSetLight(const float lightPos[3]);   // global lit dir for lit instances
     void InstSetWave(float wave);                 // global chrome reflection scroll
+    // CHROME2/3/4/6 extra frame-global inputs (Wave2 scroll, CHROME4 L, CHROME3 LightVector).
+    void InstSetChromeParams(float wave2, const float L[3], const float lightVec[3]);
     void InstFlush();
 
     // Stats for the diagnostics log: instanced draws issued + instances covered.
