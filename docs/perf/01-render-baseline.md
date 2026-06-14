@@ -91,7 +91,32 @@ patrón del track temporal: el usuario entra in-game y hace acciones; el log reg
   compat hasta P3.
 - **Primer paso real = P0 (medición), requiere lanzar el cliente (gated por el usuario).**
 
+## P0 — Resultado del baseline (HECHO)
+
+Instrumentación: `Render::FrameProfiler` (std::chrono) parte el frame en `cpu_render_ms`
+(armado/submit en CPU: `RenderCurrentScene`+HUD+ImGui) vs `swap_ms` (`PlatformSwapBuffers`).
+CSV 16-col + `analyze_perf.py`. Captura `run10_p0.csv` (12822 frames, vsync off, FPS destapado;
+secuencia: quieto → zona poblada → ventana chica → ventana grande).
+
+| | fps | frame_ms | cpu_ms | swap_ms | %cpu | %swap | veredicto |
+|---|---|---|---|---|---|---|---|
+| TOTAL | 68 | 15.5 | 13.1 | **0.44** | **85%** | 3% | **CPU-bound** |
+
+Todos los 12 segmentos: ~85% CPU, ~3% swap (swap_ms ~0.4 ms constante). El resize de ventana
+**no cambió** el patrón ⇒ **NO es fill-rate/GPU-bound**. La GPU (3070 Ti) está idle: presenta en
+<0.5 ms. El ~12% restante (frame_ms − cpu − swap) es CPU fuera del span medido (sim tick,
+`UpdateSceneState`/input, `CalcFPS`, ImGui, loop). ⇒ **frame ≈ 100% CPU**.
+
+⚠️ **Caveat: build DEBUG** (`/Od`, `/RTC1`). Los loops numéricos de skinning (`BMD::Transform`,
+slerps) corren sin optimizar ⇒ el FPS absoluto (47-77) está **inflado-bajo**; en Release el
+`cpu_render_ms` cae fuerte (típico 3-10× en loops así). La conclusión **CPU-bound** es robusta
+(el split 85/3 no depende del build), pero el **techo real de FPS requiere medir en Release**.
+
+**Conclusión P0:** el cuello es 100% CPU; la GPU no se usa. El camino a 1400-2000 fps es mover
+trabajo de CPU→GPU (P2 VBO, P3 GPU skinning/shaders) — el diagnóstico valida el plan. Próximo:
+medir baseline en **Release** (número real) antes de elegir P1 vs P2 vs P3.
+
 ## Estado
 
-Deep-dive hecho. **Gate A pendiente:** confirmar arranque por P0 (instrumentar + medir baseline)
-antes de tocar el render. Entrada del track: este archivo (`docs/perf/`).
+P0 hecho (CPU-bound confirmado, GPU idle). **Gate pendiente:** medir baseline Release, luego
+elegir fase (P1 quick wins / P2 VBO terreno / P3 GPU skinning). Entrada del track: este archivo.
