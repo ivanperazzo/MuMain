@@ -9,6 +9,7 @@
 #include "Render/GL/InstancedBmdShader.h"
 #include "Render/GL/GpuBuffer.h"
 #include "Render/GL/GLLoader.h"
+#include "Render/GL/GLLog.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
 
@@ -144,6 +145,13 @@ namespace Render::Models
             s_instCount += instances;
         }
 
+        if (s_drawCount > 0)
+        {
+            const GLenum err = glGetError();
+            if (err != GL_NO_ERROR)
+                Render::GL::Log("[bmd_inst] GL error 0x%x after %d instanced draws", (unsigned)err, s_drawCount);
+        }
+
         // Restore: disable + reset divisors so legacy gl*Pointer/immediate draws and
         // other shaders aren't disturbed.
         const GLint attrs[] = { aPos, aVB, aN, aNB, aUV, iBase, iScale, iOrig, iCol, iLit };
@@ -159,4 +167,100 @@ namespace Render::Models
     int  InstInstanceCount() { return s_instCount; }
 
     void DropInstanceBuffers() { s_buckets.clear(); }
+
+    // Standalone runtime validation of the instanced draw pipeline (TBO texelFetch +
+    // per-instance divisor attribs + glDrawArraysInstanced) on a throwaway triangle.
+    // The login town has no characters, so without this the autonomous smoke only
+    // proves the shader COMPILES, not that it DRAWS. Env-gated (MU_GPUINST_SELFTEST=1);
+    // logs glGetError once. No-op otherwise.
+    void InstSelfTest()
+    {
+        using namespace Render::GL;
+        static const bool s_on = [] {
+            char buf[8] = {}; size_t n = 0;
+            return getenv_s(&n, buf, sizeof(buf), "MU_GPUINST_SELFTEST") == 0 && n > 0 && buf[0] == '1';
+        }();
+        if (!s_on)
+            return;
+        static bool s_done = false;
+        if (s_done)
+            return;
+
+        InstancedBmdShader& sh = GetInstancedBmdShader();
+        BonePaletteTBO&     tbo = GetBonePaletteTBO();
+        if (!IsLoaded() || !sh.Ensure() || !tbo.Ensure())
+            return;   // retry next frame until GL is up
+        s_done = true;
+
+        // 1 identity bone -> palette base 0.
+        const float ident[1][3][4] = { { {1,0,0,0}, {0,1,0,0}, {0,0,1,0} } };
+        tbo.Begin();
+        const int base = tbo.AppendPalette(ident, 1);
+        tbo.Upload();
+
+        // Throwaway triangle in GpuVtxLayout (10 floats/vtx), all bone 0.
+        namespace L = Render::Models::GpuVtxLayout;
+        static GpuBuffer s_geo;
+        if (!s_geo.Valid())
+        {
+            const float tri[3 * L::kFloats] = {
+                  0.f,  0.f, 0.f,  0.f,  0.f,0.f,1.f,  0.f,  0.f,0.f,
+                 50.f,  0.f, 0.f,  0.f,  0.f,0.f,1.f,  0.f,  1.f,0.f,
+                  0.f, 50.f, 0.f,  0.f,  0.f,0.f,1.f,  0.f,  0.f,1.f,
+            };
+            s_geo.Upload(GL_ARRAY_BUFFER, tri, sizeof(tri), GL_STATIC_DRAW);
+        }
+
+        // 3 instances at staggered origins.
+        const int N = 3;
+        float inst[N * kInstFloats];
+        for (int i = 0; i < N; ++i)
+        {
+            float* r = &inst[i * kInstFloats];
+            r[0] = (float)base; r[1] = 1.f;                 // paletteBase, bodyScale
+            r[2] = (float)(i * 60); r[3] = 0.f; r[4] = 0.f; // bodyOrigin
+            r[5] = 1.f; r[6] = 1.f; r[7] = 1.f; r[8] = 1.f; // color
+            r[9] = 0.f;                                     // lit
+        }
+        static GpuBuffer s_inst;
+        s_inst.Upload(GL_ARRAY_BUFFER, inst, sizeof(inst), GL_DYNAMIC_DRAW);
+
+        while (glGetError() != GL_NO_ERROR) {}   // clear pending errors
+
+        sh.Use();
+        tbo.Bind(1); sh.SetPaletteUnit(1); sh.SetTextureUnit(0);
+        const float lp[3] = { 0.f, 0.f, 0.f };
+        sh.SetLight(lp);
+        ActiveTexture(GL_TEXTURE0);
+
+        const GLint aPos = sh.AttrPos(), aVB = sh.AttrVBone(), aN = sh.AttrNormal(),
+                    aNB = sh.AttrNBone(), aUV = sh.AttrUV();
+        const GLint iBase = sh.AttrPaletteBase(), iScale = sh.AttrBodyScale(),
+                    iOrig = sh.AttrBodyOrigin(), iCol = sh.AttrColor(), iLit = sh.AttrLit();
+
+        s_geo.Bind(GL_ARRAY_BUFFER);
+        if (aPos >= 0) { EnableVertexAttribArray(aPos); VertexAttribPointer(aPos, 3, GL_FLOAT, GL_FALSE, L::kStride, (const GLvoid*)(size_t)L::kOffPos);    VertexAttribDivisor(aPos, 0); }
+        if (aVB  >= 0) { EnableVertexAttribArray(aVB);  VertexAttribPointer(aVB,  1, GL_FLOAT, GL_FALSE, L::kStride, (const GLvoid*)(size_t)L::kOffVBone);  VertexAttribDivisor(aVB, 0); }
+        if (aN   >= 0) { EnableVertexAttribArray(aN);   VertexAttribPointer(aN,   3, GL_FLOAT, GL_FALSE, L::kStride, (const GLvoid*)(size_t)L::kOffNormal); VertexAttribDivisor(aN, 0); }
+        if (aNB  >= 0) { EnableVertexAttribArray(aNB);  VertexAttribPointer(aNB,  1, GL_FLOAT, GL_FALSE, L::kStride, (const GLvoid*)(size_t)L::kOffNBone);  VertexAttribDivisor(aNB, 0); }
+        if (aUV  >= 0) { EnableVertexAttribArray(aUV);  VertexAttribPointer(aUV,  2, GL_FLOAT, GL_FALSE, L::kStride, (const GLvoid*)(size_t)L::kOffUV);     VertexAttribDivisor(aUV, 0); }
+
+        s_inst.Bind(GL_ARRAY_BUFFER);
+        if (iBase  >= 0) { EnableVertexAttribArray(iBase);  VertexAttribPointer(iBase,  1, GL_FLOAT, GL_FALSE, kInstStride, (const GLvoid*)(size_t)kOffBase);   VertexAttribDivisor(iBase, 1); }
+        if (iScale >= 0) { EnableVertexAttribArray(iScale); VertexAttribPointer(iScale, 1, GL_FLOAT, GL_FALSE, kInstStride, (const GLvoid*)(size_t)kOffScale);  VertexAttribDivisor(iScale, 1); }
+        if (iOrig  >= 0) { EnableVertexAttribArray(iOrig);  VertexAttribPointer(iOrig,  3, GL_FLOAT, GL_FALSE, kInstStride, (const GLvoid*)(size_t)kOffOrigin); VertexAttribDivisor(iOrig, 1); }
+        if (iCol   >= 0) { EnableVertexAttribArray(iCol);   VertexAttribPointer(iCol,   4, GL_FLOAT, GL_FALSE, kInstStride, (const GLvoid*)(size_t)kOffColor);  VertexAttribDivisor(iCol, 1); }
+        if (iLit   >= 0) { EnableVertexAttribArray(iLit);   VertexAttribPointer(iLit,   1, GL_FLOAT, GL_FALSE, kInstStride, (const GLvoid*)(size_t)kOffLit);    VertexAttribDivisor(iLit, 1); }
+
+        DrawArraysInstanced(GL_TRIANGLES, 0, 3, N);
+        const GLenum err = glGetError();
+        Render::GL::Log("[bmd_inst] selftest: DrawArraysInstanced(3 verts x %d inst) base=%d -> GL err=0x%x (%s)",
+            N, base, (unsigned)err, err == GL_NO_ERROR ? "OK" : "FAIL");
+
+        const GLint attrs[] = { aPos, aVB, aN, aNB, aUV, iBase, iScale, iOrig, iCol, iLit };
+        for (GLint a : attrs)
+            if (a >= 0) { VertexAttribDivisor(a, 0); DisableVertexAttribArray(a); }
+        BindBuffer(GL_ARRAY_BUFFER, 0);
+        UseProgram(0);
+    }
 }

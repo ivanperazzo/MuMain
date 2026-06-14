@@ -12,6 +12,7 @@
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
 #include "Render/Models/BmdGpuCache.h"
+#include "Render/Models/BmdInstanceBatch.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Engine/Object/ZzzInterface.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -413,7 +414,11 @@ bool NewRenderLogInScene(HDC hDC)
         // town too, so autonomous cdb smoke-tests render characters+props without
         // needing to enter the world. Same $gpubmd/$gpuinst gating applies.
         Render::Models::SetGpuCharsPass(true);
+        Render::Models::InstBegin();
         RenderCharactersClient();
+        const float instLight[3] = { 0.f, 0.f, 0.f };
+        Render::Models::InstFlush(instLight);
+        Render::Models::InstSelfTest();   // env-gated; exercises glDrawArraysInstanced
         Render::Models::SetGpuCharsPass(false);
         RenderMount();
         Render::Models::SetGpuObjectsPass(true);

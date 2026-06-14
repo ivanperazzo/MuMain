@@ -3,6 +3,7 @@
 #include "Render/Models/BmdGpuCache.h"
 
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Models/BmdInstanceBatch.h"
 #include "Render/GL/GLLog.h"
 
 #include <unordered_map>
@@ -34,6 +35,7 @@ namespace Render::Models
         bool s_gpuBmdEnabled  = false;   // $gpubmd master switch (default off)
         bool s_gpuObjectsPass = false;   // true only during the Objects render pass
         bool s_gpuCharsPass   = false;   // true only during the Characters render pass
+        bool s_gpuInstEnabled = false;   // $gpuinst: instanced Characters batching
         bool s_skinSkip       = false;   // $skinskip: Transform skips CPU skinning
 
         int  s_charMeshTotal  = 0;       // chars-pass mesh draws this frame
@@ -158,6 +160,13 @@ namespace Render::Models
     bool GpuObjectsPass()           { return s_gpuObjectsPass; }
     void SetGpuCharsPass(bool on)   { s_gpuCharsPass = on; }
     bool GpuCharsPass()             { return s_gpuCharsPass; }
+    void SetGpuInstEnabled(bool on) { s_gpuInstEnabled = on; }
+    bool GpuInstEnabled()
+    {
+        static const bool s_envInit = [] { if (EnvFlag("MU_GPUINST")) s_gpuInstEnabled = true; return true; }();
+        (void)s_envInit;
+        return s_gpuInstEnabled;
+    }
 
     void SetSkinSkip(bool on) { s_skinSkip = on; }
     bool SkinSkip()           { return s_skinSkip; }
@@ -174,12 +183,14 @@ namespace Render::Models
     {
         if (++s_statFrameCtr >= 120)   // ~ every 2-4s depending on FPS
         {
-            Render::GL::Log("[bmd_gpu] %d visible chars, %d mesh draws/frame (%d/char), %d via GPU (%d%%) | skinskip=%d gpubmd=%d",
+            Render::GL::Log("[bmd_gpu] %d visible chars, %d mesh draws/frame (%d/char), %d via GPU (%d%%) "
+                "| inst: %d draws / %d instances | skinskip=%d gpubmd=%d gpuinst=%d",
                 s_visibleChars, s_charMeshTotal,
                 s_visibleChars ? (s_charMeshTotal / s_visibleChars) : 0,
                 s_charMeshGpu,
                 s_charMeshTotal ? (s_charMeshGpu * 100 / s_charMeshTotal) : 0,
-                (int)s_skinSkip, (int)s_gpuBmdEnabled);
+                InstDrawCount(), InstInstanceCount(),
+                (int)s_skinSkip, (int)GpuBmdEnabled(), (int)GpuInstEnabled());
             s_statFrameCtr = 0;
         }
         s_charMeshTotal = 0;

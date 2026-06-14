@@ -7,6 +7,7 @@ cd /d "%DBG%" || (echo No se encontro %DBG% & exit /b 1)
 set "CDB=C:\Users\ipera\AppData\Local\Microsoft\WindowsApps\cdbX86.exe"
 set "MU_GPUBMD=1"
 set "MU_GPUINST=1"
+set "MU_GPUINST_SELFTEST=1"
 if not "%~1"=="" (
     set "MU_TEMPORAL_CSV=%~1"
     echo [cdb] CSV -^> %~1

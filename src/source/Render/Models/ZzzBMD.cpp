@@ -19,6 +19,7 @@
 #include "UI/NewUI/NewUISystem.h"
 
 #include "Render/Models/BmdGpuCache.h"   // P-bmd-gpu: GPU skinning path
+#include "Render/Models/BmdInstanceBatch.h"  // P-bmd-instance: Characters batching
 #include "Render/GL/BmdShader.h"
 #include "Render/GL/GLLoader.h"
 
@@ -174,6 +175,10 @@ float BoneScale = 1.f;
 static float (*s_lastBoneMatrix)[3][4] = nullptr;
 static bool   s_lastTransformTranslate = false;
 static float  s_lastTransformScale     = 0.f;
+// P-bmd-instance: monotonic id bumped per Transform. BoneTransform is a global
+// reused by every model, so pointer identity can't tell two characters apart;
+// the serial does (one palette appended per character-part, shared by its meshes).
+static unsigned s_transformSerial = 0;
 
 void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t BoundingBoxMax, OBB_t* OBB, bool Translate, float _Scale)
 {
@@ -182,6 +187,7 @@ void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t Boun
     s_lastBoneMatrix        = BoneMatrix;
     s_lastTransformTranslate = Translate;
     s_lastTransformScale     = _Scale;
+    ++s_transformSerial;
 
     vec3_t LightPosition;
 
@@ -1064,6 +1070,24 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
     return true;
 }
 
+// P-bmd-instance: append the current character-part's bone palette to the TBO
+// once (subsequent meshes of the same part reuse the base, detected via the
+// Transform serial). Returns the palette base index for InstanceRec.
+static int InstPaletteBaseForCurrentPart(int numBones)
+{
+    static unsigned s_lastSerial = 0xFFFFFFFFu;
+    static int      s_lastBase   = 0;
+    if (s_transformSerial != s_lastSerial)
+    {
+        int bc = numBones;
+        if (bc < 1) bc = 1;
+        if (bc > Render::GL::BmdShader::kMaxBones) bc = Render::GL::BmdShader::kMaxBones;
+        s_lastBase   = Render::Models::InstAppendPalette(s_lastBoneMatrix, bc);
+        s_lastSerial = s_transformSerial;
+    }
+    return s_lastBase;
+}
+
 void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshIndex, float blendMeshAlpha, float blendMeshTextureCoordU, float blendMeshTextureCoordV, int explicitTextureIndex)
 {
     if (meshIndex >= NumMeshs || meshIndex < 0) return;
@@ -1411,8 +1435,34 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     {
         // enableLight true -> per-normal lit (props); false -> flat glColor (chars).
         const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
-        if (gpu != nullptr && gpu->eligible && RenderMeshGpu(meshIndex, gpu, alpha, enableLight))
-            wentGpu = true;
+        if (gpu != nullptr && gpu->eligible)
+        {
+            // P-bmd-instance: in the Characters pass, COLLECT flat (enableLight==false),
+            // world-baked (Translate==true) meshes into the instanced batch instead of
+            // drawing now; InstFlush() at end of pass collapses identical (model,mesh,
+            // texture) into one glDrawArraysInstanced. Lit/non-translated meshes keep
+            // the per-mesh GPU path (their light/placement aren't instance-uniform).
+            if (Render::Models::GpuCharsPass() && Render::Models::GpuInstEnabled()
+                && !enableLight && s_lastTransformTranslate)
+            {
+                float cur[4] = { 1.f, 1.f, 1.f, 1.f };
+                glGetFloatv(GL_CURRENT_COLOR, cur);
+                Render::Models::InstanceRec rec;
+                rec.paletteBase  = (float)InstPaletteBaseForCurrentPart(NumBones);
+                rec.bodyScale    = BodyScale;
+                rec.bodyOrigin[0] = BodyOrigin[0];
+                rec.bodyOrigin[1] = BodyOrigin[1];
+                rec.bodyOrigin[2] = BodyOrigin[2];
+                rec.color[0] = cur[0]; rec.color[1] = cur[1]; rec.color[2] = cur[2]; rec.color[3] = cur[3];
+                rec.lit = 0.f;
+                Render::Models::InstAdd(this, meshIndex, textureIndex, rec);
+                wentGpu = true;
+            }
+            else if (RenderMeshGpu(meshIndex, gpu, alpha, enableLight))
+            {
+                wentGpu = true;
+            }
+        }
     }
     if (Render::Models::GpuCharsPass())
         Render::Models::NoteCharMeshDraw(wentGpu);

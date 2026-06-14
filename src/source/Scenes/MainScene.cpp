@@ -24,6 +24,7 @@
 #include "Core/Utilities/Log/muConsoleDebug.h"
 #include "Core/Utilities/FrameProfiler.h"
 #include "Render/Models/BmdGpuCache.h"
+#include "Render/Models/BmdInstanceBatch.h"
 #include "Network/Server/WSclient.h"
 #include "Network/Reconnect/ReconnectManager.h"
 #include "Engine/AI/GOBoid.h"
@@ -477,7 +478,15 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         RenderBoids();
     }
 
-    { FRAME_PROFILE(Characters); Render::Models::SetGpuCharsPass(true); RenderCharactersClient(); Render::Models::SetGpuCharsPass(false); }
+    {
+        FRAME_PROFILE(Characters);
+        Render::Models::SetGpuCharsPass(true);
+        Render::Models::InstBegin();                 // P-bmd-instance: collect this pass
+        RenderCharactersClient();
+        const float instLight[3] = { 0.f, 0.f, 0.f };  // flat chars ignore it
+        Render::Models::InstFlush(instLight);        // one draw per (model,mesh,tex)
+        Render::Models::SetGpuCharsPass(false);
+    }
     Render::Models::LogAndResetGpuStats();
 
     if (EditFlag != EDIT_NONE && renderTerrain)

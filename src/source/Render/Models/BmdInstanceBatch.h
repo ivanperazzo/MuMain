@@ -33,5 +33,10 @@ namespace Render::Models
     int  InstDrawCount();
     int  InstInstanceCount();
 
+    // Runtime self-test (env MU_GPUINST_SELFTEST=1): draws a throwaway instanced
+    // triangle once and logs glGetError, so the autonomous smoke (login town has no
+    // characters) can still prove glDrawArraysInstanced works on this driver.
+    void InstSelfTest();
+
     void DropInstanceBuffers();   // free GPU buffers (map change / shutdown)
 }

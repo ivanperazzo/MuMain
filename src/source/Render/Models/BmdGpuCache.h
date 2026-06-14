@@ -56,6 +56,13 @@ namespace Render::Models
     void SetGpuCharsPass(bool on);
     bool GpuCharsPass();
 
+    // Runtime toggle ("$gpuinst on/off", env MU_GPUINST=1, default off): in the
+    // Characters pass, COLLECT eligible flat meshes into the instanced batch
+    // (BmdInstanceBatch) and flush once per pass instead of one draw per mesh.
+    // Requires GpuBmdEnabled() too (shares the GPU geometry cache + shader infra).
+    void SetGpuInstEnabled(bool on);
+    bool GpuInstEnabled();
+
     // --- Diagnostics (measurement only) ---
     // "$skinskip on": BMD::Transform skips its per-vertex CPU skinning loops. Breaks
     // visuals, but isolates how much of the Characters cost is CPU skinning.
