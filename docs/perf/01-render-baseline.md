@@ -59,6 +59,26 @@ Top de `glBegin` (draws calientes): `ZzzLodTerrain.cpp` (18), `ZzzOpenglUtil.cpp
 La GPU casi no trabaja ⇒ el FPS no escala con la 3070 Ti. Subir FPS solo agrega más pasadas de
 CPU por segundo.
 
+## Validación externa (foro tuservermu, topic 87711)
+
+Hilo de devs experimentados optimizando este mismo cliente — **confirma el diagnóstico**:
+- **Feche:** "el juego usa immediate mode (OpenGL 1.0), la CPU hace absolutamente todo"
+  (proyecciones, matrices, animación de objetos/texturas). **El terreno es "lo más sin
+  optimizar": escanea tiles por frame con 2 pasadas de render.** Recomienda mover proyección/
+  animación a shaders; la CPU solo debería emitir comandos. "Aun sin multithreading, delegar
+  trabajo a la GPU alcanza." (Coincide con `RenderTerrainFace`+`_After` = 2 pasadas.)
+- **takumi12:** VBO/VAO + **frustum culling** (extraer 6 planos del proj×modelview) + batch
+  rendering son los algoritmos esenciales; "los shaders son agregado, no la solución de fondo —
+  algoritmo ineficiente + shaders = peor".
+- **YolaxD:** mal aprovechamiento de caché de memoria (peor que los if/switch); terreno crítico.
+- **TranLam:** afirma **60 fps estables con cientos de actores + efectos en una GTX 750 Ti** ⇒
+  existe una versión bien optimizada de este cliente; el objetivo es alcanzable.
+- **kayito:** además, mover sincronización de datos al server (chaos mix, stats, viewport) para
+  bajar CPU — alineado con el goal de servidor autoritativo del repo.
+
+⇒ Orden recomendado coincide: **terreno + culling primero** (mayor ganancia CPU, menor riesgo),
+luego VBO/VAO, luego shaders/GPU skinning.
+
 ## Plan por fases (incremental, "favor the simpler path" — CLAUDE.md)
 
 - **P0 — Medir baseline (PRIMERO, gated launch).** Instrumentar tiempo de CPU de render vs
