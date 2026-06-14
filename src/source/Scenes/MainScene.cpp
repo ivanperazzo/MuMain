@@ -25,6 +25,7 @@
 #include "Core/Utilities/FrameProfiler.h"
 #include "Render/Models/BmdGpuCache.h"
 #include "Render/Models/BmdInstanceBatch.h"
+#include "Render/Models/ShadowInstanceBatch.h"
 #include "Network/Server/WSclient.h"
 #include "Network/Reconnect/ReconnectManager.h"
 #include "Engine/AI/GOBoid.h"
@@ -482,8 +483,10 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         FRAME_PROFILE(Characters);
         Render::Models::SetGpuCharsPass(true);
         Render::Models::InstBegin();                 // P-bmd-instance: collect this pass
+        Render::Models::ShadowBegin();               // P-bmd-shadow: collect instanced shadows
         RenderCharactersClient();
         Render::Models::InstFlush();                 // one draw per (model,mesh,tex)
+        Render::Models::ShadowFlush();               // shadows after bodies (palette uploaded)
         Render::Models::SetGpuCharsPass(false);
     }
     Render::Models::LogAndResetGpuStats();

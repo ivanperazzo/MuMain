@@ -4,6 +4,7 @@
 
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Models/BmdInstanceBatch.h"
+#include "Render/Models/ShadowInstanceBatch.h"
 #include "Render/GL/GLLog.h"
 
 #include <unordered_map>
@@ -219,6 +220,8 @@ namespace Render::Models
             Render::GL::Log("[bmd_cov] inst=%d permeshGPU=%d | legacy: nontex=%d blend=%d wave=%d scale=%d geom=%d other=%d",
                 s_charClass[0], s_charClass[1], s_charClass[2], s_charClass[3],
                 s_charClass[4], s_charClass[5], s_charClass[6], s_charClass[7]);
+            Render::GL::Log("[bmd_shadow] gpu: %d draws / %d instances (MU_GPUSHADOW=%d)",
+                ShadowDrawCount(), ShadowInstanceCount(), (int)GpuShadowEnabled());
             s_statFrameCtr = 0;
         }
         s_charMeshTotal = 0;

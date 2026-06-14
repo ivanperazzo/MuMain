@@ -5,6 +5,7 @@
 #include "Engine/Object/ZzzCharacter.h"   // CreateHero, CHARACTER, CharactersClient
 #include "Render/Textures/ZzzTexture.h"   // WriteJpeg
 #include "Render/GL/GLLog.h"
+#include "Render/Terrain/ZzzLodTerrain.h" // RequestTerrainHeight (stand grid on ground)
 #include "Camera/CameraState.h"           // g_Camera (frame the test grid)
 
 #include <gl/glew.h>
@@ -79,9 +80,14 @@ namespace Core::Diagnostics::RenderHarness
         for (int i = 0; i < n; ++i)
         {
             CHARACTER* c = &CharactersClient[kBaseIndex + i];
-            c->Object.Position[0] = cx + (i % cols) * spacing;
-            c->Object.Position[1] = cy + (i / cols) * spacing;
-            c->Object.Position[2] = g_Camera.Position[2];
+            const float px = cx + (i % cols) * spacing;
+            const float py = cy + (i / cols) * spacing;
+            c->Object.Position[0] = px;
+            c->Object.Position[1] = py;
+            // Stand the grid on the ground (the login camera looks DOWN at the terrain;
+            // placing chars at the camera eye height left them above the visible frame,
+            // so the harness screenshot never showed the crowd or its shadows).
+            c->Object.Position[2] = RequestTerrainHeight(px, py);
             c->Object.Live    = true;
             c->Object.Visible = true;
         }

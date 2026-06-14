@@ -20,6 +20,7 @@
 
 #include "Render/Models/BmdGpuCache.h"   // P-bmd-gpu: GPU skinning path
 #include "Render/Models/BmdInstanceBatch.h"  // P-bmd-instance: Characters batching
+#include "Render/Models/ShadowInstanceBatch.h"  // P-bmd-shadow: instanced GPU shadows
 #include "Render/GL/BmdShader.h"
 #include "Render/GL/GLLoader.h"
 
@@ -2628,9 +2629,74 @@ void BMD::RenderBodyShadow(const int blendMesh, const int hiddenMesh, const int 
         return;
     }
 
+    // $noshadow: measurement-only toggle. MU_NOSHADOW=1 skips the whole shadow pass
+    // so the harness can attribute the per-vertex CalcShadowPosition + immediate-mode
+    // draw cost. No-op when unset.
+    static const bool s_noShadow = [] {
+        char buf[8] = {}; size_t n = 0;
+        return getenv_s(&n, buf, sizeof(buf), "MU_NOSHADOW") == 0 && n > 0 && buf[0] == '1';
+    }();
+    if (s_noShadow)
+    {
+        return;
+    }
+
     if (NumMeshs == 0 && clothesCount == 0)
     {
         return;
+    }
+
+    // P-bmd-shadow: GPU instanced shadow path. The mesh shadow (no cloth) is the
+    // single biggest character CPU cost (per-vertex CalcShadowPosition +
+    // RequestTerrainHeight + immediate draw, ~16ms at 100 chars). When this part is
+    // GPU-skin eligible (same gate as the body instanced path), COLLECT its shadow-
+    // casting meshes into the shadow batch (skinned + flattened on the GPU at
+    // ShadowFlush) instead of drawing on the CPU. groundZ is sampled once here (vs
+    // once per vertex). Cloth capes keep the CPU path. Falls back to CPU if any
+    // included mesh is GPU-ineligible (so the part never double-draws).
+    if (clothesCount == 0 && Render::Models::GpuShadowEnabled()
+        && Render::Models::GpuCharsPass()
+        && Render::Models::GpuBmdEnabled() && Render::Models::GpuInstEnabled()
+        && Render::GL::IsLoaded()
+        && BoneScale == 1.f && s_lastTransformScale == 0.f
+        && s_lastTransformTranslate && s_lastBoneMatrix != nullptr)
+    {
+        const int gsStart = (startMeshNumber != -1) ? startMeshNumber : 0;
+        const int gsEnd   = (endMeshNumber   != -1) ? endMeshNumber   : NumMeshs;
+
+        bool allEligible = true;
+        for (int i = gsStart; i < gsEnd; i++)
+        {
+            if (i == hiddenMesh) continue;
+            const Mesh_t* mesh = &Meshs[i];
+            if (mesh->NumTriangles <= 0 || mesh->Texture == blendMesh) continue;
+            const auto* g = Render::Models::GetOrBuildMeshGpu(this, i, Render::GL::BmdShader::kMaxBones);
+            if (g == nullptr || !g->eligible) { allEligible = false; break; }
+        }
+
+        if (allEligible)
+        {
+            const float gsSx = gMapManager.InBattleCastle() ? 2500.f : 2000.f;
+            const float gsSy = 4000.f;
+            const int   gsBase = InstPaletteBaseForCurrentPart(NumBones);
+            const float gsGroundZ = RequestTerrainHeight(BodyOrigin[0], BodyOrigin[1]) + 5.f;
+            for (int i = gsStart; i < gsEnd; i++)
+            {
+                if (i == hiddenMesh) continue;
+                const Mesh_t* mesh = &Meshs[i];
+                if (mesh->NumTriangles <= 0 || mesh->Texture == blendMesh) continue;
+                Render::Models::ShadowRec rec;
+                rec.paletteBase   = (float)gsBase;
+                rec.bodyScale     = BodyScale;
+                rec.bodyOrigin[0] = BodyOrigin[0];
+                rec.bodyOrigin[1] = BodyOrigin[1];
+                rec.bodyOrigin[2] = BodyOrigin[2];
+                rec.groundZ       = gsGroundZ;
+                Render::Models::ShadowAdd(this, i, rec, gsSx, gsSy);
+            }
+            return;   // collected to the GPU shadow batch; skip the legacy CPU draw
+        }
+        // else: fall through to the legacy CPU path for the whole part.
     }
 
     EnableAlphaTest(false);

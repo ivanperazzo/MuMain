@@ -13,6 +13,7 @@
 #include "Engine/Object/ZzzCharacter.h"
 #include "Render/Models/BmdGpuCache.h"
 #include "Render/Models/BmdInstanceBatch.h"
+#include "Render/Models/ShadowInstanceBatch.h"
 #include "Core/Diagnostics/RenderHarness.h"
 #include "Core/Utilities/FrameProfiler.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
@@ -433,8 +434,10 @@ bool NewRenderLogInScene(HDC hDC)
             Core::Diagnostics::RenderHarness::ApplyTestCharsIfRequested();  // MU_TEST_CHARS=N
             Render::Models::SetGpuCharsPass(true);
             Render::Models::InstBegin();
+            Render::Models::ShadowBegin();    // P-bmd-shadow: collect instanced shadows
             RenderCharactersClient();
             Render::Models::InstFlush();
+            Render::Models::ShadowFlush();    // draw shadows after bodies (palette uploaded)
             Render::Models::InstSelfTest();   // env-gated; exercises glDrawArraysInstanced
             Render::Models::SetGpuCharsPass(false);
         }
