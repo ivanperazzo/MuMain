@@ -41,10 +41,14 @@ namespace Core::Diagnostics
         // must sum to ~25/s at any FPS; effDecay is the per-frame exp-decay factor
         // pow(0.8, dt). These prove the dt-substitution happens at runtime in
         // MAIN_SCENE, not just in the unit test.
+        // cpuRenderMs/swapMs = P0 GPU-track split (prev frame): CPU draw build vs
+        // present. CPU-bound -> cpuRenderMs dominates, swapMs ~0; GPU/present-bound
+        // -> swapMs large (VSync wait or GPU catch-up).
         void LogFrame(double timeMs, double fps, float heroX, float heroY,
                       float heroRenderX, float heroRenderY, int steps, float alpha,
                       double frameMs, float animRaw, float animRender,
-                      float effStep, float effDecay);
+                      float effStep, float effDecay,
+                      double cpuRenderMs, double swapMs);
 
     private:
         TemporalCsvLogger();   // reads the env var once

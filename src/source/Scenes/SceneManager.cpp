@@ -36,6 +36,7 @@ FrameTimingState g_frameTiming;
 #include "Render/Interpolation.h"
 #include "Render/AnimInterp.h"
 #include "Render/EffectTiming.h"
+#include "Render/FrameProfiler.h"
 #include "Render/HeroInterpolation.h"
 #include "UI/Legacy/UIMng.h"
 #include "Network/Server/WSclient.h"
@@ -1013,6 +1014,7 @@ void MainScene(HDC hDC)
 
     try
     {
+        Render::FrameProfiler::BeginRender();   // P0: CPU build/submit time
         Success = RenderCurrentScene(hDC);
         RenderDebugInfo();
         RenderFpsCounter();
@@ -1033,7 +1035,10 @@ void MainScene(HDC hDC)
                 EndBitmap();
             }
 #endif
+            Render::FrameProfiler::EndRender();   // all CPU draw submission done
+            Render::FrameProfiler::BeginSwap();
             PlatformSwapBuffers();
+            Render::FrameProfiler::EndSwap();      // present (VSync wait / GPU catch-up)
         }
 
         CheckServerConnection();
@@ -1128,9 +1133,15 @@ void RenderScene(HDC hDC)
         const float effStep  = Render::EffectTiming::EffectStep();
         const float effDecay = Render::EffectTiming::EffectDecayExp(0.8f);
 
+        // P0 (GPU track): previous frame's CPU build vs swap split. LogFrame runs
+        // before this frame's draw/swap, so these are the prior frame's timings.
+        const double cpuRenderMs = Render::FrameProfiler::LastCpuRenderMs();
+        const double swapMs      = Render::FrameProfiler::LastSwapMs();
+
         csv.LogFrame(WorldTime, FPS, heroSaved[0], heroSaved[1],
                      heroRender[0], heroRender[1], simSteps, simAlpha, simFrameMs,
-                     Hero->Object.AnimationFrame, heroPose.frame, effStep, effDecay);
+                     Hero->Object.AnimationFrame, heroPose.frame, effStep, effDecay,
+                     cpuRenderMs, swapMs);
     }
 
     // Drive auto-reconnect after the scene loops have advanced this frame. It

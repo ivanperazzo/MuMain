@@ -34,7 +34,7 @@ namespace Core::Diagnostics
 
         m_out.open(m_path, std::ios::out | std::ios::trunc);
         if (m_out.is_open())
-            m_out << "t_ms,fps,hero_x,hero_y,hero_render_x,hero_render_y,hero_units_per_sec,steps,interp_alpha,frame_ms,hero_anim,hero_anim_render,eff_step,eff_decay\n";
+            m_out << "t_ms,fps,hero_x,hero_y,hero_render_x,hero_render_y,hero_units_per_sec,steps,interp_alpha,frame_ms,hero_anim,hero_anim_render,eff_step,eff_decay,cpu_render_ms,swap_ms\n";
 
         m_headerWritten = true;
     }
@@ -43,7 +43,8 @@ namespace Core::Diagnostics
                                      float heroY, float heroRenderX, float heroRenderY,
                                      int steps, float alpha, double frameMs,
                                      float animRaw, float animRender,
-                                     float effStep, float effDecay)
+                                     float effStep, float effDecay,
+                                     double cpuRenderMs, double swapMs)
     {
         if (!m_enabled)
             return;
@@ -58,6 +59,7 @@ namespace Core::Diagnostics
               << heroRenderX << ',' << heroRenderY << ','
               << m_probe.UnitsPerSec() << ',' << steps << ',' << alpha << ','
               << frameMs << ',' << animRaw << ',' << animRender << ','
-              << effStep << ',' << effDecay << '\n';
+              << effStep << ',' << effDecay << ','
+              << cpuRenderMs << ',' << swapMs << '\n';
     }
 }
