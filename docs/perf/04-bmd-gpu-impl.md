@@ -104,4 +104,19 @@ visual con el toggle (el usuario compara; el principio rector dice que debe vers
 
 ## Estado
 
-Plan listo. Arranca sub-paso 1 (shader de skinning BMD).
+Sub-pasos 1-4 HECHOS (build verde, commits e30c88fa, 6aecc468, 63357ab8):
+1. `BmdShader` — shader skinning + luz, compila al 1er uso.
+2. `BmdGpuCache` — VBO por `(BMD*,mesh)`, build perezoso, elegibilidad (triángulos
+   puros + huesos < cap).
+3. `BMD::RenderMeshGpu` — bind shader+VBO, uniforms (bones col-major, body, luz),
+   `glDrawArrays`, restaura estado (clave: `BindBuffer(GL_ARRAY_BUFFER,0)`).
+4. Branch en `RenderMesh` (tras setup textura/blend, reusa estado) gateado por
+   elegibilidad + `s_gpuObjectsPass` (MainScene lo prende alrededor de `RenderObjects()`)
+   + `$gpubmd on/off` (consola, default off). `Transform` guarda contexto
+   (bone matrix ptr / Translate / scale) para el `RenderMesh` siguiente.
+
+**GATE (sub-paso 5): medir `objects_ms` off vs on + A/B visual.** Requiere launch
+gateado (pedir OK). Protocolo: entrar, pararse cerca de props; `$details on` +
+captura CSV con `$gpubmd off` (N seg), luego `$gpubmd on` (mismo lugar, N seg);
+comparar `objects_ms` con `analyze_perf.py`; A/B visual (debe verse idéntico).
+Siguiente tras medir: ampliar flags (chrome/wave) + personajes (P-bmd-chars).
