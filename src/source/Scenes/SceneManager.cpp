@@ -35,6 +35,7 @@ FrameTimingState g_frameTiming;
 #include "Core/Diagnostics/TemporalCsvLogger.h"
 #include "Render/Interpolation.h"
 #include "Render/AnimInterp.h"
+#include "Render/EffectTiming.h"
 #include "Render/HeroInterpolation.h"
 #include "UI/Legacy/UIMng.h"
 #include "Network/Server/WSclient.h"
@@ -1119,9 +1120,17 @@ void RenderScene(HDC hDC)
             simAlpha, Render::Interpolation::Enabled() && Render::Interpolation::PoseEnabled(),
             hpValid);
 
+        // Stage 6a: sample the REAL effect-timing glue this frame (MAIN_SCENE,
+        // FrameMs() live) so the runtime dt-substitution is provable from logs,
+        // not just the pure math. eff_step is what `x -= k*EffectStep()` advances
+        // by per frame; over 1 s it must sum to ~25 at any FPS. eff_decay is the
+        // per-frame exp-decay factor `pow(0.8, dt)`.
+        const float effStep  = Render::EffectTiming::EffectStep();
+        const float effDecay = Render::EffectTiming::EffectDecayExp(0.8f);
+
         csv.LogFrame(WorldTime, FPS, heroSaved[0], heroSaved[1],
                      heroRender[0], heroRender[1], simSteps, simAlpha, simFrameMs,
-                     Hero->Object.AnimationFrame, heroPose.frame);
+                     Hero->Object.AnimationFrame, heroPose.frame, effStep, effDecay);
     }
 
     // Drive auto-reconnect after the scene loops have advanced this frame. It

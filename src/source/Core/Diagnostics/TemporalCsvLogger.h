@@ -36,9 +36,15 @@ namespace Core::Diagnostics
         // animRaw/animRender = Hero body animation frame, raw sim value vs the
         // interpolated render value (Stage 4b): raw steps at 25 Hz, render advances
         // its fraction smoothly every frame.
+        // effStep/effDecay = the real Render::EffectTiming glue sampled this frame
+        // (Stage 6a): effStep is the per-frame linear step (`x -= k*effStep`), it
+        // must sum to ~25/s at any FPS; effDecay is the per-frame exp-decay factor
+        // pow(0.8, dt). These prove the dt-substitution happens at runtime in
+        // MAIN_SCENE, not just in the unit test.
         void LogFrame(double timeMs, double fps, float heroX, float heroY,
                       float heroRenderX, float heroRenderY, int steps, float alpha,
-                      double frameMs, float animRaw, float animRender);
+                      double frameMs, float animRaw, float animRender,
+                      float effStep, float effDecay);
 
     private:
         TemporalCsvLogger();   // reads the env var once
