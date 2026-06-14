@@ -25,6 +25,7 @@ namespace Render::Models
 
         int  s_charMeshTotal  = 0;       // chars-pass mesh draws this frame
         int  s_charMeshGpu    = 0;       // of those, took the GPU path
+        int  s_visibleChars   = 0;       // visible characters this frame
         int  s_statFrameCtr   = 0;
 
         // Pack the expanded (non-indexed) triangle stream into the interleaved layout
@@ -149,17 +150,22 @@ namespace Render::Models
         if (wentGpu) ++s_charMeshGpu;
     }
 
+    void NoteVisibleChar() { ++s_visibleChars; }
+
     void LogAndResetGpuStats()
     {
         if (++s_statFrameCtr >= 120)   // ~ every 2-4s depending on FPS
         {
-            Render::GL::Log("[bmd_gpu] chars pass: %d mesh draws/frame, %d via GPU (%d%%) | skinskip=%d gpubmd=%d",
-                s_charMeshTotal, s_charMeshGpu,
+            Render::GL::Log("[bmd_gpu] %d visible chars, %d mesh draws/frame (%d/char), %d via GPU (%d%%) | skinskip=%d gpubmd=%d",
+                s_visibleChars, s_charMeshTotal,
+                s_visibleChars ? (s_charMeshTotal / s_visibleChars) : 0,
+                s_charMeshGpu,
                 s_charMeshTotal ? (s_charMeshGpu * 100 / s_charMeshTotal) : 0,
                 (int)s_skinSkip, (int)s_gpuBmdEnabled);
             s_statFrameCtr = 0;
         }
         s_charMeshTotal = 0;
         s_charMeshGpu = 0;
+        s_visibleChars = 0;
     }
 }

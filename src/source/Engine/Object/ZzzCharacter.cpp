@@ -15,6 +15,7 @@
 #include "Guild/GuildCache.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Models/BmdGpuCache.h"
 #include "Render/Interpolation.h"
 #include "Render/AnimTiming.h"
 #include "Render/AnimInterp.h"
@@ -11446,6 +11447,7 @@ void RenderCharactersClient()
                     o->PriorAction         = pose.priorAction;
                 }
 
+                Render::Models::NoteVisibleChar();
                 if (i != SelectedCharacter && i != SelectedNpc)
                     RenderCharacter(c, o);
                 else

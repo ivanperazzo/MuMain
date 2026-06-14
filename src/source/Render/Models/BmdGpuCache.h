@@ -65,5 +65,6 @@ namespace Render::Models
     // Count one Characters-pass mesh draw (wentGpu = took the GPU path). Logged
     // periodically by LogAndResetGpuStats() so we can see GPU vs legacy coverage.
     void NoteCharMeshDraw(bool wentGpu);
+    void NoteVisibleChar();       // one visible character rendered this frame
     void LogAndResetGpuStats();   // call once per frame
 }
