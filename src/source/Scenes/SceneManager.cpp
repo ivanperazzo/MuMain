@@ -33,6 +33,7 @@ FrameTimingState g_frameTiming;
 #include "Core/Time/SimulationClock.h"
 #include "Core/Input/Input.h"
 #include "Core/Diagnostics/TemporalCsvLogger.h"
+#include "Render/HeroInterpolation.h"
 #include "UI/Legacy/UIMng.h"
 #include "Network/Server/WSclient.h"
 #include "Network/Reconnect/ReconnectManager.h"
@@ -1092,6 +1093,26 @@ void RenderScene(HDC hDC)
 
     g_frameTiming.MarkFrameRendered();
 
+    // Stage 2: render the Hero at the interpolated position for the WHOLE draw —
+    // both the camera follow and the model read Hero->Object.Position, so the
+    // scene is smooth at any FPS even though the sim advances in 25 Hz jumps.
+    // Restored to the true sim position after the draw, before the next tick
+    // reads it. CSV above logged the real position.
+    float heroSaved[3];
+    const bool heroInterp = (SceneFlag == MAIN_SCENE && Hero != nullptr && Hero->Object.Live);
+    if (heroInterp)
+    {
+        Render::HeroInterp::SetAlpha(simAlpha);
+        heroSaved[0] = Hero->Object.Position[0];
+        heroSaved[1] = Hero->Object.Position[1];
+        heroSaved[2] = Hero->Object.Position[2];
+        float rp[3];
+        Render::HeroInterp::RenderPos(heroSaved, rp);
+        Hero->Object.Position[0] = rp[0];
+        Hero->Object.Position[1] = rp[1];
+        Hero->Object.Position[2] = rp[2];
+    }
+
     try
     {
         g_Luminosity = sinf(WorldTime * 0.004f) * 0.15f + 0.6f;
@@ -1121,5 +1142,13 @@ void RenderScene(HDC hDC)
         char errorMsg[256];
         sprintf_s(errorMsg, sizeof(errorMsg), "Exception in RenderScene: %s", e.what());
         OutputDebugStringA(errorMsg);
+    }
+
+    if (heroInterp)
+    {
+        // Restore the true sim position so the next fixed tick integrates from it.
+        Hero->Object.Position[0] = heroSaved[0];
+        Hero->Object.Position[1] = heroSaved[1];
+        Hero->Object.Position[2] = heroSaved[2];
     }
 }

@@ -34,6 +34,7 @@
 #include "UI/Legacy/UIMapName.h"
 #include "Camera/CameraProjection.h"
 #include "Camera/CameraManager.h"
+#include "Render/HeroInterpolation.h"
 #include "Camera/CameraMode.h"
 #ifdef _EDITOR
 #include "Camera/FrustumRenderer.h"
@@ -356,6 +357,13 @@ void MainSceneFixedUpdate()
     if (EnableMainRender == false)
     {
         return;
+    }
+
+    // Stage 2: snapshot the Hero position BEFORE this tick moves it, so the
+    // renderer can interpolate prev->cur between ticks.
+    if (Hero != nullptr)
+    {
+        Render::HeroInterp::OnTick(Hero->Object.Position);
     }
 
     UpdateGameEntities();

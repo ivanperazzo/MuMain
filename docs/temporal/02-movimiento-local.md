@@ -98,8 +98,23 @@ Acotado a `ZzzCharacter.cpp`, el struct OBJECT (+1 campo) y los call-sites de re
 
 ---
 
-## Decisiones para el Gate A
+## Decisiones tomadas (Gate A aprobado)
 
-1. **Alcance de interpolación:** ¿solo Hero en Stage 2 (recomendado; remotas en Stage 3), o Hero + personajes locales ya?
-2. **Z en el lerp:** ¿interpolar solo X/Y y dejar Z=terreno del punto interpolado (recomendado), o lerp de los 3 componentes?
-3. **Ubicación del módulo:** `Render/Interpolation` (Lerp) + `Motion/` (IntegratePosition) — ¿OK separar, o agrupar en uno?
+1. **Alcance:** solo Hero (remotas → Stage 3).
+2. **Z:** lerp de los 3 componentes (Z entre alturas de terreno prev/cur; aproximación suficiente, se afina si hiciera falta).
+3. **Módulos:** `Render::Interpolation::Lerp` + `Motion::IntegratePosition` (puros, testeados) + `Render::HeroInterp` (estado + override).
+
+## As-built
+
+Insight clave: la **cámara sigue al Hero** (`DefaultCamera` lee `Hero->Object.Position` en el draw). Interpolar solo el modelo dejaría la escena saltando a 25 Hz por la cámara. Solución: **override global** — `RenderScene` reemplaza `Hero->Object.Position` por `lerp(prev,cur,alpha)` para TODO el draw (cámara + modelo) y restaura la posición real después, antes del próximo tick. Un solo punto, sin tocar `RenderCharactersClient`.
+
+- `Render/HeroInterpolation.{h,cpp}`: estado prev + alpha + teleport-guard (snap si salto > ~3 tiles/tick).
+- `MainScene.cpp` `MainSceneFixedUpdate`: `OnTick(Hero pos)` antes de mover (prev = pre-move).
+- `SceneManager.cpp` `RenderScene`: `SetAlpha(simAlpha)` + override/restore alrededor del draw. CSV loguea la posición REAL (antes del override).
+
+## Resultados
+
+- **Visual:** Hero fluido a `$fps 144`/ilimitado, sin saltos de 25 Hz (verificado por el usuario en runtime).
+- **Regresión (run03_s2.csv):** velocidad sigue plana — 60→287.7, 144→292.8 u/s, **dispersión 1.8 %**. El override/restore no alteró la velocidad de sim (E1 se mantiene).
+- **Pure:** `test_motion` 4/4. **Build** verde.
+- Pendiente menor: name tag / HP bar del Hero usan la posición real durante su propio render (no el lerp) → posible micro-desfase; no observado como problema.
