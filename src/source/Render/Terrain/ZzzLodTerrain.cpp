@@ -2863,7 +2863,13 @@ void DeleteAllFrustrum()
 extern float RainCurrent;
 extern int EnableEvent;
 
-void InitTerrainLight()
+// Reset the per-frame DYNAMIC light grid back to the static baked light. This MUST run
+// at the same cadence as the AddTerrainLight contributors (fires, lamps, char/effect
+// glows) -- all of which live in the fixed-step update (UpdateGameEntities @ 25 tps).
+// When this reset ran once per RENDER frame while the adds ran per tick, uncapped FPS
+// wiped the dynamic light on every non-tick frame -> fire/glow light (and additive
+// surfaces lit by it, e.g. wing glow) strobed "on/off".
+void ResetTerrainDynamicLight()
 {
     int xi, yi;
     yi = FrustrumBoundMinY;
@@ -2876,6 +2882,12 @@ void InitTerrainLight()
             VectorCopy(BackTerrainLight[Index], PrimaryTerrainLight[Index]);
         }
     }
+}
+
+// Grass sway -- a pure render-time visual driven by WorldTime; safe per render frame.
+void UpdateTerrainGrassWind()
+{
+    int xi, yi;
     float WindScale;
     float WindSpeed;
 
@@ -2930,6 +2942,15 @@ void InitTerrainLight()
             }
         }
     }
+}
+
+// Combined entry point: reset dynamic light + grass wind. Used by the non-decoupled
+// scenes (login / character select) which run their world update once per render frame,
+// so reset and adds stay aligned there. MainScene splits these (reset -> sim tick).
+void InitTerrainLight()
+{
+    ResetTerrainDynamicLight();
+    UpdateTerrainGrassWind();
 }
 
 void InitTerrainShadow()

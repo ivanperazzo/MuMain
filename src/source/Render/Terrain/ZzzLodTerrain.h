@@ -58,6 +58,8 @@ void AddTerrainHeight(float xf, float yf, float Height, int Range, float* Buffer
 
 void InitTerrainRay(int HeroX, int HeroY);
 void InitTerrainLight();
+void ResetTerrainDynamicLight();   // dynamic-light grid reset; run at sim-tick cadence
+void UpdateTerrainGrassWind();     // grass sway; safe per render frame
 void InitTerrainShadow();
 void SetTerrainLight(float xf, float yf, vec3_t Light, int Range, vec3_t* Buffer);
 void AddTerrainLight(float xf, float yf, vec3_t Light, int Range, vec3_t* Buffer);

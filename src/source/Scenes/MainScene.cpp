@@ -199,7 +199,11 @@ static void InitializeMainScene()
 static void InitializeSceneFrame()
 {
     EarthQuake *= 0.2f;
-    InitTerrainLight();
+    // Only the grass-sway runs per render frame here. The dynamic-light grid RESET moved
+    // to MainSceneFixedUpdate (sim tick) so it stays aligned with the AddTerrainLight
+    // contributors (fires/lamps/glows, all in UpdateGameEntities @ 25 tps); otherwise at
+    // uncapped FPS the light strobed on/off on every non-tick frame.
+    UpdateTerrainGrassWind();
 
     CheckInventory = NULL;
     CheckSkill = -1;
@@ -378,6 +382,11 @@ void MainSceneFixedUpdate()
         }
     }
 
+    // Reset the dynamic terrain-light grid to baseline right before this tick's
+    // contributors (fires/lamps/char & effect glows in UpdateGameEntities) re-add to it.
+    // Held across render frames between ticks, so dynamic light is continuously present
+    // instead of being wiped every non-tick frame (the high-FPS "light on/off" strobe).
+    ResetTerrainDynamicLight();
     UpdateGameEntities();
 }
 
