@@ -41,6 +41,11 @@ namespace Render::Models
     // Drop all cached buffers (e.g. on map change / shutdown). Optional.
     void ClearGpuCache();
 
+    // Drop the cached GPU geometry for one model. MUST be called when a BMD slot is
+    // reloaded in place (BMD::Release) — the slot keeps its address but its Meshs are
+    // freed/replaced, so the old VBOs (keyed by BMD*) would be stale (wrong geometry).
+    void InvalidateGpuModel(const BMD* model);
+
     // Runtime toggle (console "$gpubmd on/off", default off): master switch for the
     // BMD-to-GPU path. Off -> everything renders the legacy CPU way.
     void SetGpuBmdEnabled(bool on);

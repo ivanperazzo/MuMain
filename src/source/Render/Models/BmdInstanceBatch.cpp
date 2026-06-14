@@ -168,6 +168,17 @@ namespace Render::Models
 
     void DropInstanceBuffers() { s_buckets.clear(); }
 
+    void DropInstanceBucketsFor(const BMD* model)
+    {
+        for (auto it = s_buckets.begin(); it != s_buckets.end(); )
+        {
+            if (it->second.model == model)
+                it = s_buckets.erase(it);   // Bucket dtor frees its instVbo
+            else
+                ++it;
+        }
+    }
+
     // Standalone runtime validation of the instanced draw pipeline (TBO texelFetch +
     // per-instance divisor attribs + glDrawArraysInstanced) on a throwaway triangle.
     // The login town has no characters, so without this the autonomous smoke only

@@ -39,4 +39,7 @@ namespace Render::Models
     void InstSelfTest();
 
     void DropInstanceBuffers();   // free GPU buffers (map change / shutdown)
+
+    // Drop buckets referencing one model (its geometry was freed/reloaded in place).
+    void DropInstanceBucketsFor(const BMD* model);
 }

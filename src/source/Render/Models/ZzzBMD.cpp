@@ -2692,6 +2692,12 @@ void BMD::RenderBone(float(*BoneMatrix)[3][4])
 
 void BMD::Release()
 {
+    // P-bmd-gpu/instance: this slot's Meshs are about to be freed; drop any GPU
+    // geometry/instance buckets cached against this BMD* so an in-place reload
+    // (same address, new geometry — e.g. monster slots across maps) can't reuse
+    // stale VBOs.
+    Render::Models::InvalidateGpuModel(this);
+
     if (Bones)
     {
         for (int i = 0; i < NumBones; ++i)

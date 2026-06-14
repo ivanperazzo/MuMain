@@ -149,6 +149,14 @@ namespace Render::Models
         s_cache.clear();
     }
 
+    void InvalidateGpuModel(const BMD* model)
+    {
+        if (model == nullptr)
+            return;
+        s_cache.erase(model);          // MeshGpu dtors free the VBOs (guarded if GL gone)
+        DropInstanceBucketsFor(model); // drop any instance buckets keyed by this BMD*
+    }
+
     void SetGpuBmdEnabled(bool on) { s_gpuBmdEnabled = on; }
     bool GpuBmdEnabled()
     {
