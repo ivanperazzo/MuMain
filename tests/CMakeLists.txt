@@ -56,4 +56,6 @@ add_subdirectory(diagnostics)
 
 add_subdirectory(time)
 
+add_subdirectory(motion)
+
 add_subdirectory(editor)
