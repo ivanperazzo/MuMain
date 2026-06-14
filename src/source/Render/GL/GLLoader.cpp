@@ -46,6 +46,10 @@ namespace Render::GL
 
     PFNGLACTIVETEXTUREPROC         ActiveTexture         = nullptr;
 
+    PFNGLDRAWARRAYSINSTANCEDPROC   DrawArraysInstanced   = nullptr;
+    PFNGLVERTEXATTRIBDIVISORPROC   VertexAttribDivisor   = nullptr;
+    PFNGLTEXBUFFERPROC             TexBuffer             = nullptr;
+
     namespace
     {
         bool s_loaded = false;
@@ -106,6 +110,10 @@ namespace Render::GL
         Load(DisableVertexAttribArray, "glDisableVertexAttribArray");
 
         Load(ActiveTexture,         "glActiveTexture");
+
+        Load(DrawArraysInstanced,   "glDrawArraysInstanced");
+        Load(VertexAttribDivisor,   "glVertexAttribDivisor");
+        Load(TexBuffer,             "glTexBuffer");
 
         const char* ver = reinterpret_cast<const char*>(glGetString(GL_VERSION));
         const char* ren = reinterpret_cast<const char*>(glGetString(GL_RENDERER));

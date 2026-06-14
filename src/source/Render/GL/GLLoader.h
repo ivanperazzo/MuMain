@@ -60,6 +60,12 @@ namespace Render::GL
     // Texturing
     extern PFNGLACTIVETEXTUREPROC         ActiveTexture;
 
+    // Instancing + texture buffers (GL 3.1+) -- P-bmd-instance. Used to draw many
+    // characters in one call with per-instance attributes and a bone-palette TBO.
+    extern PFNGLDRAWARRAYSINSTANCEDPROC   DrawArraysInstanced;
+    extern PFNGLVERTEXATTRIBDIVISORPROC   VertexAttribDivisor;
+    extern PFNGLTEXBUFFERPROC             TexBuffer;
+
     // Resolve every pointer above via SDL_GL_GetProcAddress. Must be called once,
     // AFTER a GL context is current. Returns true only if all required pointers
     // resolved. Logs GL_VERSION/GL_RENDERER and the loaded count to stderr.
