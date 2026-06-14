@@ -19,6 +19,7 @@
 #include "Render/Textures/ZzzTexture.h"
 #include "Scenes/SceneCore.h"
 #include "Scenes/SceneManager.h"
+#include "Render/Models/BmdGpuCache.h"
 
 #ifdef _EDITOR
 #include "../MuEditor/UI/Console/MuEditorConsoleUI.h"
@@ -142,6 +143,16 @@ bool CmuConsoleDebug::CheckCommand(const std::wstring& strCommand)
     {
         DisableVSync();
         ResetFrameStats();
+        return true;
+    }
+    else if (strCommand.compare(L"$gpubmd on") == 0)
+    {
+        Render::Models::SetGpuBmdEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpubmd off") == 0)
+    {
+        Render::Models::SetGpuBmdEnabled(false);
         return true;
     }
     else if (strCommand.compare(0, 7, L"$winmsg") == 0)

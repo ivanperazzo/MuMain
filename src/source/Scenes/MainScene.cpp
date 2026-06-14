@@ -23,6 +23,7 @@
 #include "GameLogic/Pets/w_PetProcess.h"
 #include "Core/Utilities/Log/muConsoleDebug.h"
 #include "Core/Utilities/FrameProfiler.h"
+#include "Render/Models/BmdGpuCache.h"
 #include "Network/Server/WSclient.h"
 #include "Network/Reconnect/ReconnectManager.h"
 #include "Engine/AI/GOBoid.h"
@@ -458,14 +459,17 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
             {
                 if ((gMapManager.IsPKField() || IsDoppelGanger2()) && renderStatic)
                 {
-                    FRAME_PROFILE(Objects); RenderObjects();
+                    FRAME_PROFILE(Objects);
+                    Render::Models::SetGpuObjectsPass(true);
+                    RenderObjects();
+                    Render::Models::SetGpuObjectsPass(false);
                 }
                 { FRAME_PROFILE(Terrain); RenderTerrain(false); }
             }
     }
 
     if (!gMapManager.IsPKField() && !IsDoppelGanger2() && renderStatic)
-        { FRAME_PROFILE(Objects); RenderObjects(); }
+        { FRAME_PROFILE(Objects); Render::Models::SetGpuObjectsPass(true); RenderObjects(); Render::Models::SetGpuObjectsPass(false); }
 
     if (renderEffects)
     {
@@ -495,7 +499,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         RenderBoids(true);
 
     if (renderStatic)
-        { FRAME_PROFILE(Objects); RenderObjects_AfterCharacter(); }
+        { FRAME_PROFILE(Objects); Render::Models::SetGpuObjectsPass(true); RenderObjects_AfterCharacter(); Render::Models::SetGpuObjectsPass(false); }
 
     RenderJoints(byWaterMap);
 

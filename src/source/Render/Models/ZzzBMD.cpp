@@ -18,6 +18,10 @@
 #include "Engine/Physics/PhysicsManager.h"
 #include "UI/NewUI/NewUISystem.h"
 
+#include "Render/Models/BmdGpuCache.h"   // P-bmd-gpu: GPU skinning path
+#include "Render/GL/BmdShader.h"
+#include "Render/GL/GLLoader.h"
+
 BMD* Models;
 BMD* ModelsDump;
 
@@ -164,6 +168,12 @@ float BoneScale = 1.f;
 
 void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t BoundingBoxMax, OBB_t* OBB, bool Translate, float _Scale)
 {
+    // P-bmd-gpu: record the context this CPU transform ran with so a following
+    // RenderMesh can reproduce it exactly on the GPU (A/B identical).
+    m_lastBoneMatrix        = BoneMatrix;
+    m_lastTransformTranslate = Translate;
+    m_lastTransformScale     = _Scale;
+
     vec3_t LightPosition;
 
     if (LightEnable)
@@ -941,6 +951,93 @@ void BMD::EndRenderCoinHeap(int coinCount)
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
+// P-bmd-gpu: draw one mesh via the GPU skinning shader + cached VBO, reproducing
+// BMD::Transform's math (bones + BodyScale/Origin + per-normal lighting). Called
+// from RenderMesh AFTER its texture/blend setup, so it reuses that state and only
+// replaces the CPU per-vertex rebuild + draw. Returns false (state untouched) if
+// the shader isn't ready -> caller falls back to legacy.
+bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float alpha)
+{
+    using namespace Render::GL;
+    BmdShader& sh = GetBmdShader();
+    if (!sh.Ensure() || gpu == nullptr || !gpu->eligible || m_lastBoneMatrix == nullptr)
+        return false;
+
+    // Bone matrices: row-major 3x4 affine -> column-major mat4 (bottom row 0,0,0,1)
+    // for the shader's `mat4 * vec4(pos, 1)`.
+    int boneCount = NumBones;
+    if (boneCount < 1) boneCount = 1;
+    if (boneCount > BmdShader::kMaxBones) boneCount = BmdShader::kMaxBones;
+    float bones[BmdShader::kMaxBones * 16];
+    for (int b = 0; b < boneCount; ++b)
+    {
+        const float(*M)[4] = m_lastBoneMatrix[b];   // [3][4]
+        float* d = &bones[b * 16];
+        for (int c = 0; c < 4; ++c)
+        {
+            d[c * 4 + 0] = M[0][c];
+            d[c * 4 + 1] = M[1][c];
+            d[c * 4 + 2] = M[2][c];
+            d[c * 4 + 3] = (c == 3) ? 1.f : 0.f;
+        }
+    }
+
+    // Light position: identical recompute to BMD::Transform's lit branch.
+    vec3_t lightPos = { 0.f, 0.f, 0.f };
+    {
+        vec3_t Position;
+        float Matrix[3][4];
+        if (HighLight)
+        {
+            Vector(1.3f, 0.f, 2.f, Position);
+        }
+        else if (gMapManager.InBattleCastle())
+        {
+            Vector(0.5f, -1.f, 1.f, Position);
+            Vector(0.f, 0.f, -45.f, ShadowAngle);
+        }
+        else
+        {
+            Vector(0.f, -1.5f, 0.f, Position);
+        }
+        AngleMatrix(ShadowAngle, Matrix);
+        VectorIRotate(Position, Matrix, lightPos);
+    }
+
+    const bool  translate = m_lastTransformTranslate;
+    const float bodyScale = translate ? BodyScale : 1.f;
+    vec3_t bodyOrigin = { 0.f, 0.f, 0.f };
+    if (translate) { VectorCopy(BodyOrigin, bodyOrigin); }
+
+    sh.Use();
+    sh.SetBones(bones, boneCount);
+    sh.SetBody(bodyScale, bodyOrigin);
+    sh.SetLight(lightPos, BodyLight, alpha);
+    sh.SetTextureUnit(0);
+    ActiveTexture(GL_TEXTURE0);
+
+    gpu->vbo.Bind(GL_ARRAY_BUFFER);
+    namespace Lay = Render::Models::GpuVtxLayout;
+    const GLint aPos = sh.AttrPos(), aVB = sh.AttrVBone(), aN = sh.AttrNormal(),
+                aNB = sh.AttrNBone(), aUV = sh.AttrUV();
+    if (aPos >= 0) { EnableVertexAttribArray(aPos); VertexAttribPointer(aPos, 3, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffPos); }
+    if (aVB  >= 0) { EnableVertexAttribArray(aVB);  VertexAttribPointer(aVB,  1, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffVBone); }
+    if (aN   >= 0) { EnableVertexAttribArray(aN);   VertexAttribPointer(aN,   3, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffNormal); }
+    if (aNB  >= 0) { EnableVertexAttribArray(aNB);  VertexAttribPointer(aNB,  1, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffNBone); }
+    if (aUV  >= 0) { EnableVertexAttribArray(aUV);  VertexAttribPointer(aUV,  2, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffUV); }
+
+    glDrawArrays(GL_TRIANGLES, 0, gpu->vertexCount);
+
+    if (aPos >= 0) DisableVertexAttribArray(aPos);
+    if (aVB  >= 0) DisableVertexAttribArray(aVB);
+    if (aN   >= 0) DisableVertexAttribArray(aN);
+    if (aNB  >= 0) DisableVertexAttribArray(aNB);
+    if (aUV  >= 0) DisableVertexAttribArray(aUV);
+    BindBuffer(GL_ARRAY_BUFFER, 0);   // critical: legacy gl*Pointer would read offsets otherwise
+    UseProgram(0);
+    return true;
+}
+
 void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshIndex, float blendMeshAlpha, float blendMeshTextureCoordU, float blendMeshTextureCoordV, int explicitTextureIndex)
 {
     if (meshIndex >= NumMeshs || meshIndex < 0) return;
@@ -1274,6 +1371,20 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         || finalRenderFlags == RENDER_CHROME
         || finalRenderFlags == RENDER_CHROME4
         || finalRenderFlags == RENDER_OIL;
+
+    // P-bmd-gpu: GPU skinning path for lit, plain-textured props (Objects pass only,
+    // $gpubmd on). Reuses the texture/blend state set above; replaces the CPU
+    // per-vertex rebuild + client-side draw below. Falls through to legacy otherwise.
+    if (Render::Models::GpuObjectsPass() && Render::Models::GpuBmdEnabled()
+        && Render::GL::IsLoaded()
+        && finalRenderFlags == RENDER_TEXTURE && enableLight && !EnableWave
+        && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
+        && BoneScale == 1.f && m_lastTransformScale == 0.f && m_lastBoneMatrix != nullptr)
+    {
+        const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
+        if (gpu != nullptr && gpu->eligible && RenderMeshGpu(meshIndex, gpu, alpha))
+            return;
+    }
 
     glEnableClientState(GL_VERTEX_ARRAY);
     if (enableColor) glEnableClientState(GL_COLOR_ARRAY);

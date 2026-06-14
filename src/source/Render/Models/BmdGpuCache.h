@@ -40,4 +40,15 @@ namespace Render::Models
 
     // Drop all cached buffers (e.g. on map change / shutdown). Optional.
     void ClearGpuCache();
+
+    // Runtime toggle (console "$gpubmd on/off", default off): master switch for the
+    // BMD-to-GPU path. Off -> everything renders the legacy CPU way.
+    void SetGpuBmdEnabled(bool on);
+    bool GpuBmdEnabled();
+
+    // Set true ONLY around the Objects (props) render pass so the GPU path stays
+    // confined to props for now (characters keep the legacy path). MainScene flips
+    // it around each RenderObjects() call.
+    void SetGpuObjectsPass(bool on);
+    bool GpuObjectsPass();
 }

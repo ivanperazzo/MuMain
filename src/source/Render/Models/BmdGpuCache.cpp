@@ -18,6 +18,9 @@ namespace Render::Models
         // storage also keeps existing entries stable across rehash.
         std::unordered_map<const BMD*, std::vector<MeshGpu>> s_cache;
 
+        bool s_gpuBmdEnabled  = false;   // $gpubmd master switch (default off)
+        bool s_gpuObjectsPass = false;   // true only during the Objects render pass
+
         // Pack the expanded (non-indexed) triangle stream into the interleaved layout
         // BmdShader expects. Mirrors the legacy RenderMesh expansion exactly: for each
         // triangle, for each corner, emit pos/bone/normal/bone/uv in MODEL space.
@@ -123,4 +126,9 @@ namespace Render::Models
     {
         s_cache.clear();
     }
+
+    void SetGpuBmdEnabled(bool on) { s_gpuBmdEnabled = on; }
+    bool GpuBmdEnabled()           { return s_gpuBmdEnabled; }
+    void SetGpuObjectsPass(bool on) { s_gpuObjectsPass = on; }
+    bool GpuObjectsPass()           { return s_gpuObjectsPass; }
 }
