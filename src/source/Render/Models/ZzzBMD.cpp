@@ -1381,10 +1381,11 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         || finalRenderFlags == RENDER_CHROME4
         || finalRenderFlags == RENDER_OIL;
 
-    // P-bmd-gpu: GPU skinning path for lit, plain-textured props (Objects pass only,
-    // $gpubmd on). Reuses the texture/blend state set above; replaces the CPU
-    // per-vertex rebuild + client-side draw below. Falls through to legacy otherwise.
-    if (Render::Models::GpuObjectsPass() && Render::Models::GpuBmdEnabled()
+    // P-bmd-gpu: GPU skinning path for lit, plain-textured meshes in the Objects
+    // (props) or Characters (players/mobs + parts) pass, $gpubmd on. Reuses the
+    // texture/blend state set above; replaces the CPU per-vertex rebuild + client-
+    // side draw below. Falls through to legacy otherwise.
+    if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
         && Render::GL::IsLoaded()
         && finalRenderFlags == RENDER_TEXTURE && enableLight && !EnableWave
         && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0

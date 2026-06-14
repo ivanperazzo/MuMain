@@ -47,8 +47,12 @@ namespace Render::Models
     bool GpuBmdEnabled();
 
     // Set true ONLY around the Objects (props) render pass so the GPU path stays
-    // confined to props for now (characters keep the legacy path). MainScene flips
-    // it around each RenderObjects() call.
+    // confined to props (MainScene flips it around each RenderObjects() call).
     void SetGpuObjectsPass(bool on);
     bool GpuObjectsPass();
+
+    // Same, for the Characters pass (players/mobs + their parts). P-bmd-chars.
+    // MainScene flips it around RenderCharactersClient().
+    void SetGpuCharsPass(bool on);
+    bool GpuCharsPass();
 }

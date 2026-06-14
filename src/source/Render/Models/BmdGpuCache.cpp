@@ -20,6 +20,7 @@ namespace Render::Models
 
         bool s_gpuBmdEnabled  = false;   // $gpubmd master switch (default off)
         bool s_gpuObjectsPass = false;   // true only during the Objects render pass
+        bool s_gpuCharsPass   = false;   // true only during the Characters render pass
 
         // Pack the expanded (non-indexed) triangle stream into the interleaved layout
         // BmdShader expects. Mirrors the legacy RenderMesh expansion exactly: for each
@@ -131,4 +132,6 @@ namespace Render::Models
     bool GpuBmdEnabled()           { return s_gpuBmdEnabled; }
     void SetGpuObjectsPass(bool on) { s_gpuObjectsPass = on; }
     bool GpuObjectsPass()           { return s_gpuObjectsPass; }
+    void SetGpuCharsPass(bool on)   { s_gpuCharsPass = on; }
+    bool GpuCharsPass()             { return s_gpuCharsPass; }
 }
