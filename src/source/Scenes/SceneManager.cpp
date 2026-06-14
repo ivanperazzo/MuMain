@@ -583,7 +583,8 @@ static void RenderDebugInfo()
              FrameProfiler::AccumulatorMs(FP::Items),
              FrameProfiler::AccumulatorMs(FP::Effects));
     g_pRenderText->RenderText((int)DEBUG_TEXT_X, y, szLine); y += DEBUG_TEXT_LINE_HEIGHT;
-    FrameProfiler::ResetFrame();
+    // Reset moved to SnapshotAndReset() in the always-run path (MainScene), so the
+    // per-pass breakdown is captured for the CSV even when this overlay is off.
 
     // Frame time graph below text
     RenderFrameGraph(DEBUG_TEXT_X, (float)y + DEBUG_GRAPH_Y_OFFSET, DEBUG_GRAPH_WIDTH, DEBUG_GRAPH_HEIGHT);
@@ -1017,6 +1018,9 @@ void MainScene(HDC hDC)
         Render::FrameProfiler::BeginRender();   // P0: CPU build/submit time
         Success = RenderCurrentScene(hDC);
         RenderDebugInfo();
+        // Snapshot the per-pass breakdown (Terrain/Objects/Chars/Items/Effects)
+        // and reset for next frame -- always-run so the CSV gets it overlay-off.
+        FrameProfiler::SnapshotAndReset();
         RenderFpsCounter();
         UI::Reconnect::RenderDialog();
 
@@ -1138,10 +1142,19 @@ void RenderScene(HDC hDC)
         const double cpuRenderMs = Render::FrameProfiler::LastCpuRenderMs();
         const double swapMs      = Render::FrameProfiler::LastSwapMs();
 
+        // P0/P2: per-pass breakdown of the previous frame (Terrain/Objects/Chars/
+        // Effects). Pinpoints which subsystem owns the CPU time and measures the
+        // terrain-VBO win directly.
+        using FP = FrameProfiler::Pass;
+        const double terrainMs = FrameProfiler::LastMs(FP::Terrain);
+        const double objectsMs = FrameProfiler::LastMs(FP::Objects);
+        const double charsMs   = FrameProfiler::LastMs(FP::Characters);
+        const double effectsMs = FrameProfiler::LastMs(FP::Effects);
+
         csv.LogFrame(WorldTime, FPS, heroSaved[0], heroSaved[1],
                      heroRender[0], heroRender[1], simSteps, simAlpha, simFrameMs,
                      Hero->Object.AnimationFrame, heroPose.frame, effStep, effDecay,
-                     cpuRenderMs, swapMs);
+                     cpuRenderMs, swapMs, terrainMs, objectsMs, charsMs, effectsMs);
     }
 
     // Drive auto-reconnect after the scene loops have advanced this frame. It

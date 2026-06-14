@@ -21,18 +21,25 @@ path = sys.argv[1] if len(sys.argv) > 1 else "run10_p0.csv"
 SEGMENTS = int(sys.argv[2]) if len(sys.argv) > 2 else 10
 
 rows = []
+have_passes = False
 for ln in open(path, encoding="utf-8", errors="replace").readlines()[1:]:
     p = ln.strip().split(",")
     if len(p) < 16:
         continue
     try:
-        rows.append((float(p[0]), float(p[1]), float(p[9]),
-                     float(p[14]), float(p[15])))  # t_ms, fps, frame_ms, cpu_render_ms, swap_ms
+        # t_ms, fps, frame_ms, cpu_render_ms, swap_ms [, terrain, objects, chars, effects]
+        base = [float(p[0]), float(p[1]), float(p[9]), float(p[14]), float(p[15])]
+        if len(p) >= 20:
+            base += [float(p[16]), float(p[17]), float(p[18]), float(p[19])]
+            have_passes = True
+        else:
+            base += [0.0, 0.0, 0.0, 0.0]
+        rows.append(tuple(base))
     except ValueError:
         pass
 
 if not rows:
-    print(f"sin filas validas en {path} (esquema 16-col con cpu_render_ms/swap_ms?)"); sys.exit(1)
+    print(f"sin filas validas en {path} (esquema 16/20-col con cpu_render_ms/swap_ms?)"); sys.exit(1)
 
 def summarize(sub, label):
     n = len(sub)
@@ -50,8 +57,15 @@ def summarize(sub, label):
         verdict = "CPU-bound"
     else:
         verdict = "mixto/idle-cap"
-    print(f"{label:<14}{n:>7}{fps:>9.1f}{fms:>10.2f}{cpu:>11.2f}{swap:>10.2f}"
-          f"{pct_cpu:>8.0f}%{pct_swap:>8.0f}%  {verdict}")
+    line = (f"{label:<14}{n:>7}{fps:>9.1f}{fms:>10.2f}{cpu:>11.2f}{swap:>10.2f}"
+            f"{pct_cpu:>8.0f}%{pct_swap:>8.0f}%  {verdict}")
+    if have_passes:
+        terr = sum(r[5] for r in sub) / n
+        obj  = sum(r[6] for r in sub) / n
+        chs  = sum(r[7] for r in sub) / n
+        eff  = sum(r[8] for r in sub) / n
+        line += f"   [T {terr:.1f} O {obj:.1f} C {chs:.1f} E {eff:.1f}]"
+    print(line)
 
 print(f"=== P0 perf breakdown  ({path}) ===")
 print(f"{'segmento':<14}{'frames':>7}{'fps':>9}{'frame_ms':>10}{'cpu_ms':>11}{'swap_ms':>10}{'%cpu':>9}{'%swap':>8}")

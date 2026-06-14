@@ -41,6 +41,27 @@ namespace FrameProfiler
             AccumulatorMs((Pass)i) = 0.f;
     }
 
+    // Last completed frame's per-pass ms (snapshot taken before the reset). Lets
+    // an always-run consumer (e.g. the CSV logger) read the breakdown even when
+    // the $details overlay is off, without racing the live accumulators.
+    inline float& LastMs(Pass p)
+    {
+        static float s_last[(int)Pass::Count_] = {};
+        return s_last[(int)p];
+    }
+
+    // Copy the live accumulators into LastMs(), then zero them for the next
+    // frame. Call once per frame in the always-run render path (not inside the
+    // $details-gated overlay, or the breakdown is lost when the overlay is off).
+    inline void SnapshotAndReset()
+    {
+        for (int i = 0; i < (int)Pass::Count_; i++)
+        {
+            LastMs((Pass)i) = AccumulatorMs((Pass)i);
+            AccumulatorMs((Pass)i) = 0.f;
+        }
+    }
+
     // RAII timer. Constructor stamps the start, destructor accumulates elapsed
     // ms into the named pass. Multiple Scopes for the same Pass within a frame
     // accumulate (so calling RenderObjects twice per frame sums correctly).

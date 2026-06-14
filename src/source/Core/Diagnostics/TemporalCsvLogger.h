@@ -44,11 +44,15 @@ namespace Core::Diagnostics
         // cpuRenderMs/swapMs = P0 GPU-track split (prev frame): CPU draw build vs
         // present. CPU-bound -> cpuRenderMs dominates, swapMs ~0; GPU/present-bound
         // -> swapMs large (VSync wait or GPU catch-up).
+        // terrainMs/objectsMs/charsMs/effectsMs = per-pass CPU breakdown (prev
+        // frame, from FrameProfiler). Pinpoints the bottleneck subsystem and lets
+        // a phase (e.g. terrain VBO) be measured on its own pass.
         void LogFrame(double timeMs, double fps, float heroX, float heroY,
                       float heroRenderX, float heroRenderY, int steps, float alpha,
                       double frameMs, float animRaw, float animRender,
                       float effStep, float effDecay,
-                      double cpuRenderMs, double swapMs);
+                      double cpuRenderMs, double swapMs,
+                      double terrainMs, double objectsMs, double charsMs, double effectsMs);
 
     private:
         TemporalCsvLogger();   // reads the env var once
