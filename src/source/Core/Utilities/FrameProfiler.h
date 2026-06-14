@@ -25,12 +25,15 @@ namespace FrameProfiler
         Cloth,      // g_PhysicsManager.Move (cloth/cape sim), once per frame
         Flush,      // Inst/Shadow flush (GPU buffer build+upload+draw); subset of Chars
         Anim,       // BMD::Animation+Transform (bone keyframe build); subset of Chars/Objects
-        Other,
+        Sprites,    // post-effect sprites/particles/leaves/points (RenderSprites etc)
+        UILegacy,   // RenderInterface (legacy HUD: bars/inventory/skill/chat); subset of Other
+        UINew,      // g_pNewUISystem->Render() (new UI); subset of Other
+        Other,      // RenderMainSceneUI total (HUD/interface/cursor)
         Count_
     };
 
     inline constexpr const char* kPassNames[(int)Pass::Count_] = {
-        "Terrain", "Objects", "Chars", "Items", "Effects", "Sim", "Cloth", "Flush", "Anim", "Other"
+        "Terrain", "Objects", "Chars", "Items", "Effects", "Sim", "Cloth", "Flush", "Anim", "Sprites", "UILeg", "UINew", "Other"
     };
 
     inline float& AccumulatorMs(Pass p)

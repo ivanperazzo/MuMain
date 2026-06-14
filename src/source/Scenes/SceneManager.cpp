@@ -1060,7 +1060,7 @@ void MainScene(HDC hDC)
                 {
                     s_frameSplitCtr = 0;
                     using FP = FrameProfiler::Pass;
-                    Render::GL::Log("[frame] scene=%d cpuRender=%.1fms swap=%.1fms | terrain=%.1f objects=%.1f chars=%.1f items=%.1f effects=%.1f sim=%.1f cloth=%.1f flush=%.1f anim=%.1f other=%.1f",
+                    Render::GL::Log("[frame] scene=%d cpuRender=%.1fms swap=%.1fms | terrain=%.1f objects=%.1f chars=%.1f items=%.1f effects=%.1f sim=%.1f cloth=%.1f flush=%.1f anim=%.1f sprites=%.1f uileg=%.1f uinew=%.1f ui=%.1f",
                         (int)SceneFlag,
                         Render::FrameProfiler::LastCpuRenderMs(),
                         Render::FrameProfiler::LastSwapMs(),
@@ -1068,7 +1068,9 @@ void MainScene(HDC hDC)
                         FrameProfiler::LastMs(FP::Characters), FrameProfiler::LastMs(FP::Items),
                         FrameProfiler::LastMs(FP::Effects), FrameProfiler::LastMs(FP::Sim),
                         FrameProfiler::LastMs(FP::Cloth), FrameProfiler::LastMs(FP::Flush),
-                        FrameProfiler::LastMs(FP::Anim), FrameProfiler::LastMs(FP::Other));
+                        FrameProfiler::LastMs(FP::Anim), FrameProfiler::LastMs(FP::Sprites),
+                        FrameProfiler::LastMs(FP::UILegacy), FrameProfiler::LastMs(FP::UINew),
+                        FrameProfiler::LastMs(FP::Other));
                 }
             }
         }

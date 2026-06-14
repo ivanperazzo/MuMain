@@ -521,6 +521,8 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         RenderEffects();
         RenderBlurs();
     }
+    {
+    FRAME_PROFILE(Sprites);
     CheckSprites();
     BeginSprite();
 
@@ -540,6 +542,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
     EndSprite();
 
     RenderAfterEffects();
+    }
 
     if (IsWaterTerrain() == true)
     {
@@ -587,13 +590,14 @@ static void RenderMainSceneUI()
 
     if (g_Camera.TopViewEnable == false)
     {
+        FRAME_PROFILE(UILegacy);
         RenderInterface(true);
     }
     RenderTournamentInterface();
     EndBitmap();
 
     g_pPartyManager->Render();
-    g_pNewUISystem->Render();
+    { FRAME_PROFILE(UINew); g_pNewUISystem->Render(); }
 
     BeginBitmap();
     RenderInfomation();
@@ -737,7 +741,7 @@ bool RenderMainScene()
     }
 #endif
 
-    RenderMainSceneUI();
+    { FRAME_PROFILE(Other); RenderMainSceneUI(); }
 
 
     EndOpengl();
