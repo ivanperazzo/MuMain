@@ -1,6 +1,8 @@
 # Desacople temporal — Estado y guía de reanudación
 
-> **Estado (junio 2026):** Stage 1b **verificado empíricamente** (tag `temporal/stage-01b`). El cliente temporal **conecta** al server local (vía cmd/bat, sin fix de código — ver `authoritative-server-empirical-deferred` en memoria). Siguiente: Stage 2.
+> **Estado (junio 2026):** Stages 1b, 2 y 3 **verificados empíricamente con logs** (tags `temporal/stage-01b`, `-02`, `-03`). El cliente temporal **conecta** al server local. Siguiente: Stage 4 (animaciones).
+>
+> **Lanzar cliente (recetas que funcionan):** `Main.exe` directo desde Bash con `export MSYS2_ARG_CONV_EXCL="*"` (evita el mangle de `/u.../p...`) + `cd` al dir `Debug` + path absoluto al exe. Para capturar CSV: `export MU_TEMPORAL_CSV="<path absoluto>"` antes. El `run-temporal-client.bat` falla por `cmd.exe //c` con paths relativos (NoDefaultCurrentDirectoryInExePath). **No lanzar sin OK del usuario.**
 
 ## TL;DR
 
@@ -16,7 +18,9 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 
 | Commit | Qué |
 |---|---|
-| `5c9453d6` | **Stage 1b** — fixed-step del mundo en MAIN_SCENE (code-complete) |
+| `deaf8a18` | **Stage 3** — interp de render de entidades remotas + toggle `$interp` (tag `temporal/stage-03`) |
+| `22bf9c6a` | **Stage 2** — interp de render del Hero (tag `temporal/stage-02`) |
+| `5c9453d6` | **Stage 1b** — fixed-step del mundo en MAIN_SCENE (tag `temporal/stage-01b`) |
 | `85927dbf` | Stage 0 — CSV logger (`TemporalCsvLogger`) + cableado en `RenderScene` |
 | `fceecacd` | Stage 1 — `SimulationClock` puro (tag `temporal/stage-01`) |
 | `5602a54a` | Stage 0 — `MovementProbe` puro + doctest |
@@ -28,9 +32,10 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 |---|---|---|---|
 | 0 — MovementProbe + CSV | ✅ | ✅ 3/3 | ⏸ baseline diferido |
 | 1 — SimulationClock | ✅ | ✅ 6/6 | n/a (puro) |
-| 1b — fixed-step MAIN_SCENE | ✅ | ✅ 2/2 | ✅ E1 verificado (tag stage-01b); E2 pendiente |
+| 1b — fixed-step MAIN_SCENE | ✅ | ✅ 2/2 | ✅ E1 (288/283/301 u/s @30/60/144) + E2 (10fps OK) |
 | 2 — movimiento local (interp Hero) | ✅ | ✅ 4/4 | ✅ visual suave + regresión 1.8% (tag stage-02) |
-| 3–8 | ⬜ pendiente | — | — |
+| 3 — entidades remotas (interp + `$interp`) | ✅ | ✅ reusa 4/4 | ✅ logs: render-mov 64.8% vs raw 24.3% @144; toggle off→render==raw 100% (tag stage-03) |
+| 4–8 | ⬜ pendiente | — | — |
 
 **Tests puros totales: 11 casos / 23 assertions, todo verde.** Build `Main.exe` exit 0.
 
@@ -56,15 +61,12 @@ cmd.exe /c "C:\Users\ipera\AppData\Local\Temp\mu_build.bat cmake --build --prese
 ./out/build/windows-x86/tests/time/Debug/test_fixedstep_drive.exe
 ```
 
-## Cómo retomar (cuando el cliente vuelva a conectar)
+## Cómo retomar (Stage 4 en adelante)
 
-1. **Capturar baseline** (Task 1, diferido). Activar el flag y entrar al mundo:
-   `MU_TEMPORAL_CSV=C:\...\docs\temporal\baseline\fps60.csv` → caminar el Hero. Repetir a 30/60/144 FPS. Detalle en `docs/temporal/baseline/README.md`.
-   - Decisión previa: **auto-walk de debug** (Hero camina trayecto fijo en timer) para capturas repetibles automáticas. Construirlo al retomar.
-2. **Verificar Stage 1b empírico:** E1 (`hero_units_per_sec` plano ±2% a 30/60/144) y E2 (sin caída a 10 FPS). Si pasa → taggear `temporal/stage-01b`.
-   - *Opción A/B útil:* meter un toggle runtime del fixed-step para comparar on/off en vivo (idea del usuario "probar 1×1").
-3. **Continuar Stage 2** — deep-dive ya escrito en `docs/temporal/02-movimiento-local.md` (Gate A pendiente de tu OK). Aporta interpolación de render (suavidad), porque post-1b el Hero salta a 25 Hz.
-4. **Stages 3–8** — seguir el plan `docs/superpowers/plans/2026-06-13-temporal-decoupling.md`, etapa por etapa: deep-dive doc → Gate A → función pura + doctest → integración → verificar E# → commit + tag.
+1. **Siguiente = Stage 4 (animaciones).** Avance lógico de animación en el sim tick + blend por `frameMs` en render. Ver plan `docs/superpowers/plans/2026-06-13-temporal-decoupling.md` y limpiar `RenderLinkObject` (ZzzCharacter.cpp:~6905, único avance de animación en render-path tras 1b).
+2. **Flujo por etapa:** deep-dive doc → Gate A (OK del usuario) → función pura + doctest → integración → verificar empírico con **logs/CSV** → commit + tag `temporal/stage-0N`.
+3. **Verificación = logs, no inspección visual.** El usuario entra in-game y hace las acciones pedidas; la prueba debe dejar CSV analizable (extender `TemporalCsvLogger` + analizador en `baseline/`). **No lanzar el cliente sin OK explícito.**
+4. **Toggles en chat para A/B en vivo:** `$vsync off`, `$fps <n>` (`-1`=ilimitado), `$interp on/off`.
 
 ## Decisiones lockeadas (no re-litigar)
 
@@ -76,7 +78,10 @@ cmd.exe /c "C:\Users\ipera\AppData\Local\Temp\mu_build.bat cmake --build --prese
 
 ## Constraint vigente
 
-Servidor autoritativo en curso → packets cambian → cliente no conecta → no hay `MAIN_SCENE` → toda verificación empírica diferida. Memoria: `authoritative-server-empirical-deferred`.
+- **No lanzar el cliente sin OK del usuario** (él coordina el estado del server). Memoria: `no-launch-client-without-confirmation`.
+- **Toda verificación se apoya en logs analizables** (CSV crudo vs render), no solo inspección visual.
+- El cliente temporal **conecta** al server local; la verificación empírica ya **no** está diferida.
+- **Issue abierto:** crash de shutdown del cliente (exit 139, segfault en teardown de bitmaps / "Destroy" en `MuError.log`). No afecta sesión ni captura. Investigar aparte.
 
 ## Índice de docs
 
