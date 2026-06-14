@@ -8,6 +8,7 @@
 
 #include <dpapi.h>
 #include <clocale>
+#include <cstdlib>
 #include "Data/GameConfig/GameConfig.h"
 #include "UI/Legacy/UIWindows.h"
 #include "UI/Legacy/UIManager.h"
@@ -1485,7 +1486,15 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
     InitVSync();
     if (IsVSyncAvailable())
     {
-        EnableVSync();
+        // MU_NOVSYNC=1 starts with vsync off (SwapInterval 0) so the framerate is
+        // uncapped from the monitor refresh — needed to measure the true CPU/GPU
+        // ceiling and to chase the high-FPS target. Default (unset) keeps vsync on,
+        // so normal gameplay is unaffected. Runtime toggle: console "$vsync on/off".
+        const char* noVsync = std::getenv("MU_NOVSYNC");
+        if (noVsync && noVsync[0] == '1')
+            DisableVSync();
+        else
+            EnableVSync();
         SetTargetFps(-1); // unlimited
     }
 
