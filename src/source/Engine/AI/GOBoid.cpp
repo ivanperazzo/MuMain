@@ -12,7 +12,6 @@
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Engine/AI/ZzzAI.h"
-#include "Render/EffectTiming.h"
 #include "Render/Effects/ZzzEffect.h"
 #include "Engine/Object/ZzzOpenData.h"
 #include "GameLogic/Events/CSChaosCastle.h"
@@ -926,7 +925,7 @@ void MoveBat(OBJECT* o)
 {
     o->Position[2] = RequestTerrainHeight(o->Position[0], o->Position[1]);
     o->Position[2] += ( - absf(sinf(o->Timer)) * 150.f + 350.f) * FPS_ANIMATION_FACTOR;
-    o->Timer += 0.2f * Render::EffectTiming::EffectStep();
+    o->Timer += 0.2f * FPS_ANIMATION_FACTOR;
 }
 
 void MoveButterFly(OBJECT* o)
@@ -940,12 +939,12 @@ void MoveButterFly(OBJECT* o)
     float Height = RequestTerrainHeight(o->Position[0], o->Position[1]);
     if (o->Position[2] < Height + 50.f)
     {
-        o->Direction[2] *= Render::EffectTiming::EffectDecayExp(0.8f);
+        o->Direction[2] *= pow(0.8f, FPS_ANIMATION_FACTOR);
         o->Direction[2] += 1.f * FPS_ANIMATION_FACTOR;
     }
     if (o->Position[2] > Height + 300.f)
     {
-        o->Direction[2] *= Render::EffectTiming::EffectDecayExp(0.8f);
+        o->Direction[2] *= pow(0.8f, FPS_ANIMATION_FACTOR);
         o->Direction[2] -= 1.f * FPS_ANIMATION_FACTOR;
     }
     o->Position[2] += (float)(rand() % 15 - 7) * 0.3f;
@@ -998,7 +997,7 @@ void MoveBird(OBJECT* o)
     if (o->AI == BOID_UP)
     {
         o->Position[2] += (float)(rand() % 16 - 8) * FPS_ANIMATION_FACTOR;
-        o->Velocity -= 0.005f * Render::EffectTiming::EffectStep();
+        o->Velocity -= 0.005f * FPS_ANIMATION_FACTOR;
         if (o->Velocity <= 1.f)
         {
             o->AI = BOID_FLY;

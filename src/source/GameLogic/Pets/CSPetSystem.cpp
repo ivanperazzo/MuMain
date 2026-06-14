@@ -15,7 +15,6 @@
 #include "GameLogic/Combat/DuelMgr.h"
 #include "UI/Legacy/UIManager.h"
 #include "Engine/AI/ZzzAI.h"
-#include "Render/EffectTiming.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzCharacter.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -528,7 +527,7 @@ void CSPetDarkSpirit::MovePet(void)
             }
             o->Velocity += o->Gravity * FPS_ANIMATION_FACTOR;
             o->Gravity += 0.2f * FPS_ANIMATION_FACTOR;
-            o->LifeTime+= Render::EffectTiming::EffectStep();
+            o->LifeTime+= FPS_ANIMATION_FACTOR;
         }
         else if (o->AI == PET_ESCAPE)
         {
@@ -584,7 +583,7 @@ void CSPetDarkSpirit::MovePet(void)
     }
     if (o->AI >= PET_ATTACK && o->AI <= PET_ATTACK_MAGIC)
     {
-        c->AttackTime += Render::EffectTiming::EffectStep();
+        c->AttackTime += FPS_ANIMATION_FACTOR;
         if (c->AttackTime >= 15)
         {
             c->AttackTime = 15;

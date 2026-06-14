@@ -10,7 +10,6 @@
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Engine/AI/ZzzAI.h"
-#include "Render/EffectTiming.h"
 #include "ZzzEffect.h"
 #include "Audio/DSPlaySound.h"
 #include "Network/Server/WSclient.h"
@@ -134,7 +133,7 @@ void MovePoints()
         PARTICLE* o = &Points[i];
         if (o->Live)
         {
-            o->LifeTime -= Render::EffectTiming::EffectStep();
+            o->LifeTime -= FPS_ANIMATION_FACTOR;
             if (o->LifeTime < 0)
             {
                 if (o->bRepeatedly && o->Position[2] > o->fRepeatedlyHeight)
@@ -146,12 +145,12 @@ void MovePoints()
                 {
                     o->Position[2] += o->Gravity * FPS_ANIMATION_FACTOR;
                 }
-                o->Gravity -= 0.3f * Render::EffectTiming::EffectStep();
+                o->Gravity -= 0.3f * FPS_ANIMATION_FACTOR;
                 if (o->Gravity <= 0.f)
                     o->Live = false;
                 if (o->Type != -2)
                 {
-                    o->Scale -= 5.f * Render::EffectTiming::EffectStep();//20.f;
+                    o->Scale -= 5.f * FPS_ANIMATION_FACTOR;//20.f;
                     if (o->Scale < 15.f)
                         o->Scale = 15.f;
                 }
