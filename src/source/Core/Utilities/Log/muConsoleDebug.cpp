@@ -155,6 +155,16 @@ bool CmuConsoleDebug::CheckCommand(const std::wstring& strCommand)
         Render::Models::SetGpuBmdEnabled(false);
         return true;
     }
+    else if (strCommand.compare(L"$skinskip on") == 0)
+    {
+        Render::Models::SetSkinSkip(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$skinskip off") == 0)
+    {
+        Render::Models::SetSkinSkip(false);
+        return true;
+    }
     else if (strCommand.compare(0, 7, L"$winmsg") == 0)
     {
         auto str_limit = strCommand.substr(8);

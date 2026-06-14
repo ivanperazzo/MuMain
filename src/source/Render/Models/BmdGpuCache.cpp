@@ -21,6 +21,11 @@ namespace Render::Models
         bool s_gpuBmdEnabled  = false;   // $gpubmd master switch (default off)
         bool s_gpuObjectsPass = false;   // true only during the Objects render pass
         bool s_gpuCharsPass   = false;   // true only during the Characters render pass
+        bool s_skinSkip       = false;   // $skinskip: Transform skips CPU skinning
+
+        int  s_charMeshTotal  = 0;       // chars-pass mesh draws this frame
+        int  s_charMeshGpu    = 0;       // of those, took the GPU path
+        int  s_statFrameCtr   = 0;
 
         // Pack the expanded (non-indexed) triangle stream into the interleaved layout
         // BmdShader expects. Mirrors the legacy RenderMesh expansion exactly: for each
@@ -134,4 +139,27 @@ namespace Render::Models
     bool GpuObjectsPass()           { return s_gpuObjectsPass; }
     void SetGpuCharsPass(bool on)   { s_gpuCharsPass = on; }
     bool GpuCharsPass()             { return s_gpuCharsPass; }
+
+    void SetSkinSkip(bool on) { s_skinSkip = on; }
+    bool SkinSkip()           { return s_skinSkip; }
+
+    void NoteCharMeshDraw(bool wentGpu)
+    {
+        ++s_charMeshTotal;
+        if (wentGpu) ++s_charMeshGpu;
+    }
+
+    void LogAndResetGpuStats()
+    {
+        if (++s_statFrameCtr >= 120)   // ~ every 2-4s depending on FPS
+        {
+            Render::GL::Log("[bmd_gpu] chars pass: %d mesh draws/frame, %d via GPU (%d%%) | skinskip=%d gpubmd=%d",
+                s_charMeshTotal, s_charMeshGpu,
+                s_charMeshTotal ? (s_charMeshGpu * 100 / s_charMeshTotal) : 0,
+                (int)s_skinSkip, (int)s_gpuBmdEnabled);
+            s_statFrameCtr = 0;
+        }
+        s_charMeshTotal = 0;
+        s_charMeshGpu = 0;
+    }
 }

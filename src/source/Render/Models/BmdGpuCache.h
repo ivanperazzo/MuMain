@@ -55,4 +55,15 @@ namespace Render::Models
     // MainScene flips it around RenderCharactersClient().
     void SetGpuCharsPass(bool on);
     bool GpuCharsPass();
+
+    // --- Diagnostics (measurement only) ---
+    // "$skinskip on": BMD::Transform skips its per-vertex CPU skinning loops. Breaks
+    // visuals, but isolates how much of the Characters cost is CPU skinning.
+    void SetSkinSkip(bool on);
+    bool SkinSkip();
+
+    // Count one Characters-pass mesh draw (wentGpu = took the GPU path). Logged
+    // periodically by LogAndResetGpuStats() so we can see GPU vs legacy coverage.
+    void NoteCharMeshDraw(bool wentGpu);
+    void LogAndResetGpuStats();   // call once per frame
 }

@@ -220,6 +220,7 @@ void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t Boun
     for (int i = 0; i < NumMeshs; i++)
     {
         Mesh_t* m = &Meshs[i];
+        if (Render::Models::SkinSkip()) continue;   // $skinskip: measurement only
         for (int j = 0; j < m->NumVertices; j++)
         {
             Vertex_t* v = &m->Vertices[j];
@@ -1401,6 +1402,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     // (props) or Characters (players/mobs + parts) pass, $gpubmd on. Reuses the
     // texture/blend state set above; replaces the CPU per-vertex rebuild + client-
     // side draw below. Falls through to legacy otherwise.
+    bool wentGpu = false;
     if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
         && Render::GL::IsLoaded()
         && finalRenderFlags == RENDER_TEXTURE && !EnableWave
@@ -1410,8 +1412,12 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         // enableLight true -> per-normal lit (props); false -> flat glColor (chars).
         const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
         if (gpu != nullptr && gpu->eligible && RenderMeshGpu(meshIndex, gpu, alpha, enableLight))
-            return;
+            wentGpu = true;
     }
+    if (Render::Models::GpuCharsPass())
+        Render::Models::NoteCharMeshDraw(wentGpu);
+    if (wentGpu)
+        return;
 
     glEnableClientState(GL_VERTEX_ARRAY);
     if (enableColor) glEnableClientState(GL_COLOR_ARRAY);

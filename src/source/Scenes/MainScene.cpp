@@ -478,6 +478,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
     }
 
     { FRAME_PROFILE(Characters); Render::Models::SetGpuCharsPass(true); RenderCharactersClient(); Render::Models::SetGpuCharsPass(false); }
+    Render::Models::LogAndResetGpuStats();
 
     if (EditFlag != EDIT_NONE && renderTerrain)
     {
