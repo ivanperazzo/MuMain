@@ -33,6 +33,9 @@ namespace Render::GL
         void SetBones(const float* mat4ColumnMajor, int boneCount) const;
         void SetBody(float bodyScale, const float bodyOrigin[3]) const;
         void SetLight(const float lightPos[3], const float bodyLight[3], float alpha) const;
+        // lit = 1.0 -> per-normal lighting (props); 0.0 -> flat color, uBodyLight is
+        // the current glColor (characters render with a single flat color).
+        void SetLit(float lit) const;
         void SetTextureUnit(int unit) const;
 
         // Generic vertex-attribute locations (queried after link). Used by the
@@ -47,7 +50,7 @@ namespace Render::GL
         ShaderProgram m_prog;
         // Cached uniform locations.
         GLint m_uBones = -1, m_uBodyScale = -1, m_uBodyOrigin = -1;
-        GLint m_uLightPos = -1, m_uBodyLight = -1, m_uAlpha = -1, m_uTex = -1;
+        GLint m_uLightPos = -1, m_uBodyLight = -1, m_uAlpha = -1, m_uTex = -1, m_uLit = -1;
         // Cached attribute locations.
         GLint m_aPos = -1, m_aVBone = -1, m_aNormal = -1, m_aNBone = -1, m_aUV = -1;
         bool  m_tried = false;

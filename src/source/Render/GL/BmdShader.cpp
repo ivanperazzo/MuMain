@@ -19,6 +19,7 @@ namespace Render::GL
             "uniform vec3  uLightPos;\n"
             "uniform vec3  uBodyLight;\n"
             "uniform float uAlpha;\n"
+            "uniform float uLit;\n"   // 1 = per-normal lighting (props), 0 = flat color (chars)\n
             "attribute vec3  aPos;\n"
             "attribute float aVBone;\n"
             "attribute vec3  aNormal;\n"
@@ -30,10 +31,12 @@ namespace Render::GL
             "    vec3 vp = (Bv * vec4(aPos, 1.0)).xyz;\n"
             "    vp = vp * uBodyScale + uBodyOrigin;\n"
             "    gl_Position = gl_ModelViewProjectionMatrix * vec4(vp, 1.0);\n"
-            "    mat3 Rn = mat3(uBones[int(aNBone)]);\n"
-            "    vec3 tn = Rn * aNormal;\n"
-            "    float lum = dot(tn, uLightPos) * 0.8 + 0.4;\n"
-            "    lum = max(lum, 0.2);\n"
+            "    float lum = 1.0;\n"
+            "    if (uLit > 0.5) {\n"
+            "        mat3 Rn = mat3(uBones[int(aNBone)]);\n"
+            "        vec3 tn = Rn * aNormal;\n"
+            "        lum = max(dot(tn, uLightPos) * 0.8 + 0.4, 0.2);\n"
+            "    }\n"
             "    gl_FrontColor = vec4(uBodyLight * lum, uAlpha);\n"
             "    vUV = aUV;\n"
             "}\n";
@@ -67,6 +70,7 @@ namespace Render::GL
         m_uLightPos   = m_prog.Uniform("uLightPos");
         m_uBodyLight  = m_prog.Uniform("uBodyLight");
         m_uAlpha      = m_prog.Uniform("uAlpha");
+        m_uLit        = m_prog.Uniform("uLit");
         m_uTex        = m_prog.Uniform("uTex");
 
         // Attribute locations are linker-assigned (#version 120 `attribute`); query
@@ -105,6 +109,11 @@ namespace Render::GL
         if (m_uLightPos >= 0)  Uniform3fv(m_uLightPos, 1, lightPos);
         if (m_uBodyLight >= 0) Uniform3fv(m_uBodyLight, 1, bodyLight);
         if (m_uAlpha >= 0)     Uniform1f(m_uAlpha, alpha);
+    }
+
+    void BmdShader::SetLit(float lit) const
+    {
+        if (m_uLit >= 0) Uniform1f(m_uLit, lit);
     }
 
     void BmdShader::SetTextureUnit(int unit) const

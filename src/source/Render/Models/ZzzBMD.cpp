@@ -965,7 +965,7 @@ void BMD::EndRenderCoinHeap(int coinCount)
 // from RenderMesh AFTER its texture/blend setup, so it reuses that state and only
 // replaces the CPU per-vertex rebuild + draw. Returns false (state untouched) if
 // the shader isn't ready -> caller falls back to legacy.
-bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float alpha)
+bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float alpha, bool lit)
 {
     using namespace Render::GL;
     BmdShader& sh = GetBmdShader();
@@ -991,9 +991,17 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
         }
     }
 
-    // Light position: identical recompute to BMD::Transform's lit branch.
-    vec3_t lightPos = { 0.f, 0.f, 0.f };
+    // Colour/lighting. Two modes (matches the legacy RenderMesh):
+    //  - lit (props): per-normal lighting, base colour = BodyLight, alpha = alpha.
+    //  - flat (characters, enableLight==false): a single flat colour = the current
+    //    glColor the caller set (read once), no per-vertex lighting.
+    vec3_t lightPos  = { 0.f, 0.f, 0.f };
+    vec3_t baseColor;
+    float  baseAlpha = alpha;
+    if (lit)
     {
+        VectorCopy(BodyLight, baseColor);
+        // Light position: identical recompute to BMD::Transform's lit branch.
         vec3_t Position;
         float Matrix[3][4];
         if (HighLight)
@@ -1012,6 +1020,13 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
         AngleMatrix(ShadowAngle, Matrix);
         VectorIRotate(Position, Matrix, lightPos);
     }
+    else
+    {
+        float cur[4] = { 1.f, 1.f, 1.f, 1.f };
+        glGetFloatv(GL_CURRENT_COLOR, cur);   // the flat colour the caller set
+        baseColor[0] = cur[0]; baseColor[1] = cur[1]; baseColor[2] = cur[2];
+        baseAlpha = cur[3];
+    }
 
     const bool  translate = s_lastTransformTranslate;
     const float bodyScale = translate ? BodyScale : 1.f;
@@ -1021,7 +1036,8 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
     sh.Use();
     sh.SetBones(bones, boneCount);
     sh.SetBody(bodyScale, bodyOrigin);
-    sh.SetLight(lightPos, BodyLight, alpha);
+    sh.SetLight(lightPos, baseColor, baseAlpha);
+    sh.SetLit(lit ? 1.f : 0.f);
     sh.SetTextureUnit(0);
     ActiveTexture(GL_TEXTURE0);
 
@@ -1387,12 +1403,13 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     // side draw below. Falls through to legacy otherwise.
     if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
         && Render::GL::IsLoaded()
-        && finalRenderFlags == RENDER_TEXTURE && enableLight && !EnableWave
+        && finalRenderFlags == RENDER_TEXTURE && !EnableWave
         && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
         && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
     {
+        // enableLight true -> per-normal lit (props); false -> flat glColor (chars).
         const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
-        if (gpu != nullptr && gpu->eligible && RenderMeshGpu(meshIndex, gpu, alpha))
+        if (gpu != nullptr && gpu->eligible && RenderMeshGpu(meshIndex, gpu, alpha, enableLight))
             return;
     }
 

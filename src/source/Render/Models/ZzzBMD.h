@@ -312,7 +312,7 @@ private:
     // legacy. The Transform context it needs (bone matrix ptr, Translate, scale) is
     // kept in file-scope statics in ZzzBMD.cpp -- NOT members -- so this feature does
     // not change sizeof(BMD) (the Models[] array layout must stay byte-identical).
-    bool RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float alpha);
+    bool RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float alpha, bool lit);
 
     void AddClothesShadowTriangles(void* pClothes, int clothesCount, float sx, float sy) const;
     void AddMeshShadowTriangles(int blendMesh, int hiddenMesh, int startMesh, int endMesh, float sx, float sy) const;
