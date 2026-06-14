@@ -1,6 +1,6 @@
 # Desacople temporal — Estado y guía de reanudación
 
-> **Estado (junio 2026):** Stages 1b, 2 y 3 **verificados empíricamente con logs** (tags `temporal/stage-01b`, `-02`, `-03`). El cliente temporal **conecta** al server local. Siguiente: Stage 4 (animaciones).
+> **Estado (junio 2026):** Stages 1b, 2, 3 y 4a **verificados empíricamente con logs** (tags `temporal/stage-01b`, `-02`, `-03`, `-04a`). El cliente temporal **conecta** al server local. Siguiente: **Stage 4b** (suavidad de pose del cuerpo) o Stage 5 (cámara). **Antes de tocar animación/física/efectos/cámara: leer [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md)** (riesgos derivados del factor=1.0).
 >
 > **Lanzar cliente (recetas que funcionan):** `Main.exe` directo desde Bash con `export MSYS2_ARG_CONV_EXCL="*"` (evita el mangle de `/u.../p...`) + `cd` al dir `Debug` + path absoluto al exe. Para capturar CSV: `export MU_TEMPORAL_CSV="<path absoluto>"` antes. El `run-temporal-client.bat` falla por `cmd.exe //c` con paths relativos (NoDefaultCurrentDirectoryInExePath). **No lanzar sin OK del usuario.**
 
@@ -18,6 +18,7 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 
 | Commit | Qué |
 |---|---|
+| `36db325b` | **Stage 4a** — avance de animación render-path independiente del FPS (tag `temporal/stage-04a`) |
 | `deaf8a18` | **Stage 3** — interp de render de entidades remotas + toggle `$interp` (tag `temporal/stage-03`) |
 | `22bf9c6a` | **Stage 2** — interp de render del Hero (tag `temporal/stage-02`) |
 | `5c9453d6` | **Stage 1b** — fixed-step del mundo en MAIN_SCENE (tag `temporal/stage-01b`) |
@@ -35,7 +36,9 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 | 1b — fixed-step MAIN_SCENE | ✅ | ✅ 2/2 | ✅ E1 (288/283/301 u/s @30/60/144) + E2 (10fps OK) |
 | 2 — movimiento local (interp Hero) | ✅ | ✅ 4/4 | ✅ visual suave + regresión 1.8% (tag stage-02) |
 | 3 — entidades remotas (interp + `$interp`) | ✅ | ✅ reusa 4/4 | ✅ logs: render-mov 64.8% vs raw 24.3% @144; toggle off→render==raw 100% (tag stage-03) |
-| 4–8 | ⬜ pendiente | — | — |
+| 4a — animación render-path (partes) | ✅ | ✅ 5/5 | ✅ logs: tasa avance plana 25.0/s @30/60/144 (vs OLD ∝FPS) (tag stage-04a) |
+| 4b — pose del cuerpo suave (P2) | ⬜ pendiente | — | — |
+| 5–8 | ⬜ pendiente | — | — |
 
 **Tests puros totales: 11 casos / 23 assertions, todo verde.** Build `Main.exe` exit 0.
 
@@ -61,9 +64,9 @@ cmd.exe /c "C:\Users\ipera\AppData\Local\Temp\mu_build.bat cmake --build --prese
 ./out/build/windows-x86/tests/time/Debug/test_fixedstep_drive.exe
 ```
 
-## Cómo retomar (Stage 4 en adelante)
+## Cómo retomar (Stage 4b en adelante)
 
-1. **Siguiente = Stage 4 (animaciones).** Avance lógico de animación en el sim tick + blend por `frameMs` en render. Ver plan `docs/superpowers/plans/2026-06-13-temporal-decoupling.md` y limpiar `RenderLinkObject` (ZzzCharacter.cpp:~6905, único avance de animación en render-path tras 1b).
+1. **Siguiente = Stage 4b (suavidad de pose) o Stage 5 (cámara).** 4a ya cerró el avance render-path de partes (`RenderLinkObject`). 4b = blend de pose del cuerpo entre ticks (P2 en `04-animaciones.md`): snapshot `prevAnimationFrame` por entidad + lerp por alpha, para que los miembros no se vean a 25 fps a alto FPS. Ver plan `docs/superpowers/plans/2026-06-13-temporal-decoupling.md`.
 2. **Flujo por etapa:** deep-dive doc → Gate A (OK del usuario) → función pura + doctest → integración → verificar empírico con **logs/CSV** → commit + tag `temporal/stage-0N`.
 3. **Verificación = logs, no inspección visual.** El usuario entra in-game y hace las acciones pedidas; la prueba debe dejar CSV analizable (extender `TemporalCsvLogger` + analizador en `baseline/`). **No lanzar el cliente sin OK explícito.**
 4. **Toggles en chat para A/B en vivo:** `$vsync off`, `$fps <n>` (`-1`=ilimitado), `$interp on/off`.
@@ -81,11 +84,14 @@ cmd.exe /c "C:\Users\ipera\AppData\Local\Temp\mu_build.bat cmake --build --prese
 - **No lanzar el cliente sin OK del usuario** (él coordina el estado del server). Memoria: `no-launch-client-without-confirmation`.
 - **Toda verificación se apoya en logs analizables** (CSV crudo vs render), no solo inspección visual.
 - El cliente temporal **conecta** al server local; la verificación empírica ya **no** está diferida.
-- **Issue abierto:** crash de shutdown del cliente (exit 139, segfault en teardown de bitmaps / "Destroy" en `MuError.log`). No afecta sesión ni captura. Investigar aparte.
+- **Issues abiertos:** ver [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md) — crash de shutdown (exit 139), pose choppy 4b, sitios render-path con factor=1.0 sin compensar (efectos/física/cámara). No bloquean.
 
 ## Índice de docs
 
 - `docs/temporal/RESUME.md` — este archivo (punto de entrada al retomar).
+- `docs/temporal/KNOWN-ISSUES.md` — **issues abiertos + audit de `FPS_ANIMATION_FACTOR` (riesgos derivados).** Leer antes de tocar anim/física/efectos/cámara.
+- `docs/temporal/03-entidades-remotas.md` — deep-dive Stage 3 (as-built + resultados).
+- `docs/temporal/04-animaciones.md` — deep-dive Stage 4 (as-built 4a + plan 4b).
 - `docs/temporal/01b-mainloop-wire.md` — deep-dive Stage 1b (as-built).
 - `docs/temporal/02-movimiento-local.md` — deep-dive Stage 2 (Gate A pendiente).
 - `docs/temporal/baseline/README.md` — procedimiento de captura de baseline.
