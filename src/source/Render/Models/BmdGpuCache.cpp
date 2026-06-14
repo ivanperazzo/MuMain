@@ -43,6 +43,10 @@ namespace Render::Models
         int  s_visibleChars   = 0;       // visible characters this frame
         int  s_statFrameCtr   = 0;
 
+        // Coverage breakdown: why each char mesh did/didn't reach the GPU/instanced
+        // path. Index = MeshCoverClass. Tells us which legacy bucket to attack next.
+        int  s_charClass[8]   = {0};
+
         // Pack the expanded (non-indexed) triangle stream into the interleaved layout
         // BmdShader expects. Mirrors the legacy RenderMesh expansion exactly: for each
         // triangle, for each corner, emit pos/bone/normal/bone/uv in MODEL space.
@@ -185,6 +189,11 @@ namespace Render::Models
         if (wentGpu) ++s_charMeshGpu;
     }
 
+    void NoteCharMeshClass(int cls)
+    {
+        if (cls >= 0 && cls < 8) ++s_charClass[cls];
+    }
+
     void NoteVisibleChar() { ++s_visibleChars; }
 
     void LogAndResetGpuStats()
@@ -199,10 +208,14 @@ namespace Render::Models
                 s_charMeshTotal ? (s_charMeshGpu * 100 / s_charMeshTotal) : 0,
                 InstDrawCount(), InstInstanceCount(),
                 (int)s_skinSkip, (int)GpuBmdEnabled(), (int)GpuInstEnabled());
+            Render::GL::Log("[bmd_cov] inst=%d permeshGPU=%d | legacy: nontex=%d blend=%d wave=%d scale=%d geom=%d other=%d",
+                s_charClass[0], s_charClass[1], s_charClass[2], s_charClass[3],
+                s_charClass[4], s_charClass[5], s_charClass[6], s_charClass[7]);
             s_statFrameCtr = 0;
         }
         s_charMeshTotal = 0;
         s_charMeshGpu = 0;
         s_visibleChars = 0;
+        for (int& c : s_charClass) c = 0;
     }
 }

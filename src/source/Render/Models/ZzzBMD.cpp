@@ -1427,6 +1427,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     // texture/blend state set above; replaces the CPU per-vertex rebuild + client-
     // side draw below. Falls through to legacy otherwise.
     bool wentGpu = false;
+    bool instanced = false;
     if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
         && Render::GL::IsLoaded()
         && finalRenderFlags == RENDER_TEXTURE && !EnableWave
@@ -1457,6 +1458,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                 rec.lit = 0.f;
                 Render::Models::InstAdd(this, meshIndex, textureIndex, rec);
                 wentGpu = true;
+                instanced = true;
             }
             else if (RenderMeshGpu(meshIndex, gpu, alpha, enableLight))
             {
@@ -1465,7 +1467,23 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         }
     }
     if (Render::Models::GpuCharsPass())
+    {
+        int cls;
+        if (wentGpu)
+            cls = instanced ? 0 : 1;                                   // instanced / per-mesh GPU
+        else if (finalRenderFlags != RENDER_TEXTURE)
+            cls = 2;                                                   // chrome/color/etc
+        else if ((renderFlags & (RENDER_BRIGHT | RENDER_DARK)) != 0)
+            cls = 3;                                                   // alpha-blended
+        else if (EnableWave || (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) != 0)
+            cls = 4;                                                   // wave/shadowmap
+        else if (BoneScale != 1.f || s_lastTransformScale != 0.f)
+            cls = 5;                                                   // bone/body scale
+        else
+            cls = 6;                                                   // eligible gate ok -> ineligible geometry/bones
+        Render::Models::NoteCharMeshClass(cls);
         Render::Models::NoteCharMeshDraw(wentGpu);
+    }
     if (wentGpu)
         return;
 

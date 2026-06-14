@@ -77,6 +77,10 @@ namespace Render::Models
     // Count one Characters-pass mesh draw (wentGpu = took the GPU path). Logged
     // periodically by LogAndResetGpuStats() so we can see GPU vs legacy coverage.
     void NoteCharMeshDraw(bool wentGpu);
+    // Coverage class for one char mesh: 0=instanced, 1=per-mesh GPU,
+    // 2=legacy non-RENDER_TEXTURE (chrome/color), 3=legacy alpha-blend, 4=legacy wave,
+    // 5=legacy bone/body scale, 6=legacy ineligible geometry, 7=legacy other.
+    void NoteCharMeshClass(int cls);
     void NoteVisibleChar();       // one visible character rendered this frame
     void LogAndResetGpuStats();   // call once per frame
 }
