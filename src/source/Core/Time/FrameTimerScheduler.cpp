@@ -8,8 +8,14 @@ namespace Core::Time
 {
     FrameTimerScheduler& FrameTimerScheduler::Instance()
     {
-        static FrameTimerScheduler instance;
-        return instance;
+        // Intentionally leaked (never destroyed). Other globals/statics (UI widgets,
+        // buff timers) call Kill()/SetRepeating() from THEIR destructors at program
+        // exit. With a Meyers singleton, this scheduler could be destroyed first, so
+        // those calls hit a freed m_timers -> AV in _Find_last (the shutdown crash,
+        // exit 139). Leaking it keeps m_timers valid through the whole static
+        // teardown; the OS reclaims the memory at process exit.
+        static FrameTimerScheduler* instance = new FrameTimerScheduler();
+        return *instance;
     }
 
     std::uint64_t FrameTimerScheduler::NowMs()
