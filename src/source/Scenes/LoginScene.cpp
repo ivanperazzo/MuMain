@@ -13,6 +13,7 @@
 #include "Engine/Object/ZzzCharacter.h"
 #include "Render/Models/BmdGpuCache.h"
 #include "Render/Models/BmdInstanceBatch.h"
+#include "Core/Diagnostics/RenderHarness.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Engine/Object/ZzzInterface.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -413,6 +414,7 @@ bool NewRenderLogInScene(HDC hDC)
         // P-bmd-gpu/instance (A0): exercise the GPU/instancing path in the login
         // town too, so autonomous cdb smoke-tests render characters+props without
         // needing to enter the world. Same $gpubmd/$gpuinst gating applies.
+        Core::Diagnostics::RenderHarness::ApplyTestCharsIfRequested();  // MU_TEST_CHARS=N
         Render::Models::SetGpuCharsPass(true);
         Render::Models::InstBegin();
         RenderCharactersClient();

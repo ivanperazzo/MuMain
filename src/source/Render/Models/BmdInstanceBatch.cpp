@@ -93,6 +93,10 @@ namespace Render::Models
 
         tbo.Upload();
 
+        // Clear any GL error the legacy immediate-mode passes left this frame, so the
+        // post-draw check below attributes errors to the instanced path only.
+        while (glGetError() != GL_NO_ERROR) {}
+
         sh.Use();
         tbo.Bind(1);
         sh.SetPaletteUnit(1);

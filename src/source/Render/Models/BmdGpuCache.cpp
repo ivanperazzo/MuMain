@@ -198,7 +198,7 @@ namespace Render::Models
 
     void LogAndResetGpuStats()
     {
-        if (++s_statFrameCtr >= 120)   // ~ every 2-4s depending on FPS
+        if (++s_statFrameCtr >= 30)    // ~ every 1-2s depending on FPS
         {
             Render::GL::Log("[bmd_gpu] %d visible chars, %d mesh draws/frame (%d/char), %d via GPU (%d%%) "
                 "| inst: %d draws / %d instances | skinskip=%d gpubmd=%d gpuinst=%d",
