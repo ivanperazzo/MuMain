@@ -13,6 +13,7 @@
 #include "UI/Legacy/UIManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
+#include "Render/GL/GLLoader.h"
 #include "Engine/Object/ZzzOpenData.h"
 #include "Scenes/SceneCore.h"
 #include "Network/Reconnect/ReconnectManager.h"
@@ -1427,6 +1428,12 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
     }
 
     SDL_GL_MakeCurrent(g_sdlWindow, g_sdlGLContext);
+
+    // GPU/high-FPS track (P-infra): resolve modern-GL entry points (VBO/shader)
+    // now that a context is current. The engine links only opengl32 (GL 1.1) and
+    // never calls glewInit, so without this every glGenBuffers/glCreateShader is a
+    // null pointer. Logs GL_VERSION + loaded count; GPU paths check IsLoaded().
+    Render::GL::LoadModernGL();
 
     // Bridge SDL's native handles so the remaining Win32 code (IME, DirectSound,
     // cursor, the legacy EDIT-control text boxes) keeps working.
