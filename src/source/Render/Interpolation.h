@@ -17,6 +17,12 @@ namespace Render::Interpolation
     void SetEnabled(bool on);
     bool Enabled();
 
+    // Separate on/off for Stage 4b BODY POSE interpolation (console:
+    // $poseinterp on|off). Default OFF while it is being validated, so the
+    // snapshot + per-draw frame override are completely inert unless turned on.
+    void SetPoseEnabled(bool on);
+    bool PoseEnabled();
+
     // Shared render interpolation alpha for the current frame (set once per frame
     // from SimulationClock; read by all entity renderers).
     void  SetFrameAlpha(float alpha);
@@ -35,4 +41,17 @@ namespace Render::Interpolation
     // returns LerpGuarded(prev, cur, FrameAlpha).
     void RemoteOnTick(int index, const float curPos[3]);
     void RemoteRenderPos(int index, const float curPos[3], float out[3]);
+
+    // Stage 4b: per-slot previous-tick BODY animation state (frame + prior
+    // keyframe), for interpolating the pose between ticks. Deliberately kept OUT
+    // of the OBJECT struct (parallel arrays, like the position store) so the widely
+    // included object header is untouched. RemoteAnimPrev returns false until the
+    // first snapshot for that slot.
+    void RemoteAnimOnTick(int index, float frame, float priorFrame, unsigned short priorAction);
+    bool RemoteAnimPrev(int index, float& frame, float& priorFrame, unsigned short& priorAction);
+
+    // Hero body animation prev, snapshotted in MainSceneFixedUpdate (the Hero is
+    // tracked separately from remotes, like HeroInterp for position).
+    void HeroAnimOnTick(float frame, float priorFrame, unsigned short priorAction);
+    bool HeroAnimPrev(float& frame, float& priorFrame, unsigned short& priorAction);
 }

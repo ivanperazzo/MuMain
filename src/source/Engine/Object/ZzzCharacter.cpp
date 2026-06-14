@@ -17,6 +17,7 @@
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Interpolation.h"
 #include "Render/AnimTiming.h"
+#include "Render/AnimInterp.h"
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -6492,6 +6493,17 @@ void MoveCharactersClient()
         // Stage 3: snapshot the pre-move position so the renderer can interpolate
         // remote entities (mobs / other players) between fixed sim ticks.
         Render::Interpolation::RemoteOnTick(i, CharactersClient[i].Object.Position);
+
+        // Stage 4b: snapshot the pre-advance body animation frame per slot for pose
+        // interpolation. The Hero is snapshotted separately (MainSceneFixedUpdate).
+        // Gated by $poseinterp so it is inert until enabled.
+        if (Render::Interpolation::PoseEnabled() && &CharactersClient[i] != Hero)
+        {
+            const OBJECT& ao = CharactersClient[i].Object;
+            Render::Interpolation::RemoteAnimOnTick(i, ao.AnimationFrame,
+                ao.PriorAnimationFrame, ao.PriorAction);
+        }
+
         MoveCharacterClient(&CharactersClient[i]);
     }
     MoveBlurs();
@@ -11408,10 +11420,43 @@ void RenderCharactersClient()
                     o->Position[2] = rp[2];
                 }
 
+                // Stage 4b: interpolate the body animation frame between sim ticks
+                // so the pose (limbs) is smooth at high FPS instead of stepping at
+                // 25 Hz. Applies to every character incl. the Hero. Overridden for
+                // the whole draw, then restored to the raw sim value.
+                float          animSavedFrame = o->AnimationFrame;
+                float          animSavedPriorFrame = o->PriorAnimationFrame;
+                unsigned short animSavedPriorAction = o->PriorAction;
+                const bool animInterp = (SceneFlag == MAIN_SCENE && Render::Interpolation::PoseEnabled());
+                if (animInterp)
+                {
+                    float          prevFrame = 0.f, prevPriorFrame = 0.f;
+                    unsigned short prevPriorAction = 0;
+                    const bool prevValid = (c == Hero)
+                        ? Render::Interpolation::HeroAnimPrev(prevFrame, prevPriorFrame, prevPriorAction)
+                        : Render::Interpolation::RemoteAnimPrev(i, prevFrame, prevPriorFrame, prevPriorAction);
+
+                    const auto pose = Render::AnimInterp::Interpolate(
+                        prevFrame, prevPriorFrame, prevPriorAction,
+                        animSavedFrame, animSavedPriorFrame, animSavedPriorAction,
+                        Render::Interpolation::FrameAlpha(), Render::Interpolation::Enabled(),
+                        prevValid);
+                    o->AnimationFrame      = pose.frame;
+                    o->PriorAnimationFrame = pose.priorFrame;
+                    o->PriorAction         = pose.priorAction;
+                }
+
                 if (i != SelectedCharacter && i != SelectedNpc)
                     RenderCharacter(c, o);
                 else
                     RenderCharacter(c, o, true);
+
+                if (animInterp)
+                {
+                    o->AnimationFrame      = animSavedFrame;
+                    o->PriorAnimationFrame = animSavedPriorFrame;
+                    o->PriorAction         = animSavedPriorAction;
+                }
 
                 if (remoteInterp)
                 {

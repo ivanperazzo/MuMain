@@ -34,14 +34,15 @@ namespace Core::Diagnostics
 
         m_out.open(m_path, std::ios::out | std::ios::trunc);
         if (m_out.is_open())
-            m_out << "t_ms,fps,hero_x,hero_y,hero_render_x,hero_render_y,hero_units_per_sec,steps,interp_alpha,frame_ms\n";
+            m_out << "t_ms,fps,hero_x,hero_y,hero_render_x,hero_render_y,hero_units_per_sec,steps,interp_alpha,frame_ms,hero_anim,hero_anim_render\n";
 
         m_headerWritten = true;
     }
 
     void TemporalCsvLogger::LogFrame(double timeMs, double fps, float heroX,
                                      float heroY, float heroRenderX, float heroRenderY,
-                                     int steps, float alpha, double frameMs)
+                                     int steps, float alpha, double frameMs,
+                                     float animRaw, float animRender)
     {
         if (!m_enabled)
             return;
@@ -55,6 +56,6 @@ namespace Core::Diagnostics
         m_out << timeMs << ',' << fps << ',' << heroX << ',' << heroY << ','
               << heroRenderX << ',' << heroRenderY << ','
               << m_probe.UnitsPerSec() << ',' << steps << ',' << alpha << ','
-              << frameMs << '\n';
+              << frameMs << ',' << animRaw << ',' << animRender << '\n';
     }
 }

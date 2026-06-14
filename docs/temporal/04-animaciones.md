@@ -104,3 +104,29 @@ Gate A → el usuario eligió **A ahora, B como 4b**. Implementado solo P1.
 OLD: dispersión 106% (el bug, escala con FPS). NEW: dispersión **0.0%** ⇒ avance plano ~25/s a todo FPS. Regresión de posición (Stage 2/3): velocidad 2.4% plana, sin regresión. motion 4/4, fixedstep 2/2.
 
 **Conclusión 4a ✅** (tag `temporal/stage-04a`). Pendiente **4b (P2):** suavidad de pose del cuerpo entre ticks (miembros @25Hz → choppy a alto FPS, aún sin resolver).
+
+## Stage 4b — as-built + resultados (P2 cerrado)
+
+Blend de pose del cuerpo entre ticks reusando el alpha del frame. `BMD::Animation` ya
+interpola por la fracción del frame; basta hacer avanzar esa fracción cada render frame
+sin tocar el estado de sim.
+
+**As-built (clave de diseño):**
+- `Render/AnimInterp.{h,cpp}` — `Interpolate(prev*, cur*, alpha, enabled, prevValid) -> {frame, priorFrame, priorAction}`. Puro. Interpola `display = lerp(prevFrame, curFrame, alpha)` y **selecciona el prior keyframe** según en qué entero cae `display`, para continuidad en el borde del tick (cuando el `PriorAnimationFrame` del engine salta al cruzar un entero). Snap (devuelve cur) si: interp off, 1er frame, wrap (`cur<=prev`) o salto anómalo (`> kMaxTickStep=3`).
+- **Estado prev en arrays paralelos, NO en OBJECT** — igual que la posición (Stage 3). `Render::Interpolation`: store por slot (`RemoteAnimOnTick/RemoteAnimPrev`) + store del Hero (`HeroAnimOnTick/HeroAnimPrev`).
+  - ⚠️ **Lección:** el primer intento agregó campos a `OBJECT` (`w_ObjectInfo.h`, header incluidísimo). El cliente crasheaba **antes del server-select**. Localizado con cdb. Revertido a arrays paralelos → arreglado. **No tocar el struct OBJECT** para estado de render (ver `KNOWN-ISSUES.md`).
+- Snapshot pre-tick: Hero en `MainSceneFixedUpdate` (junto a `HeroInterp::OnTick`); remotos en `MoveCharactersClient` (por slot, skip Hero). Ambos antes de avanzar la sim.
+- Override/restore de `o->AnimationFrame/PriorAnimationFrame/PriorAction` alrededor del draw en `RenderCharactersClient` (todos incl. Hero).
+- Toggle `$poseinterp on/off` (`Interpolation::SetPoseEnabled`), **default ON** (validado). CSV +cols `hero_anim` (crudo) / `hero_anim_render` (interpolado).
+
+**Test puro:** `tests/anim/test_anim_interp.cpp` 7/7 — interp suave dentro del intervalo, selección de prior en borde de tick, snap en wrap/jump, clamp de alpha, disabled/first-frame → cur.
+
+**Prueba por log (`run08_s4b.csv`, pose default ON, `analyze_pose.py`):** % de frames-móviles con cambio de fracción por frame:
+
+| bin FPS | %raw-chg | %ren-chg |
+|---|---|---|
+| ~60 (1363 fr) | 41.9% | **97.3%** |
+
+La pose interpolada avanza en 97.3% de los frames vs 41.9% la cruda → la pose se mueve ~2.3× más seguido que el tick de 25 Hz = suave. (run07b con toggle: ~144 → 60.0% vs 20.8%, mismo patrón.) render≠raw en 95.4% de frames (default on).
+
+**Conclusión 4b ✅** (tag `temporal/stage-04b`). Stage 4 completo (4a correctitud + 4b suavidad). Toggle `$poseinterp` queda para A/B. Bonus de la sesión: el crash de shutdown (exit 139) quedó **localizado con cdb y arreglado** (`FrameTimerScheduler`, fiasco de orden de destrucción estática) — commit aparte.

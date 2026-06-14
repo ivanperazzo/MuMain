@@ -35,6 +35,7 @@
 #include "Camera/CameraProjection.h"
 #include "Camera/CameraManager.h"
 #include "Render/HeroInterpolation.h"
+#include "Render/Interpolation.h"
 #include "Camera/CameraMode.h"
 #ifdef _EDITOR
 #include "Camera/FrustumRenderer.h"
@@ -364,6 +365,14 @@ void MainSceneFixedUpdate()
     if (Hero != nullptr)
     {
         Render::HeroInterp::OnTick(Hero->Object.Position);
+
+        // Stage 4b: same idea for the Hero body animation frame (pre-advance), so
+        // the pose can be interpolated between ticks. Gated by $poseinterp.
+        if (Render::Interpolation::PoseEnabled())
+        {
+            Render::Interpolation::HeroAnimOnTick(Hero->Object.AnimationFrame,
+                Hero->Object.PriorAnimationFrame, Hero->Object.PriorAction);
+        }
     }
 
     UpdateGameEntities();

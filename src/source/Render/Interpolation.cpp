@@ -11,9 +11,22 @@ namespace Render::Interpolation
         constexpr int kMaxRemoteSlots = 400;
 
         bool   s_enabled = true;
+        bool   s_poseEnabled = true;    // Stage 4b body-pose interp (validated); $poseinterp off to compare
         float  s_frameAlpha = 0.f;
         double s_frameMs = 0.0;
         float  s_remotePrev[kMaxRemoteSlots][3] = {};
+
+        // Stage 4b: per-slot prev-tick body animation state (parallel to OBJECT).
+        float          s_remoteAnimFrame[kMaxRemoteSlots] = {};
+        float          s_remoteAnimPriorFrame[kMaxRemoteSlots] = {};
+        unsigned short s_remoteAnimPriorAction[kMaxRemoteSlots] = {};
+        bool           s_remoteAnimValid[kMaxRemoteSlots] = {};
+
+        // Hero prev-tick body animation state.
+        float          s_heroAnimFrame = 0.f;
+        float          s_heroAnimPriorFrame = 0.f;
+        unsigned short s_heroAnimPriorAction = 0;
+        bool           s_heroAnimValid = false;
 
         // A single 25 tps tick of walking moves only a few units; > ~3 tiles in
         // one tick is a teleport/warp/spawn -> snap instead of sliding across it.
@@ -50,6 +63,9 @@ namespace Render::Interpolation
     void SetEnabled(bool on) { s_enabled = on; }
     bool Enabled()           { return s_enabled; }
 
+    void SetPoseEnabled(bool on) { s_poseEnabled = on; }
+    bool PoseEnabled()           { return s_poseEnabled; }
+
     void SetFrameAlpha(float alpha) { s_frameAlpha = alpha; }
     float FrameAlpha()              { return s_frameAlpha; }
 
@@ -73,5 +89,43 @@ namespace Render::Interpolation
             return;
         }
         LerpGuarded(s_remotePrev[index], curPos, s_frameAlpha, out);
+    }
+
+    void RemoteAnimOnTick(int index, float frame, float priorFrame, unsigned short priorAction)
+    {
+        if (index < 0 || index >= kMaxRemoteSlots)
+            return;
+        s_remoteAnimFrame[index]       = frame;
+        s_remoteAnimPriorFrame[index]  = priorFrame;
+        s_remoteAnimPriorAction[index] = priorAction;
+        s_remoteAnimValid[index]       = true;
+    }
+
+    bool RemoteAnimPrev(int index, float& frame, float& priorFrame, unsigned short& priorAction)
+    {
+        if (index < 0 || index >= kMaxRemoteSlots || !s_remoteAnimValid[index])
+            return false;
+        frame       = s_remoteAnimFrame[index];
+        priorFrame  = s_remoteAnimPriorFrame[index];
+        priorAction = s_remoteAnimPriorAction[index];
+        return true;
+    }
+
+    void HeroAnimOnTick(float frame, float priorFrame, unsigned short priorAction)
+    {
+        s_heroAnimFrame       = frame;
+        s_heroAnimPriorFrame  = priorFrame;
+        s_heroAnimPriorAction = priorAction;
+        s_heroAnimValid       = true;
+    }
+
+    bool HeroAnimPrev(float& frame, float& priorFrame, unsigned short& priorAction)
+    {
+        if (!s_heroAnimValid)
+            return false;
+        frame       = s_heroAnimFrame;
+        priorFrame  = s_heroAnimPriorFrame;
+        priorAction = s_heroAnimPriorAction;
+        return true;
     }
 }

@@ -34,6 +34,7 @@ FrameTimingState g_frameTiming;
 #include "Core/Input/Input.h"
 #include "Core/Diagnostics/TemporalCsvLogger.h"
 #include "Render/Interpolation.h"
+#include "Render/AnimInterp.h"
 #include "Render/HeroInterpolation.h"
 #include "UI/Legacy/UIMng.h"
 #include "Network/Server/WSclient.h"
@@ -1105,8 +1106,22 @@ void RenderScene(HDC hDC)
     if (auto& csv = Core::Diagnostics::TemporalCsvLogger::Instance();
         csv.Enabled() && heroInterp)
     {
+        // Stage 4b: log the Hero body animation frame raw vs interpolated, computed
+        // with the same helper the renderer uses, so the smoothing is provable.
+        // Prev state comes from the parallel store; when $poseinterp is off (or no
+        // snapshot yet) render == raw.
+        float          hpPrev = 0.f, hpPriorFrame = 0.f;
+        unsigned short hpPriorAction = 0;
+        const bool     hpValid = Render::Interpolation::HeroAnimPrev(hpPrev, hpPriorFrame, hpPriorAction);
+        const auto heroPose = Render::AnimInterp::Interpolate(
+            hpPrev, hpPriorFrame, hpPriorAction,
+            Hero->Object.AnimationFrame, Hero->Object.PriorAnimationFrame, Hero->Object.PriorAction,
+            simAlpha, Render::Interpolation::Enabled() && Render::Interpolation::PoseEnabled(),
+            hpValid);
+
         csv.LogFrame(WorldTime, FPS, heroSaved[0], heroSaved[1],
-                     heroRender[0], heroRender[1], simSteps, simAlpha, simFrameMs);
+                     heroRender[0], heroRender[1], simSteps, simAlpha, simFrameMs,
+                     Hero->Object.AnimationFrame, heroPose.frame);
     }
 
     // Drive auto-reconnect after the scene loops have advanced this frame. It

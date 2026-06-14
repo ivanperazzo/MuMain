@@ -33,9 +33,12 @@ namespace Core::Diagnostics
         // frameMs = real frame duration (Stage 4): lets the offline analyzer
         // recompute render-path animation advance rate (old = frames/s scales with
         // FPS; new = sum(frameMs/40) stays ~25/s, the fix).
+        // animRaw/animRender = Hero body animation frame, raw sim value vs the
+        // interpolated render value (Stage 4b): raw steps at 25 Hz, render advances
+        // its fraction smoothly every frame.
         void LogFrame(double timeMs, double fps, float heroX, float heroY,
                       float heroRenderX, float heroRenderY, int steps, float alpha,
-                      double frameMs);
+                      double frameMs, float animRaw, float animRender);
 
     private:
         TemporalCsvLogger();   // reads the env var once

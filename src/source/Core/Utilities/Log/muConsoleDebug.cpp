@@ -121,6 +121,16 @@ bool CmuConsoleDebug::CheckCommand(const std::wstring& strCommand)
         Render::Interpolation::SetEnabled(false);
         return true;
     }
+    else if (strCommand.compare(L"$poseinterp on") == 0)
+    {
+        Render::Interpolation::SetPoseEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$poseinterp off") == 0)
+    {
+        Render::Interpolation::SetPoseEnabled(false);
+        return true;
+    }
     else if (strCommand.compare(L"$vsync on") == 0)
     {
         EnableVSync();
