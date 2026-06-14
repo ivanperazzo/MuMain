@@ -1104,10 +1104,31 @@ void SetCharacterPos(CHARACTER* c, BYTE posX, BYTE posY, vec3_t position)
     SendCharacterMove(c->Key, c->Object.Angle[2], 1, PathX, PathY, PathX[0], PathY[0]);
 }
 
+namespace
+{
+    // Forward declaration: the skill-intent state and helpers are defined in the anonymous namespace further
+    // below, next to the melee intent helpers. SendRequestMagic sits above that point but needs to announce
+    // skill engagements, so we declare the single entry point here (same TU = same anonymous namespace).
+    void NoteAttackSkillRequest(int skillId, int targetKey);
+}
+
 void SendRequestMagic(int Type, int Key)
 {
     if (!IsCanBCSkill(Type))
         return;
+
+    // Server-authoritative skill auto-cast (Phase 2, L2-style): for a *damaging, targeted* skill the client
+    // announces intent once and the server drives the cast cadence (see SkillIntentHandlerPlugIn). Buffs,
+    // summons and self-cast skills are excluded (IsDamage == 0, or Key is our own hero) and keep the legacy
+    // per-cast path untouched -- the server only loops attack skills, so an intent for a buff would never cast.
+    // The legacy TargetedSkill below is still sent as a transitional fallback; the server's cadence gate
+    // rate-limits it against the auto-cast loop, so the two paths cannot double-cast.
+    const bool isTargetedAttackSkill =
+        SkillAttribute[Type].IsDamage != 0 && Key >= 0 && Hero != nullptr && Key != Hero->Key;
+    if (isTargetedAttackSkill)
+    {
+        NoteAttackSkillRequest(Type, Key);
+    }
 
     if (Type == 40 || Type == 263 || Type == 261 || abs((int)(GetTickCount() - g_dwLatestMagicTick)) > 300)
     {
@@ -1262,6 +1283,18 @@ namespace
     uint32_t g_LastAttackActivityTick = 0;
     constexpr uint32_t kAttackEngageGraceMs = 1500;
 
+    // Server-authoritative skill auto-cast (Phase 2): mirror of the melee intent above, but for damaging
+    // targeted skills. The client announces one SkillIntent per engagement and the server drives the cast
+    // cadence (see SkillIntentHandlerPlugIn); the client stops feeding per-cast packets. As with melee these
+    // statics only track *what we last told the server* so we emit one intent on engage and one stop on disengage.
+    uint32_t g_SkillIntentSeq = 0;        // Monotonic input-sequence; lets the server correlate skill intents.
+    int g_LastSkillIntentTargetKey = -1;  // Server target key of the active skill engagement, -1 when disengaged.
+    int g_LastSkillIntentSkillId = -1;    // Skill id of the active engagement; a different skill re-engages.
+    uint32_t g_LastSkillActivityTick = 0; // Refreshed on every attack-skill request; drives the grace-window stop.
+    // Tighter than the melee grace: a released skill should stop auto-casting quickly. While held, SendRequestMagic
+    // refreshes the activity tick every frame, so this only needs to outlast brief gaps, not inter-swing flicker.
+    constexpr uint32_t kSkillEngageGraceMs = 700;
+
     // Begin/refresh an auto-attack engagement on targetKey. Sends exactly one AttackIntent when the
     // engaged target changes; repeat calls for the same target are no-ops (no per-swing spam).
     void SendAttackIntentIfNewEngagement(int targetKey, BYTE animationHint)
@@ -1272,6 +1305,13 @@ namespace
         }
 
         g_LastAttackIntentTargetKey = targetKey;
+
+        // The server keeps a single engagement per player; starting a melee auto-attack replaces any skill
+        // auto-cast server-side. Drop the skill tracker without sending a StopSkillIntent (which would Disengage
+        // the melee we are about to start), keeping the client's view of the engagement in sync with the server.
+        g_LastSkillIntentTargetKey = -1;
+        g_LastSkillIntentSkillId = -1;
+
         constexpr BYTE kAttackIntentKindMelee = 0;
         NetDebugLog(L"[SEND AttackIntent] target=%d seq=%u animHint=%d", targetKey, (unsigned)(g_AttackIntentSeq + 1), (int)animationHint);
         SocketClient->ToGameServer()->SendAttackIntent(
@@ -1290,6 +1330,52 @@ namespace
         g_LastAttackIntentTargetKey = -1;
         NetDebugLog(L"[SEND StopAttackIntent] seq=%u", (unsigned)(g_AttackIntentSeq + 1));
         SocketClient->ToGameServer()->SendStopAttackIntent(++g_AttackIntentSeq);
+    }
+
+    // Begin/refresh a server-authoritative skill auto-cast engagement. Mirrors SendAttackIntentIfNewEngagement:
+    // one SkillIntent is sent when the (skill, target) pair changes; repeat calls for the same engagement are
+    // no-ops, so a per-frame held skill does not spam the wire. The server then drives the cast cadence.
+    void SendSkillIntentIfNewEngagement(int skillId, int targetKey)
+    {
+        if (targetKey < 0 || (skillId == g_LastSkillIntentSkillId && targetKey == g_LastSkillIntentTargetKey))
+        {
+            return;
+        }
+
+        g_LastSkillIntentSkillId = skillId;
+        g_LastSkillIntentTargetKey = targetKey;
+
+        // Symmetric to the melee helper: a skill auto-cast replaces any melee engagement server-side, so drop
+        // the melee tracker without sending a StopAttackIntent (which would Disengage the skill we just started).
+        g_LastAttackIntentTargetKey = -1;
+
+        NetDebugLog(L"[SEND SkillIntent] skill=%d target=%d seq=%u", skillId, targetKey, (unsigned)(g_SkillIntentSeq + 1));
+        SocketClient->ToGameServer()->SendSkillIntent(
+            ++g_SkillIntentSeq, static_cast<uint16_t>(skillId), static_cast<uint16_t>(targetKey));
+    }
+
+    // End the current skill auto-cast engagement. Sends exactly one StopSkillIntent if an engagement was active;
+    // a no-op when already disengaged.
+    void SendStopSkillIntentIfEngaged()
+    {
+        if (g_LastSkillIntentTargetKey < 0)
+        {
+            return;
+        }
+
+        g_LastSkillIntentSkillId = -1;
+        g_LastSkillIntentTargetKey = -1;
+        NetDebugLog(L"[SEND StopSkillIntent] seq=%u", (unsigned)(g_SkillIntentSeq + 1));
+        SocketClient->ToGameServer()->SendStopSkillIntent(++g_SkillIntentSeq);
+    }
+
+    // Single entry point used by SendRequestMagic (declared above it). Refreshes the activity tick on EVERY
+    // attack-skill request so a held skill keeps the engagement alive even though SendSkillIntentIfNewEngagement
+    // early-returns for the unchanged engagement; the engage itself only emits a packet on a new (skill, target).
+    void NoteAttackSkillRequest(int skillId, int targetKey)
+    {
+        g_LastSkillActivityTick = GetTickCount();
+        SendSkillIntentIfNewEngagement(skillId, targetKey);
     }
 }
 
@@ -2984,6 +3070,15 @@ void MoveHero()
         && (GetTickCount() - g_LastAttackActivityTick) > kAttackEngageGraceMs)
     {
         SendStopAttackIntentIfEngaged();
+    }
+
+    // Mirror of the melee catch-all for the skill auto-cast engagement: when the player has issued no attack-skill
+    // request for longer than the (tighter) skill grace window, end the server-authoritative skill loop. The
+    // helper is a no-op when not engaged, so this stays cheap on the per-frame hot path (one int compare).
+    if (g_LastSkillIntentTargetKey >= 0
+        && (GetTickCount() - g_LastSkillActivityTick) > kSkillEngageGraceMs)
+    {
+        SendStopSkillIntentIfEngaged();
     }
 
     if (HandleHeroPositionSlide(c))

@@ -528,6 +528,16 @@ void PacketFunctions_ClientToServer::SendStopAttackIntent(uint32_t inputSeq)
     dotnet_SendStopAttackIntent(this->GetHandle(), inputSeq);
 }
 
+void PacketFunctions_ClientToServer::SendSkillIntent(uint32_t inputSeq, uint16_t skillId, uint16_t targetId)
+{
+    dotnet_SendSkillIntent(this->GetHandle(), inputSeq, skillId, targetId);
+}
+
+void PacketFunctions_ClientToServer::SendStopSkillIntent(uint32_t inputSeq)
+{
+    dotnet_SendStopSkillIntent(this->GetHandle(), inputSeq);
+}
+
 void PacketFunctions_ClientToServer::SendTargetedSkill(uint16_t skillId, uint16_t targetId)
 {
     dotnet_SendTargetedSkill(this->GetHandle(), skillId, targetId);

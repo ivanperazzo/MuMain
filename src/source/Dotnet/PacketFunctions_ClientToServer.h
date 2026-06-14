@@ -1141,6 +1141,28 @@ public:
     void SendStopAttackIntent(uint32_t inputSeq);
 
     /// <summary>
+    /// Sends a SkillIntent to this connection.
+    /// </summary>
+    /// <param name="inputSeq">A client-side input sequence number, used to correlate the intent with the client's prediction.</param>
+    /// <param name="skillId">The skill id.</param>
+    /// <param name="targetId">The target id.</param>
+    /// <remarks>
+    /// Is sent by the client when: A player wants to start auto-casting a targeted skill. The client sends one intent per engagement; the server then auto-repeats the casts at its own magic/attack-speed cadence until the player disengages or the cast becomes invalid.
+    /// Causes reaction on server side: The server engages the player on the target with the skill and schedules the first cast. Subsequent casts are scheduled by the server-authoritative cadence loop, without further client packets. The client never dictates the hit rate.
+    /// </remarks>
+    void SendSkillIntent(uint32_t inputSeq, uint16_t skillId, uint16_t targetId);
+
+    /// <summary>
+    /// Sends a StopSkillIntent to this connection.
+    /// </summary>
+    /// <param name="inputSeq">A client-side input sequence number, used to correlate the intent with the client's prediction.</param>
+    /// <remarks>
+    /// Is sent by the client when: A player wants to stop auto-casting a skill. It ends the engagement started by a SkillIntent.
+    /// Causes reaction on server side: The server disengages the player, stopping the server-authoritative skill auto-cast loop.
+    /// </remarks>
+    void SendStopSkillIntent(uint32_t inputSeq);
+
+    /// <summary>
     /// Sends a TargetedSkill to this connection.
     /// </summary>
     /// <param name="skillId">The skill id.</param>

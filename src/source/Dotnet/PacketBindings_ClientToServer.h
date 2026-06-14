@@ -326,6 +326,12 @@ inline SendAttackIntent dotnet_SendAttackIntent = reinterpret_cast<SendAttackInt
 typedef void(CORECLR_DELEGATE_CALLTYPE* SendStopAttackIntent)(int32_t, uint32_t );
 inline SendStopAttackIntent dotnet_SendStopAttackIntent = reinterpret_cast<SendStopAttackIntent>(symLoad(munique_client_library_handle, "SendStopAttackIntent"));
 
+typedef void(CORECLR_DELEGATE_CALLTYPE* SendSkillIntent)(int32_t, uint32_t , uint16_t , uint16_t );
+inline SendSkillIntent dotnet_SendSkillIntent = reinterpret_cast<SendSkillIntent>(symLoad(munique_client_library_handle, "SendSkillIntent"));
+
+typedef void(CORECLR_DELEGATE_CALLTYPE* SendStopSkillIntent)(int32_t, uint32_t );
+inline SendStopSkillIntent dotnet_SendStopSkillIntent = reinterpret_cast<SendStopSkillIntent>(symLoad(munique_client_library_handle, "SendStopSkillIntent"));
+
 typedef void(CORECLR_DELEGATE_CALLTYPE* SendTargetedSkill)(int32_t, uint16_t , uint16_t );
 inline SendTargetedSkill dotnet_SendTargetedSkill = reinterpret_cast<SendTargetedSkill>(symLoad(munique_client_library_handle, "SendTargetedSkill"));
 

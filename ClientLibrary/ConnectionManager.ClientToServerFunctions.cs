@@ -3641,6 +3641,78 @@ public unsafe partial class ConnectionManager
     }
 
     /// <summary>
+    /// Sends a <see cref="SkillIntent" /> to this connection.
+    /// </summary>
+    /// <param name="handle">The handle of the connection.</param>
+    /// <param name="inputSeq">A client-side input sequence number, used to correlate the intent with the client's prediction.</param>
+    /// <param name="skillId">The skill id.</param>
+    /// <param name="targetId">The target id.</param>
+    /// <remarks>
+    /// Is sent by the client when: A player wants to start auto-casting a targeted skill. The client sends one intent per engagement; the server then auto-repeats the casts at its own magic/attack-speed cadence until the player disengages or the cast becomes invalid.
+    /// Causes reaction on server side: The server engages the player on the target with the skill and schedules the first cast. Subsequent casts are scheduled by the server-authoritative cadence loop, without further client packets. The client never dictates the hit rate.
+    /// </remarks>
+    [UnmanagedCallersOnly(EntryPoint = "SendSkillIntent")]
+    public static void SendSkillIntent(int handle, uint @inputSeq, ushort @skillId, ushort @targetId)
+    {
+        if (!Connections.TryGetValue(handle, out var connection))
+        {
+            return;
+        }
+
+        try
+        {
+            connection.CreateAndSend(pipeWriter =>
+            {
+                var length = SkillIntentRef.Length;
+                var packet = new SkillIntentRef(pipeWriter.GetSpan(length)[..length]);
+                packet.InputSeq = @inputSeq;
+                packet.SkillId = @skillId;
+                packet.TargetId = @targetId;
+
+                return length;
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+    /// <summary>
+    /// Sends a <see cref="StopSkillIntent" /> to this connection.
+    /// </summary>
+    /// <param name="handle">The handle of the connection.</param>
+    /// <param name="inputSeq">A client-side input sequence number, used to correlate the intent with the client's prediction.</param>
+    /// <remarks>
+    /// Is sent by the client when: A player wants to stop auto-casting a skill. It ends the engagement started by a SkillIntent.
+    /// Causes reaction on server side: The server disengages the player, stopping the server-authoritative skill auto-cast loop.
+    /// </remarks>
+    [UnmanagedCallersOnly(EntryPoint = "SendStopSkillIntent")]
+    public static void SendStopSkillIntent(int handle, uint @inputSeq)
+    {
+        if (!Connections.TryGetValue(handle, out var connection))
+        {
+            return;
+        }
+
+        try
+        {
+            connection.CreateAndSend(pipeWriter =>
+            {
+                var length = StopSkillIntentRef.Length;
+                var packet = new StopSkillIntentRef(pipeWriter.GetSpan(length)[..length]);
+                packet.InputSeq = @inputSeq;
+
+                return length;
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine(ex);
+        }
+    }
+
+    /// <summary>
     /// Sends a <see cref="TargetedSkill" /> to this connection.
     /// </summary>
     /// <param name="handle">The handle of the connection.</param>
