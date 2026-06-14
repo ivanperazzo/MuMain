@@ -306,14 +306,12 @@ public:
 private:
     BMD(const BMD& b);
 
-    // P-bmd-gpu: GPU skinning path. Transform() records the context it ran with so
-    // RenderMesh() can reproduce it on the GPU (bone matrices, Translate/scale).
-    // RenderMeshGpu draws one mesh via the BmdShader + cached VBO, reusing the
-    // texture/blend state RenderMesh already set. Returns false (untouched state)
-    // if the shader isn't ready, so the caller falls back to the legacy path.
-    float (*m_lastBoneMatrix)[3][4] = nullptr;
-    bool   m_lastTransformTranslate = false;
-    float  m_lastTransformScale     = 0.f;
+    // P-bmd-gpu: GPU skinning path. RenderMeshGpu draws one mesh via the BmdShader
+    // + cached VBO, reusing the texture/blend state RenderMesh already set. Returns
+    // false (untouched state) if the shader isn't ready, so the caller falls back to
+    // legacy. The Transform context it needs (bone matrix ptr, Translate, scale) is
+    // kept in file-scope statics in ZzzBMD.cpp -- NOT members -- so this feature does
+    // not change sizeof(BMD) (the Models[] array layout must stay byte-identical).
     bool RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float alpha);
 
     void AddClothesShadowTriangles(void* pClothes, int clothesCount, float sx, float sy) const;

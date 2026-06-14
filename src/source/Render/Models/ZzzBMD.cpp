@@ -166,13 +166,22 @@ extern int EditFlag;
 bool HighLight = true;
 float BoneScale = 1.f;
 
+// P-bmd-gpu: context of the last BMD::Transform call, consumed by the next
+// RenderMesh's GPU path. File-scope statics (NOT BMD members) so the feature does
+// not grow sizeof(BMD) -- the Models[] array layout must stay byte-identical.
+// Safe because rendering is single-threaded and Transform precedes RenderMesh for
+// the same object (RenderObject = Calc(Transform) -> Draw(RenderMesh)).
+static float (*s_lastBoneMatrix)[3][4] = nullptr;
+static bool   s_lastTransformTranslate = false;
+static float  s_lastTransformScale     = 0.f;
+
 void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t BoundingBoxMax, OBB_t* OBB, bool Translate, float _Scale)
 {
     // P-bmd-gpu: record the context this CPU transform ran with so a following
     // RenderMesh can reproduce it exactly on the GPU (A/B identical).
-    m_lastBoneMatrix        = BoneMatrix;
-    m_lastTransformTranslate = Translate;
-    m_lastTransformScale     = _Scale;
+    s_lastBoneMatrix        = BoneMatrix;
+    s_lastTransformTranslate = Translate;
+    s_lastTransformScale     = _Scale;
 
     vec3_t LightPosition;
 
@@ -960,7 +969,7 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
 {
     using namespace Render::GL;
     BmdShader& sh = GetBmdShader();
-    if (!sh.Ensure() || gpu == nullptr || !gpu->eligible || m_lastBoneMatrix == nullptr)
+    if (!sh.Ensure() || gpu == nullptr || !gpu->eligible || s_lastBoneMatrix == nullptr)
         return false;
 
     // Bone matrices: row-major 3x4 affine -> column-major mat4 (bottom row 0,0,0,1)
@@ -971,7 +980,7 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
     float bones[BmdShader::kMaxBones * 16];
     for (int b = 0; b < boneCount; ++b)
     {
-        const float(*M)[4] = m_lastBoneMatrix[b];   // [3][4]
+        const float(*M)[4] = s_lastBoneMatrix[b];   // [3][4]
         float* d = &bones[b * 16];
         for (int c = 0; c < 4; ++c)
         {
@@ -1004,7 +1013,7 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
         VectorIRotate(Position, Matrix, lightPos);
     }
 
-    const bool  translate = m_lastTransformTranslate;
+    const bool  translate = s_lastTransformTranslate;
     const float bodyScale = translate ? BodyScale : 1.f;
     vec3_t bodyOrigin = { 0.f, 0.f, 0.f };
     if (translate) { VectorCopy(BodyOrigin, bodyOrigin); }
@@ -1379,7 +1388,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         && Render::GL::IsLoaded()
         && finalRenderFlags == RENDER_TEXTURE && enableLight && !EnableWave
         && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
-        && BoneScale == 1.f && m_lastTransformScale == 0.f && m_lastBoneMatrix != nullptr)
+        && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
     {
         const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
         if (gpu != nullptr && gpu->eligible && RenderMeshGpu(meshIndex, gpu, alpha))
