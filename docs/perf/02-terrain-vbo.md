@@ -69,8 +69,30 @@ cuánto es terreno** vs personajes/efectos. Esto decide si P2 vale la inversión
 `analyze_perf.py` ya imprime `[T O C E]` ms por segmento. P2 = bajar `terrain_ms` a 30/60/144
 sin regresión visual. Captura antes (baseline) y después por enfoque.
 
+## Resultado de la medición por-pasada (run12) — **P2 DESCARTADO**
+
+`run12_pass.csv` (`analyze_perf.py … 12`), ms por pasada `[T O C E]`:
+
+| escena | fps | terrain | objects | chars | effects |
+|---|---|---|---|---|---|
+| casi vacío | 573 | 0.5 | 6.4 | 2.2 | 0 |
+| caminando | ~30 | **1.5** | **17** | 6 | 0 |
+| multitud | ~8 | **2-3** | 7 | **80-109** | 0 |
+
+**El terreno es insignificante: 0.5-3 ms siempre.** Un VBO de terreno ahorraría ~2 ms ⇒ **no
+vale la pena.** (Estructuralmente el terreno es immediate-mode "feo" como dice el foro, pero su
+costo absoluto acá es ruido.) **P2 (terreno→VBO) queda DESCARTADO.**
+
+El cuello real es el **render de modelos BMD**, repartido en dos pasadas:
+- `Objects` (props del mapa) ~17 ms caminando — mallas mayormente rígidas que igual pasan por
+  el transform CPU de BMD cada frame.
+- `Characters` ~80-109 ms en multitud — skinning CPU de cada personaje.
+
+Ambas usan el mismo path `BMD::Transform`/`RenderMesh`. ⇒ **el fix es el render BMD a GPU**, que
+ataca las DOS pasadas. Ver `03-bmd-gpu.md`. Effects ~0 (revertir 6a fue inocuo). Con poco en
+pantalla el motor llega a 573 fps (debug) ⇒ el techo lo pone el BMD, no el resto.
+
 ## Estado
 
-Deep-dive hecho; infra de medición por-pasada lista. **Gate A pendiente:** (1) capturar el
-desglose por-pasada (vacío+multitud) para cuantificar el terreno, luego (2) elegir A vs B vs
-re-priorizar a P3.
+**P2 descartado por datos** (terreno ~2 ms). Pivot al render BMD a GPU (props estáticos a VBO
+rígido + GPU skinning de personajes). Siguiente doc: `03-bmd-gpu.md`.
