@@ -16,6 +16,7 @@
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Interpolation.h"
+#include "Render/AnimTiming.h"
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -6906,7 +6907,15 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     {
         if (!g_isCharacterBuff(o, eDeBuff_Stun) && !g_isCharacterBuff(o, eDeBuff_Sleep))
         {
-            b->PlayAnimation(&f->AnimationFrame, &f->PriorAnimationFrame, &f->PriorAction, f->PlaySpeed, Position, Object->Angle);
+            // Stage 4a: this advance runs in the RENDER path (once per frame), so
+            // after 1b pinned FPS_ANIMATION_FACTOR=1.0 it sped up attached-part
+            // animations at high FPS. Scale PlaySpeed by the real frame duration so
+            // the rate matches the 25 tps sim. Only in MAIN_SCENE; menu/char-select
+            // keep the raw speed (PlayAnimation applies their own factor there).
+            const float linkSpeed = (SceneFlag == MAIN_SCENE)
+                ? Render::AnimTiming::FrameSpeed(f->PlaySpeed, Render::Interpolation::FrameMs())
+                : f->PlaySpeed;
+            b->PlayAnimation(&f->AnimationFrame, &f->PriorAnimationFrame, &f->PriorAction, linkSpeed, Position, Object->Angle);
         }
     }
 

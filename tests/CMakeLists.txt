@@ -58,4 +58,6 @@ add_subdirectory(time)
 
 add_subdirectory(motion)
 
+add_subdirectory(anim)
+
 add_subdirectory(editor)

@@ -30,8 +30,12 @@ namespace Core::Diagnostics
         // Record one render frame. heroX/heroY = raw sim position; heroRenderX/Y =
         // interpolated render position (Stage 2). At high FPS the rendered position
         // moves in small smooth steps while the raw one jumps at 25 Hz.
+        // frameMs = real frame duration (Stage 4): lets the offline analyzer
+        // recompute render-path animation advance rate (old = frames/s scales with
+        // FPS; new = sum(frameMs/40) stays ~25/s, the fix).
         void LogFrame(double timeMs, double fps, float heroX, float heroY,
-                      float heroRenderX, float heroRenderY, int steps, float alpha);
+                      float heroRenderX, float heroRenderY, int steps, float alpha,
+                      double frameMs);
 
     private:
         TemporalCsvLogger();   // reads the env var once

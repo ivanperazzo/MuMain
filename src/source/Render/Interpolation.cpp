@@ -10,9 +10,10 @@ namespace Render::Interpolation
         // (out-of-range slots just render un-interpolated instead of crashing).
         constexpr int kMaxRemoteSlots = 400;
 
-        bool  s_enabled = true;
-        float s_frameAlpha = 0.f;
-        float s_remotePrev[kMaxRemoteSlots][3] = {};
+        bool   s_enabled = true;
+        float  s_frameAlpha = 0.f;
+        double s_frameMs = 0.0;
+        float  s_remotePrev[kMaxRemoteSlots][3] = {};
 
         // A single 25 tps tick of walking moves only a few units; > ~3 tiles in
         // one tick is a teleport/warp/spawn -> snap instead of sliding across it.
@@ -51,6 +52,9 @@ namespace Render::Interpolation
 
     void SetFrameAlpha(float alpha) { s_frameAlpha = alpha; }
     float FrameAlpha()              { return s_frameAlpha; }
+
+    void SetFrameMs(double ms) { s_frameMs = ms; }
+    double FrameMs()           { return s_frameMs; }
 
     void RemoteOnTick(int index, const float curPos[3])
     {

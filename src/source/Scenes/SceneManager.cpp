@@ -1057,8 +1057,9 @@ void RenderScene(HDC hDC)
     // slows down the game. Input/UI already ran once in UpdateSceneState above;
     // only the world (MainSceneFixedUpdate) is stepped here. SimulationClock
     // clamps stalls and caps steps to avoid the spiral of death.
-    int   simSteps = 0;
-    float simAlpha = 0.0f;
+    int    simSteps   = 0;
+    float  simAlpha   = 0.0f;
+    double simFrameMs = 0.0;
     if (SceneFlag == MAIN_SCENE)
     {
         static Core::Time::SimulationClock s_simClock;
@@ -1072,13 +1073,17 @@ void RenderScene(HDC hDC)
             MainSceneFixedUpdate();
         }
 
-        simSteps = step.steps;
-        simAlpha = step.alpha;   // render interpolation factor, consumed in Stage 2
+        simSteps   = step.steps;
+        simAlpha   = step.alpha;   // render interpolation factor, consumed in Stage 2
+        simFrameMs = frameMs;      // real frame duration, consumed in Stage 4 (anim)
     }
 
     // Stage 2/3: shared render interpolation alpha for this frame (read by the
     // Hero and remote-entity renderers).
     Render::Interpolation::SetFrameAlpha(simAlpha);
+    // Stage 4a: real frame duration for render-path animation advance (0 outside
+    // MAIN_SCENE -> AnimTiming falls back to raw per-frame speed).
+    Render::Interpolation::SetFrameMs(simFrameMs);
 
     // Compute the Hero's interpolated render position once: used both for the CSV
     // log (raw vs rendered) and the draw override below.
@@ -1101,7 +1106,7 @@ void RenderScene(HDC hDC)
         csv.Enabled() && heroInterp)
     {
         csv.LogFrame(WorldTime, FPS, heroSaved[0], heroSaved[1],
-                     heroRender[0], heroRender[1], simSteps, simAlpha);
+                     heroRender[0], heroRender[1], simSteps, simAlpha, simFrameMs);
     }
 
     // Drive auto-reconnect after the scene loops have advanced this frame. It

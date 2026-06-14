@@ -22,6 +22,13 @@ namespace Render::Interpolation
     void  SetFrameAlpha(float alpha);
     float FrameAlpha();
 
+    // Real wall-clock duration of the current render frame, in ms (set once per
+    // frame from the fixed-step driver). Used by render-path animation advance to
+    // scale by real time instead of the sim's pinned FPS_ANIMATION_FACTOR, so
+    // attached-part animations don't speed up at high FPS. 0 outside MAIN_SCENE.
+    void   SetFrameMs(double ms);
+    double FrameMs();
+
     // Per-slot (CharactersClient[index]) previous-tick position, for interpolating
     // remote entities (mobs / other players) between fixed sim ticks.
     // RemoteOnTick snapshots the pre-move position each tick; RemoteRenderPos
