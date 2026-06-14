@@ -181,7 +181,15 @@ namespace Render::Models
     }
 
     void SetSkinSkip(bool on) { s_skinSkip = on; }
-    bool SkinSkip()           { return s_skinSkip; }
+    bool SkinSkip()
+    {
+        // MU_SKINSKIP=1: skip all CPU skinning (measures the skinning ceiling; legacy
+        // non-instanced meshes render wrong, instanced ones are fine — GPU skins from
+        // the bone palette, not VertexTransform).
+        static const bool s_envInit = [] { if (EnvFlag("MU_SKINSKIP")) s_skinSkip = true; return true; }();
+        (void)s_envInit;
+        return s_skinSkip;
+    }
 
     void NoteCharMeshDraw(bool wentGpu)
     {
