@@ -1296,64 +1296,10 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
             finalRenderFlags = RENDER_OIL;
         }
 
-        float Wave2 = (int)WorldTime % 5000 * 0.00024f - 0.4f;
-
-        vec3_t L = { (float)(cos(WorldTime * 0.001f)), (float)(sin(WorldTime * 0.002f)), 1.f };
-        for (int j = 0; j < m->NumNormals; j++)
-        {
-            if (j > MAX_VERTICES) break;
-            const auto normal = NormalTransform[meshIndex][j];
-
-            if ((renderFlags & RENDER_CHROME2) == RENDER_CHROME2)
-            {
-                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
-                g_chrome[j][1] = (normal[1] + normal[0]) * 1.0f + Wave2 * 3.f;
-            }
-            else if ((renderFlags & RENDER_CHROME3) == RENDER_CHROME3)
-            {
-                g_chrome[j][0] = DotProduct(normal, LightVector);
-                g_chrome[j][1] = 1.f - DotProduct(normal, LightVector);
-            }
-            else if ((renderFlags & RENDER_CHROME4) == RENDER_CHROME4)
-            {
-                g_chrome[j][0] = DotProduct(normal, L);
-                g_chrome[j][1] = 1.f - DotProduct(normal, L);
-                g_chrome[j][1] -= normal[2] * 0.5f + wave * 3.f;
-                g_chrome[j][0] += normal[1] * 0.5f + L[1] * 3.f;
-            }
-            else if ((renderFlags & RENDER_CHROME5) == RENDER_CHROME5)
-            {
-                g_chrome[j][0] = DotProduct(normal, L);
-                g_chrome[j][1] = 1.f - DotProduct(normal, L);
-                g_chrome[j][1] -= normal[2] * 2.5f + wave * 1.f;
-                g_chrome[j][0] += normal[1] * 3.f + L[1] * 5.f;
-            }
-            else if ((renderFlags & RENDER_CHROME6) == RENDER_CHROME6)
-            {
-                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
-                g_chrome[j][1] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
-            }
-            else if ((renderFlags & RENDER_CHROME7) == RENDER_CHROME7)
-            {
-                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + static_cast<float>(WorldTime) * 0.00006f;
-                g_chrome[j][1] = (normal[2] + normal[0]) * 0.8f + static_cast<float>(WorldTime) * 0.00006f;
-            }
-            else if ((renderFlags & RENDER_OIL) == RENDER_OIL)
-            {
-                g_chrome[j][0] = normal[0];
-                g_chrome[j][1] = normal[1];
-            }
-            else if ((renderFlags & RENDER_CHROME) == RENDER_CHROME)
-            {
-                g_chrome[j][0] = normal[2] * 0.5f + wave;
-                g_chrome[j][1] = normal[1] * 0.5f + wave * 2.f;
-            }
-            else
-            {
-                g_chrome[j][0] = normal[2] * 0.5f + 0.2f;
-                g_chrome[j][1] = normal[1] * 0.5f + 0.5f;
-            }
-        }
+        // g_chrome[] sphere-map texcoords are computed AFTER the GPU/instancing
+        // decision + skinning (see below, gated on finalRenderFlags). When the mesh
+        // instances, the shader builds the UV and this per-normal loop is skipped
+        // entirely; on the legacy path it runs against freshly-skinned normals.
 
         if ((renderFlags & RENDER_CHROME3) == RENDER_CHROME3
             || (renderFlags & RENDER_CHROME4) == RENDER_CHROME4
@@ -1669,6 +1615,71 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     // P-bmd-skinskip: legacy CPU draw reads VertexTransform/LightTransform — force-skin
     // this mesh now if Transform deferred it (no-op if already skinned this frame).
     EnsureMeshSkinned(meshIndex);
+
+    // Chrome sphere-map texcoords for the legacy draw, relocated here from the chrome
+    // state block: only reached when the mesh did NOT instance (wentGpu returned above),
+    // and after EnsureMeshSkinned so NormalTransform is current under deferred skinning.
+    if (finalRenderFlags == RENDER_CHROME || finalRenderFlags == RENDER_CHROME4
+        || finalRenderFlags == RENDER_OIL)
+    {
+        const float Wave2 = (int)WorldTime % 5000 * 0.00024f - 0.4f;
+        vec3_t L = { (float)(cos(WorldTime * 0.001f)), (float)(sin(WorldTime * 0.002f)), 1.f };
+        for (int j = 0; j < m->NumNormals; j++)
+        {
+            if (j > MAX_VERTICES) break;
+            const auto normal = NormalTransform[meshIndex][j];
+
+            if ((renderFlags & RENDER_CHROME2) == RENDER_CHROME2)
+            {
+                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
+                g_chrome[j][1] = (normal[1] + normal[0]) * 1.0f + Wave2 * 3.f;
+            }
+            else if ((renderFlags & RENDER_CHROME3) == RENDER_CHROME3)
+            {
+                g_chrome[j][0] = DotProduct(normal, LightVector);
+                g_chrome[j][1] = 1.f - DotProduct(normal, LightVector);
+            }
+            else if ((renderFlags & RENDER_CHROME4) == RENDER_CHROME4)
+            {
+                g_chrome[j][0] = DotProduct(normal, L);
+                g_chrome[j][1] = 1.f - DotProduct(normal, L);
+                g_chrome[j][1] -= normal[2] * 0.5f + wave * 3.f;
+                g_chrome[j][0] += normal[1] * 0.5f + L[1] * 3.f;
+            }
+            else if ((renderFlags & RENDER_CHROME5) == RENDER_CHROME5)
+            {
+                g_chrome[j][0] = DotProduct(normal, L);
+                g_chrome[j][1] = 1.f - DotProduct(normal, L);
+                g_chrome[j][1] -= normal[2] * 2.5f + wave * 1.f;
+                g_chrome[j][0] += normal[1] * 3.f + L[1] * 5.f;
+            }
+            else if ((renderFlags & RENDER_CHROME6) == RENDER_CHROME6)
+            {
+                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
+                g_chrome[j][1] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
+            }
+            else if ((renderFlags & RENDER_CHROME7) == RENDER_CHROME7)
+            {
+                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + static_cast<float>(WorldTime) * 0.00006f;
+                g_chrome[j][1] = (normal[2] + normal[0]) * 0.8f + static_cast<float>(WorldTime) * 0.00006f;
+            }
+            else if ((renderFlags & RENDER_OIL) == RENDER_OIL)
+            {
+                g_chrome[j][0] = normal[0];
+                g_chrome[j][1] = normal[1];
+            }
+            else if ((renderFlags & RENDER_CHROME) == RENDER_CHROME)
+            {
+                g_chrome[j][0] = normal[2] * 0.5f + wave;
+                g_chrome[j][1] = normal[1] * 0.5f + wave * 2.f;
+            }
+            else
+            {
+                g_chrome[j][0] = normal[2] * 0.5f + 0.2f;
+                g_chrome[j][1] = normal[1] * 0.5f + 0.5f;
+            }
+        }
+    }
 
     glEnableClientState(GL_VERTEX_ARRAY);
     if (enableColor) glEnableClientState(GL_COLOR_ARRAY);
