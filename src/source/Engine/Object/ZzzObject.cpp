@@ -2672,6 +2672,9 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
 
 void RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
 {
+    // Defensive: same out-of-range Type guard as MoveObject (Calc_RenderObject /
+    // Draw_RenderObject index Models[o->Type]).
+    if (o == nullptr || o->Type < 0 || o->Type >= MAX_MODELS) return;
     if (Calc_RenderObject(o, Translate, Select, ExtraMon) == false)
     {
         return;
@@ -3652,6 +3655,12 @@ int GetLoginCameraWalkCut();
 
 void MoveObject(OBJECT* o)
 {
+    // Defensive: an object whose model Type is out of range would index Models[]
+    // past the array into arbitrary memory and crash in PlayAnimation/Transform.
+    // Skip it. (Latent OOB; sizeof(BMD) changes shift where such an index lands,
+    // so a previously-benign bad object can start crashing. A valid object's Type
+    // is always < MAX_MODELS.)
+    if (o == nullptr || o->Type < 0 || o->Type >= MAX_MODELS) return;
     if (gMapManager.WorldActive == 9)
     {
         if ((int)WorldTime % 4000 < 1000)
