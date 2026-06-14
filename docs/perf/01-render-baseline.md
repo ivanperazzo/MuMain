@@ -132,9 +132,33 @@ slerps) corren sin optimizar ⇒ el FPS absoluto (47-77) está **inflado-bajo**;
 `cpu_render_ms` cae fuerte (típico 3-10× en loops así). La conclusión **CPU-bound** es robusta
 (el split 85/3 no depende del build), pero el **techo real de FPS requiere medir en Release**.
 
-**Conclusión P0:** el cuello es 100% CPU; la GPU no se usa. El camino a 1400-2000 fps es mover
-trabajo de CPU→GPU (P2 VBO, P3 GPU skinning/shaders) — el diagnóstico valida el plan. Próximo:
-medir baseline en **Release** (número real) antes de elegir P1 vs P2 vs P3.
+### P0b — Multitud vs vacío (run11) — el smoking gun
+
+Re-captura en **zona poblada** (`run11_p0_crowd.csv`, 390 frames, vsync off):
+
+| escena | fps | frame_ms | cpu_render_ms | swap_ms |
+|---|---|---|---|---|
+| vacío (run10) | 68 | 15.5 | **13** | 0.44 |
+| **multitud (run11)** | **5.5** | 197 | **158** | 0.47 |
+
+- **`swap_ms` siguió ~0.5 ms con multitud** ⇒ la GPU presenta en <0.5 ms **sin importar cuántos
+  personajes** = idle siempre. Definitivo: la GPU nunca es el cuello.
+- **`cpu_render_ms` saltó 13→158 ms (12×)**; FPS 68→5.5. El terreno/UI es ~13 ms fijo; la
+  multitud agregó **~145 ms de puro costo de personajes en CPU**.
+
+⇒ En el caso real (server poblado) **el render de modelos domina ~10× sobre el terreno.** El
+costo es `N_personajes × N_partes_equipo × N_vértices` de **skinning en CPU**: `BMD::Animation`
+(matrices de hueso) + `BMD::Transform` (transforma cada vértice → buffer global `VertexTransform`,
+ZzzBMD.cpp:31) por cada parte de cada personaje, justo antes de su draw (`Calc_RenderObject` skin,
+`Draw_RenderObject` dibuja). **El frustum culling YA existe** (`o->Visible = TestFrustrum2D`,
+`if (o->Visible)` antes de `RenderCharacter`) ⇒ los 158 ms son personajes **visibles**; culling no
+ayuda con una multitud en pantalla. Algunos monstruos además crean cloth physics por frame.
+
+**Conclusión P0:** cuello = 100% CPU, GPU idle. En escena vacía pesa terreno+UI (~13 ms); con
+multitud **domina el skinning de personajes en CPU** (~10×). El fix de fondo y de mayor impacto
+para el objetivo (server poblado, alto FPS) es **P3: GPU skinning** (mover `BMD::Transform` al
+vertex shader, malla+pesos en VBO, matrices de hueso como uniforms). Terreno→VBO (P2) ataca el
+piso fijo. Próximo: medir baseline en **Release** (número real) + decidir arranque P2 vs P3.
 
 ## Estado
 
