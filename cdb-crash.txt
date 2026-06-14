@@ -1,0 +1,2 @@
+sxe -c "kvn 80;.echo ===CDB-CRASH-STACK-END===;qd" av
+g
