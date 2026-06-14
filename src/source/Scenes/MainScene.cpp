@@ -483,8 +483,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         Render::Models::SetGpuCharsPass(true);
         Render::Models::InstBegin();                 // P-bmd-instance: collect this pass
         RenderCharactersClient();
-        const float instLight[3] = { 0.f, 0.f, 0.f };  // flat chars ignore it
-        Render::Models::InstFlush(instLight);        // one draw per (model,mesh,tex)
+        Render::Models::InstFlush();                 // one draw per (model,mesh,tex)
         Render::Models::SetGpuCharsPass(false);
     }
     Render::Models::LogAndResetGpuStats();

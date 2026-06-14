@@ -1088,6 +1088,22 @@ static int InstPaletteBaseForCurrentPart(int numBones)
     return s_lastBase;
 }
 
+// P-bmd-instance: global light direction for LIT instanced meshes. HighLight is a
+// constant 'true' in this client, so RenderMeshGpu's lit branch always uses Position
+// (1.3,0,2). Normal chars have ShadowAngle = (0,0,AmbientShadowAngle) (a global), so
+// the result is identical for every char -> one uLightPos per flush. We compute from
+// AmbientShadowAngle directly (not this->ShadowAngle) so a rare pet with a custom
+// shadow angle can't poison the shared uniform for the whole batch.
+void BMD::ComputeInstLitLight(vec3_t out)
+{
+    vec3_t Position, angle;
+    float  Matrix[3][4];
+    Vector(1.3f, 0.f, 2.f, Position);
+    Vector(0.f, 0.f, AmbientShadowAngle, angle);
+    AngleMatrix(angle, Matrix);
+    VectorIRotate(Position, Matrix, out);
+}
+
 void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshIndex, float blendMeshAlpha, float blendMeshTextureCoordU, float blendMeshTextureCoordV, int explicitTextureIndex)
 {
     if (meshIndex >= NumMeshs || meshIndex < 0) return;
@@ -1438,24 +1454,41 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
         if (gpu != nullptr && gpu->eligible)
         {
-            // P-bmd-instance: in the Characters pass, COLLECT flat (enableLight==false),
-            // world-baked (Translate==true) meshes into the instanced batch instead of
-            // drawing now; InstFlush() at end of pass collapses identical (model,mesh,
-            // texture) into one glDrawArraysInstanced. Lit/non-translated meshes keep
-            // the per-mesh GPU path (their light/placement aren't instance-uniform).
+            // P-bmd-instance: in the Characters pass, COLLECT world-baked
+            // (Translate==true) plain-textured meshes into the instanced batch instead
+            // of drawing now; InstFlush() at end of pass collapses identical (model,
+            // mesh, texture) into one glDrawArraysInstanced. Both flat (enableLight
+            // false -> flat glColor) and lit (per-normal, light is map-global) qualify.
+            // Excluded: alpha-blended meshes (the flush is alpha-test only); those keep
+            // the per-mesh GPU path. (HighLight is a constant 'true' here, not a per-
+            // object highlight, so it is not an exclusion.)
+            const bool blended = (renderFlags & (RENDER_BRIGHT | RENDER_DARK)) != 0;
             if (Render::Models::GpuCharsPass() && Render::Models::GpuInstEnabled()
-                && !enableLight && s_lastTransformTranslate)
+                && s_lastTransformTranslate && !blended)
             {
-                float cur[4] = { 1.f, 1.f, 1.f, 1.f };
-                glGetFloatv(GL_CURRENT_COLOR, cur);
                 Render::Models::InstanceRec rec;
-                rec.paletteBase  = (float)InstPaletteBaseForCurrentPart(NumBones);
-                rec.bodyScale    = BodyScale;
+                rec.paletteBase   = (float)InstPaletteBaseForCurrentPart(NumBones);
+                rec.bodyScale     = BodyScale;
                 rec.bodyOrigin[0] = BodyOrigin[0];
                 rec.bodyOrigin[1] = BodyOrigin[1];
                 rec.bodyOrigin[2] = BodyOrigin[2];
-                rec.color[0] = cur[0]; rec.color[1] = cur[1]; rec.color[2] = cur[2]; rec.color[3] = cur[3];
-                rec.lit = 0.f;
+                if (enableLight)
+                {
+                    // Lit: base colour = BodyLight, per-normal lum in the shader.
+                    rec.color[0] = BodyLight[0]; rec.color[1] = BodyLight[1]; rec.color[2] = BodyLight[2];
+                    rec.color[3] = alpha;
+                    rec.lit = 1.f;
+                    vec3_t lp; ComputeInstLitLight(lp);
+                    Render::Models::InstSetLight(lp);
+                }
+                else
+                {
+                    // Flat: single colour the caller set, no per-vertex lighting.
+                    float cur[4] = { 1.f, 1.f, 1.f, 1.f };
+                    glGetFloatv(GL_CURRENT_COLOR, cur);
+                    rec.color[0] = cur[0]; rec.color[1] = cur[1]; rec.color[2] = cur[2]; rec.color[3] = cur[3];
+                    rec.lit = 0.f;
+                }
                 Render::Models::InstAdd(this, meshIndex, textureIndex, rec);
                 wentGpu = true;
                 instanced = true;

@@ -418,8 +418,7 @@ bool NewRenderLogInScene(HDC hDC)
         Render::Models::SetGpuCharsPass(true);
         Render::Models::InstBegin();
         RenderCharactersClient();
-        const float instLight[3] = { 0.f, 0.f, 0.f };
-        Render::Models::InstFlush(instLight);
+        Render::Models::InstFlush();
         Render::Models::InstSelfTest();   // env-gated; exercises glDrawArraysInstanced
         Render::Models::SetGpuCharsPass(false);
         RenderMount();

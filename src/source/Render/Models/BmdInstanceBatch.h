@@ -27,7 +27,8 @@ namespace Render::Models
     void InstBegin();
     int  InstAppendPalette(const float (*boneMatrix)[3][4], int boneCount);
     void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec);
-    void InstFlush(const float lightPos[3]);
+    void InstSetLight(const float lightPos[3]);   // global lit dir for lit instances
+    void InstFlush();
 
     // Stats for the diagnostics log: instanced draws issued + instances covered.
     int  InstDrawCount();

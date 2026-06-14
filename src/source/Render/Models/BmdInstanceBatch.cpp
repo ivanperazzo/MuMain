@@ -44,6 +44,7 @@ namespace Render::Models
         std::unordered_map<uint64_t, Bucket> s_buckets;
         int s_drawCount = 0;
         int s_instCount = 0;
+        float s_instLight[3] = { 0.f, 0.f, 0.f };   // global lit light dir (lit instances)
 
         uint64_t Key(const BMD* m, int mesh, int tex)
         {
@@ -60,11 +61,17 @@ namespace Render::Models
         Render::GL::GetBonePaletteTBO().Begin();
         s_drawCount = 0;
         s_instCount = 0;
+        s_instLight[0] = s_instLight[1] = s_instLight[2] = 0.f;
     }
 
     int InstAppendPalette(const float (*boneMatrix)[3][4], int boneCount)
     {
         return Render::GL::GetBonePaletteTBO().AppendPalette(boneMatrix, boneCount);
+    }
+
+    void InstSetLight(const float lightPos[3])
+    {
+        s_instLight[0] = lightPos[0]; s_instLight[1] = lightPos[1]; s_instLight[2] = lightPos[2];
     }
 
     void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec)
@@ -83,7 +90,7 @@ namespace Render::Models
         b.recs.push_back(rec.lit);
     }
 
-    void InstFlush(const float lightPos[3])
+    void InstFlush()
     {
         using namespace Render::GL;
         InstancedBmdShader& sh = GetInstancedBmdShader();
@@ -101,7 +108,7 @@ namespace Render::Models
         tbo.Bind(1);
         sh.SetPaletteUnit(1);
         sh.SetTextureUnit(0);
-        sh.SetLight(lightPos);
+        sh.SetLight(s_instLight);   // global lit dir set during collect (lit instances)
         ActiveTexture(GL_TEXTURE0);
 
         glEnable(GL_DEPTH_TEST);

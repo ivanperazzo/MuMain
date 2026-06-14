@@ -314,6 +314,10 @@ private:
     // not change sizeof(BMD) (the Models[] array layout must stay byte-identical).
     bool RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float alpha, bool lit);
 
+    // P-bmd-instance: global light dir for LIT instanced meshes (member: reads/writes
+    // this->ShadowAngle like RenderMeshGpu's lit branch, minus the HighLight case).
+    void ComputeInstLitLight(vec3_t out);
+
     void AddClothesShadowTriangles(void* pClothes, int clothesCount, float sx, float sy) const;
     void AddMeshShadowTriangles(int blendMesh, int hiddenMesh, int startMesh, int endMesh, float sx, float sy) const;
 };
