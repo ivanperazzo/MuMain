@@ -393,7 +393,7 @@ bool BMD::PlayAnimation(float* AnimationFrame, float* PriorAnimationFrame, unsig
 {
     bool Loop = true;
 
-    if (AnimationFrame == nullptr || PriorAnimationFrame == nullptr || PriorAction == nullptr || (NumActions > 0 && CurrentAction >= NumActions))
+    if (AnimationFrame == nullptr || PriorAnimationFrame == nullptr || PriorAction == nullptr || Actions == nullptr || (NumActions > 0 && CurrentAction >= NumActions))
     {
         return Loop;
     }
