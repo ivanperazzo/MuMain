@@ -14,4 +14,10 @@ namespace Core::Diagnostics::RenderHarness
 
     // True when MU_TEST_CHARS spawned a crowd (so the scene can fix the camera, etc.).
     bool Active();
+
+    // Screenshot for autonomous A/B visual checks (MU_TEST_SHOT=frameN): once frame N
+    // is reached, glReadPixels the back buffer and write "harness_shot.jpg" next to the
+    // exe. Call after the frame's draw submission, before the buffer swap. No-op when
+    // MU_TEST_SHOT is unset. The runner tags the file (copy to shot_<config>.jpg).
+    void CaptureShotIfRequested();
 }

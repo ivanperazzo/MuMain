@@ -14,6 +14,7 @@
 #include "Render/Models/BmdGpuCache.h"
 #include "Render/Models/BmdInstanceBatch.h"
 #include "Core/Diagnostics/RenderHarness.h"
+#include "Core/Utilities/FrameProfiler.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Engine/Object/ZzzInterface.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -410,30 +411,42 @@ bool NewRenderLogInScene(HDC hDC)
 
     if (!CUIMng::Instance().m_CreditWin.IsShow())
     {
-        RenderTerrain(false);
+        { FRAME_PROFILE(Terrain); RenderTerrain(false); }
         // P-bmd-gpu/instance (A0): exercise the GPU/instancing path in the login
         // town too, so autonomous cdb smoke-tests render characters+props without
         // needing to enter the world. Same $gpubmd/$gpuinst gating applies.
-        Core::Diagnostics::RenderHarness::ApplyTestCharsIfRequested();  // MU_TEST_CHARS=N
-        Render::Models::SetGpuCharsPass(true);
-        Render::Models::InstBegin();
-        RenderCharactersClient();
-        Render::Models::InstFlush();
-        Render::Models::InstSelfTest();   // env-gated; exercises glDrawArraysInstanced
-        Render::Models::SetGpuCharsPass(false);
-        RenderMount();
-        Render::Models::SetGpuObjectsPass(true);
-        RenderObjects();
-        Render::Models::SetGpuObjectsPass(false);
-        RenderJoints();
-        RenderEffects();
-        CheckSprites();
-        RenderLeaves();
-        RenderBoids();
-        Render::Models::SetGpuObjectsPass(true);
-        RenderObjects_AfterCharacter();
-        Render::Models::SetGpuObjectsPass(false);
-        ThePetProcess().RenderPets();
+        {
+            FRAME_PROFILE(Characters);
+            Core::Diagnostics::RenderHarness::ApplyTestCharsIfRequested();  // MU_TEST_CHARS=N
+            Render::Models::SetGpuCharsPass(true);
+            Render::Models::InstBegin();
+            RenderCharactersClient();
+            Render::Models::InstFlush();
+            Render::Models::InstSelfTest();   // env-gated; exercises glDrawArraysInstanced
+            Render::Models::SetGpuCharsPass(false);
+        }
+        {
+            FRAME_PROFILE(Objects);
+            RenderMount();
+            Render::Models::SetGpuObjectsPass(true);
+            RenderObjects();
+            Render::Models::SetGpuObjectsPass(false);
+        }
+        {
+            FRAME_PROFILE(Effects);
+            RenderJoints();
+            RenderEffects();
+            CheckSprites();
+            RenderLeaves();
+            RenderBoids();
+        }
+        {
+            FRAME_PROFILE(Objects);
+            Render::Models::SetGpuObjectsPass(true);
+            RenderObjects_AfterCharacter();
+            Render::Models::SetGpuObjectsPass(false);
+            ThePetProcess().RenderPets();
+        }
         Render::Models::LogAndResetGpuStats();   // A0: GPU/instancing stats in the login town
     }
 

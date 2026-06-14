@@ -37,6 +37,8 @@ FrameTimingState g_frameTiming;
 #include "Render/AnimInterp.h"
 #include "Render/EffectTiming.h"
 #include "Render/FrameProfiler.h"
+#include "Core/Diagnostics/RenderHarness.h"
+#include "Render/GL/GLLog.h"
 #include "Render/HeroInterpolation.h"
 #include "UI/Legacy/UIMng.h"
 #include "Network/Server/WSclient.h"
@@ -1040,9 +1042,28 @@ void MainScene(HDC hDC)
             }
 #endif
             Render::FrameProfiler::EndRender();   // all CPU draw submission done
+            Core::Diagnostics::RenderHarness::CaptureShotIfRequested();  // MU_TEST_SHOT
             Render::FrameProfiler::BeginSwap();
             PlatformSwapBuffers();
             Render::FrameProfiler::EndSwap();      // present (VSync wait / GPU catch-up)
+
+            // Frame-cost split for ALL scenes (login included): is the ~180ms in CPU
+            // draw submission or in the present/VSync/GPU wait? Logged every 30 frames.
+            {
+                static int s_frameSplitCtr = 0;
+                if (++s_frameSplitCtr >= 30)
+                {
+                    s_frameSplitCtr = 0;
+                    using FP = FrameProfiler::Pass;
+                    Render::GL::Log("[frame] scene=%d cpuRender=%.1fms swap=%.1fms | terrain=%.1f objects=%.1f chars=%.1f items=%.1f effects=%.1f other=%.1f",
+                        (int)SceneFlag,
+                        Render::FrameProfiler::LastCpuRenderMs(),
+                        Render::FrameProfiler::LastSwapMs(),
+                        FrameProfiler::LastMs(FP::Terrain), FrameProfiler::LastMs(FP::Objects),
+                        FrameProfiler::LastMs(FP::Characters), FrameProfiler::LastMs(FP::Items),
+                        FrameProfiler::LastMs(FP::Effects), FrameProfiler::LastMs(FP::Other));
+                }
+            }
         }
 
         CheckServerConnection();

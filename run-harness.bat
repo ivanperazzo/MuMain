@@ -13,8 +13,10 @@ set "MU_GPUINST=%~2"
 if "%MU_GPUINST%"=="" set "MU_GPUINST=1"
 set "MU_GPUBMD=%~3"
 if "%MU_GPUBMD%"=="" set "MU_GPUBMD=1"
+set "MU_TEST_SHOT=%~4"
+if "%MU_TEST_SHOT%"=="" set "MU_TEST_SHOT=150"
 
-echo [harness] chars=%MU_TEST_CHARS% gpuinst=%MU_GPUINST% gpubmd=%MU_GPUBMD%
+echo [harness] chars=%MU_TEST_CHARS% gpuinst=%MU_GPUINST% gpubmd=%MU_GPUBMD% shot=%MU_TEST_SHOT%
 "%CDB%" -g -G -logo cdb-out.txt -cf cdb-cmds.txt "%DBG%\Main.exe" connect /u127.0.0.1 /p44406
 echo [harness] terminado.
 endlocal
