@@ -64,11 +64,12 @@ namespace Render::Terrain
 
     bool TerrainBatchEnabled()
     {
+        // Default ON (validated on login + in-game maps); opt out with MU_TERRAINVBO=0.
         static int s_enabled = -1;
         if (s_enabled < 0)
         {
             const char* e = std::getenv("MU_TERRAINVBO");
-            s_enabled = (e && e[0] == '1') ? 1 : 0;
+            s_enabled = (e && e[0] == '0') ? 0 : 1;
         }
         return s_enabled != 0;
     }
