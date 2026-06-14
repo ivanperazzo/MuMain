@@ -3785,7 +3785,8 @@ void MoveObject(OBJECT* o)
             break;
         case MODEL_HOUSE01 + 2:
         case MODEL_HOUSE_WALL01 + 1:
-            o->BlendMeshLight = (float)(rand() % 4 + 4) * 0.1f;
+            // Lit-window glow: fixed-cadence flicker (was per-frame rand -> strobed at high FPS).
+            o->BlendMeshLight = FireFlickerLuminosity(0.4f, 0.7f, FireFlickerSeed(o->Position[0], o->Position[1]));
             break;
         case MODEL_LIGHT01:
             CreateFire(0, o, 0.f, 0.f, 0.f);
@@ -3814,13 +3815,13 @@ void MoveObject(OBJECT* o)
             CreateFire(0, o, 0.f, -30.f, 60.f);
             break;
         case MODEL_STREET_LIGHT:
-            Luminosity = (float)(rand() % 2 + 6) * 0.1f;
+            Luminosity = FireFlickerLuminosity(0.6f, 0.7f, FireFlickerSeed(o->Position[0], o->Position[1]));
             Vector(Luminosity, Luminosity * 0.8f, Luminosity * 0.6f, Light);
             AddTerrainLight(o->Position[0], o->Position[1], Light, 3, PrimaryTerrainLight);
             break;
         case MODEL_BONFIRE:
             CreateFire(0, o, 0.f, 0.f, 60.f);
-            o->BlendMeshLight = (float)(rand() % 6 + 4) * 0.1f;
+            o->BlendMeshLight = FireFlickerLuminosity(0.4f, 0.9f, FireFlickerSeed(o->Position[0], o->Position[1]) ^ 0x9e3779b9u);
             //CreateBonfire(o->Position,o->Angle);
             break;
             /*	case MODEL_FIREPLACE01:
@@ -3843,7 +3844,7 @@ void MoveObject(OBJECT* o)
             break;
         }*/
         case MODEL_CANDLE:
-            Luminosity = (float)(rand() % 4 + 3) * 0.1f;
+            Luminosity = FireFlickerLuminosity(0.3f, 0.6f, FireFlickerSeed(o->Position[0], o->Position[1]));
             Vector(Luminosity, Luminosity * 0.6f, Luminosity * 0.2f, Light);
             AddTerrainLight(o->Position[0], o->Position[1], Light, 3, PrimaryTerrainLight);
             break;
