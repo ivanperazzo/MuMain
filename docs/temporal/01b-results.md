@@ -36,8 +36,21 @@ De 9.268 frames con `steps==0` (ningún tick fijo ese frame), el Hero se movió 
 
 La primera métrica (promedio de **velocidad por-frame** = dist/dt de cada frame) dio una dispersión falsa de **115 %** (parecía que la velocidad escalaba con el FPS). Es un artefacto: con movimiento a saltos discretos por tick, un frame corto de alto FPS que justo tuvo 1 tick muestra `vel/dt_chico` = velocidad inflada, y el promedio sobre-pesa esos frames-salto. La medición correcta es por ventana de tiempo (o tasa de ticks). `analyze.py` quedó con la versión correcta.
 
-## Pendiente (captura más limpia, opcional)
+## E2 — cap a 10 FPS (verificado)
 
-- E2 (cap a 10 FPS, sin caída de velocidad) no se midió aún — `$fps 10` y confirmar que sigue ~285 u/s.
-- Apretar el 6.1 %: caminata más larga y a velocidad estable por bin; el bin ~144 (corto, n=37) es el que más ruido mete (31 tps / 301 u/s).
+Captura `docs/temporal/baseline/run02_e2.csv` (`$vsync off` + `$fps 10`, caminata del Hero):
+
+| FPS render | ticks/seg | velocidad | muestra |
+|---|---|---|---|
+| ~10 | **24.7 tps** | **297.9 u/s** | 64.6 s, 1593 ticks |
+
+A 10 FPS la sim sigue a ~25 tps (no a ~10) y la velocidad se mantiene ~285–300 u/s. El clamp viejo (`FPS_ANIMATION_FACTOR = clamp(REFERENCE_FPS/FPS, 0, 1)`) habría fijado factor=1.0 por debajo de 25 FPS → sim al ~40 % (~10 tps / ~115 u/s). **Ese comportamiento desapareció con 1b. E2 pasa.**
+
+## Veredicto
+
+**Stage 1b verificado: E1 (plano 30/60/144) + E2 (sin caída a 10 FPS).** El speedhack por FPS alto y el slowdown por FPS bajo quedan ambos resueltos.
+
+## Pendiente (opcional)
+
+- Apretar el 6.1 % de E1: caminata más larga/estable por bin; el bin ~144 (corto, n=37) mete ruido.
 - Cuando exista el auto-walk de debug, todo esto se vuelve repetible y automático.
