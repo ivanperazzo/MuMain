@@ -1,6 +1,6 @@
 # Desacople temporal — Estado y guía de reanudación
 
-> **Estado (junio 2026):** Stages 1b, 2, 3, 4a, 4b y **6a** **verificados empíricamente con logs** (tags `-01b`…`-04b`, `-06a`). **Stage 4 COMPLETO.** Stage 5 (cámara) **diferido a Stage 8** (login-only, no roto). Bonus: crash de shutdown (exit 139) **localizado con cdb y arreglado** (`FrameTimerScheduler`). El cliente conecta, entra al mundo y **cierra limpio**. Siguiente: **Stage 6b** (integración de movimiento de efectos: misiles/partículas/colas/pet/boid `Pos += v*factor` → `*dt`). **Antes de tocar animación/física/efectos/cámara: leer [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md)** (riesgos del factor=1.0 + regla: no meter estado de render en `OBJECT`).
+> **Estado (junio 2026):** Stages 1b, 2, 3, 4a, 4b **verificados empíricamente con logs** (tags `-01b`…`-04b`). **Stage 4 COMPLETO.** **Stage 6a REVERTIDO** (regresión — los `Move*` de efectos corren en el tick fijo 25 tps, ya FPS-indep; ver corrección en `06-fisica-efectos.md`). Stage 5 (cámara) **diferido a Stage 8** (login-only, no roto). Bonus: crash de shutdown (exit 139) **localizado con cdb y arreglado** (`FrameTimerScheduler`). El cliente conecta, entra al mundo y **cierra limpio**. Siguiente: **decisión de Gate** — Stage 6 real (~20 sitios render-path `o->`, cosmético menor) vs pivotar a GPU. **Antes de tocar animación/física/efectos/cámara: leer [`KNOWN-ISSUES.md`](KNOWN-ISSUES.md) + la LECCIÓN 6a** (tick vs render path).
 >
 > **Lanzar cliente (recetas que funcionan):** `Main.exe` directo desde Bash con `export MSYS2_ARG_CONV_EXCL="*"` (evita el mangle de `/u.../p...`) + `cd` al dir `Debug` + path absoluto al exe. Para capturar CSV: `export MU_TEMPORAL_CSV="<path absoluto>"` antes. El `run-temporal-client.bat` falla por `cmd.exe //c` con paths relativos (NoDefaultCurrentDirectoryInExePath). **No lanzar sin OK del usuario.**
 
@@ -18,7 +18,8 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 
 | Commit | Qué |
 |---|---|
-| `60fbef31` | **Stage 6a** — decays/lifetimes/timers de efectos FPS-independientes (tag `temporal/stage-06a`) |
+| `194966bb` | **revert Stage 6a** — era regresión (los `Move*` corren en el tick 25 tps, ya FPS-indep) |
+| `eaecf320`/`84aabec8`/`60fbef31` | Stage 6a (revertido) + sonda CSV `eff_step`/`eff_decay` + módulo `EffectTiming` (se mantiene) |
 | `f4138ff5` | docs — investigación Stage 5 (cámara cinemática es login-only, no rota) |
 | `0b1de350` | **Stage 4b** — pose del cuerpo suave entre ticks (tag `temporal/stage-04b`) |
 | `8465d990` | **fix** — leak de `FrameTimerScheduler` → cierre limpio (mata exit-139) |
@@ -43,10 +44,12 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 | 4a — animación render-path (partes) | ✅ | ✅ 5/5 | ✅ logs: tasa avance plana 25.0/s @30/60/144 (vs OLD ∝FPS) (tag stage-04a) |
 | 4b — pose del cuerpo suave (P2) | ✅ | ✅ 7/7 | ✅ logs: pose render-chg 97.3% vs raw 41.9% @60; render≠raw 95.4% (tag stage-04b) |
 | 5 — cámara cinemática | ⏸ diferido a Stage 8 | — | login-only, no roto (ver `05-camara-cinematica.md`) |
-| 6a — decays/lifetimes/timers de efectos | ✅ | ✅ 6/6 | ✅ **in-game glue real** (run09): lineal 25/s (disp 0.4%) + exp 0.8²⁵ @30/60/144; eff_step~dt OK (tag stage-06a) |
-| 6b–6c, 7–8 | ⬜ pendiente | — | — |
+| 6a — decays/timers de efectos | ↩️ **REVERTIDO** (regresión) | ✅ 6/6 (módulo se mantiene) | premisa falsa: los `Move*` corren en el TICK (25 tps), factor=1.0 ya correcto. Ver corrección en `06-fisica-efectos.md` (commit 194966bb) |
+| 6 (real) — ~20 sitios RENDER-path `o->` | ⬜ re-scopeado | — | bug real = estado persistente mutado por frame (cosmético menor); Gate pendiente |
+| 6c, 7–8 | ⬜ pendiente | — | — |
 
 **Tests puros totales: 29 casos / 70 assertions, todo verde.** Build `Main.exe` exit 0.
+**LECCIÓN 6a:** antes de portar un sitio `*FACTOR` a dt, confirmar que corre en el **render path** (1×/frame). Si corre en el **tick** (`UpdateGameEntities`→`MainSceneFixedUpdate`, 25 tps) ya es FPS-independiente con factor=1.0 y NO hay que tocarlo.
 
 ## Qué hace Stage 1b (el fix principal)
 
@@ -72,7 +75,7 @@ cmd.exe /c "C:\Users\ipera\AppData\Local\Temp\mu_build.bat cmake --build --prese
 
 ## Cómo retomar (Stage 5 en adelante)
 
-1. **Siguiente = Stage 6b (integración de movimiento de efectos) — USER-GATE.** Reusa el helper `Render::EffectTiming` ya hecho en 6a: swappear los sitios cat-D de **posición/velocidad** (`Pos += v*factor`, `vel += g*factor`, `VectorAddScaled(...,factor)`) → `* EffectStep()` en misiles/partículas/colas/pet/boid (`ZzzEffect.cpp`, `ZzzEffectParticle.cpp`, `ZzzEffectPoint.cpp:146`, `ZzzEffectJoint.cpp`, `CSPetSystem.cpp` 528/529, `GOBoid.cpp` 927/939/944/949/999). Riesgo medio: alcance/arco de proyectil + scatter aleatorio. Verif: log de alcance final de un proyectil + densidad de partículas plana a 30/60/144 (extender CSV o probe). Deep-dive: `06-fisica-efectos.md`. **6c** después: conteos cat-C (`MaxTails`, `MultiUse`, thresholds) a tiempo/ticks + cloth `PhysicsManager`. Stage 5 (cámara) se pliega a Stage 8. Plan: `docs/superpowers/plans/2026-06-13-temporal-decoupling.md`.
+1. **Siguiente = decisión de Gate (USER).** Stage 6a se revirtió: la mayoría de los sitios `*FACTOR` de efectos NO son bug (corren en el tick 25 tps o son init one-shot). El único bug real son **~20 sitios RENDER-path** que mutan estado persistente `o->Light/Angle/Scale/Velocity` por frame (`RenderEffects`/`RenderEffectShadows` en `ZzzEffect.cpp` 18347-18660/19105-19394, `RenderJoints` en `ZzzEffectJoint.cpp` 7130/7285) — todos **cosméticos menores**. Tabla exacta en `06-fisica-efectos.md` (sección "Stage 6 corregido"). El módulo `Render::EffectTiming` ya está listo para reusar (`EffectDecayExp`/`EffectStep` en el render path). **Gate:** ¿vale la pena el fix render-path (cosmético) o se pivotea a GPU/alto-FPS? Stage 5 (cámara) se pliega a Stage 8.
 2. **Flujo por etapa:** deep-dive doc → Gate A (OK del usuario) → función pura + doctest → integración → verificar empírico con **logs/CSV** → commit + tag `temporal/stage-0N`.
 3. **Verificación = logs, no inspección visual.** El usuario entra in-game y hace las acciones pedidas; la prueba debe dejar CSV analizable (extender `TemporalCsvLogger` + analizador en `baseline/`). **No lanzar el cliente sin OK explícito.**
 4. **Toggles en chat para A/B en vivo:** `$vsync off`, `$fps <n>` (`-1`=ilimitado), `$interp on/off`.

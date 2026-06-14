@@ -79,57 +79,65 @@ registra. (Como Stages 3/4: nada de inspección visual sola.)
 
 ---
 
-## As-built 6a (HECHO + verificado)
+## ⚠️ CORRECCIÓN (revert de 6a) — la premisa del deep-dive era FALSA
 
-**Módulo:** `Render/EffectTiming.h` + `EffectTiming.cpp` (puro, testeable) +
-`EffectTimingGlue.cpp` (scene-aware, lee `SceneFlag`/`FrameMs()`/`FPS_ANIMATION_FACTOR`).
-- `LinearStep(frameMs)` = `clamp(frameMs,250)/40`, `<=0 → 1.0`.
-- `DecayPow(base,frameMs)` = `pow(base, LinearStep)`.
-- `EffectStep()` = MAIN_SCENE con frameMs>0 → `LinearStep(FrameMs())`; si no → `FPS_ANIMATION_FACTOR`.
-- `EffectDecayExp(base)` = MAIN_SCENE → `DecayPow`; si no → `pow(base, FPS_ANIMATION_FACTOR)`.
+> El deep-dive de arriba asumía que los efectos se actualizan **1× por frame de render** ⇒
+> con factor=1.0 correrían ∝FPS. **Eso es FALSO post-1b.** Lectura del call graph (commit
+> `194966bb`):
 
-**Sitios swappeados (decay lineal / lifetime / timer / decay exp en MAIN_SCENE):**
-| Archivo | Línea | Antes | Después |
+**Los `Move*` de efectos corren en el TICK fijo (25 tps), no por frame de render.**
+`MoveBoids/MovePoints/MoveEffects/MoveJoints/MoveParticles` + `ThePetProcess::UpdatePets`
+están dentro de `UpdateGameEntities()` (MainScene.cpp:267), que **Stage 1b movió a**
+`MainSceneFixedUpdate()` (MainScene.cpp:378), driveado por el acumulador fixed-step en
+`SceneManager.cpp:1072-1075`. ⇒ en MAIN_SCENE se ejecutan **exactamente 25×/seg**, y ahí
+`FPS_ANIMATION_FACTOR == 1.0` significa "avanzá un tick de referencia" ⇒ `-= 1` por tick =
+**25/s, ya FPS-independiente** (idéntico a pre-1b, donde el clamp daba lo mismo). *(En
+LoginScene/CharacterScene los `Move*` SÍ corren por frame, pero ahí el factor sigue el clamp
+⇒ también OK.)*
+
+**Recategorización real de los ~3000 sitios `*FACTOR` en archivos de efectos:**
+| Categoría | Función | Sitios | ¿Bug post-1b? |
 |---|---|---|---|
-| `Render/Effects/ZzzEffectPoint.cpp` | LifeTime | `-= FACTOR` | `-= EffectStep()` |
-| `Render/Effects/ZzzEffectPoint.cpp` | Gravity (decay) | `-= 0.3f*FACTOR` | `-= 0.3f*EffectStep()` |
-| `Render/Effects/ZzzEffectPoint.cpp` | Scale | `-= 5.f*FACTOR` | `-= 5.f*EffectStep()` |
-| `Engine/AI/GOBoid.cpp` | MoveBat Timer | `+= 0.2f*FACTOR` | `+= 0.2f*EffectStep()` |
-| `Engine/AI/GOBoid.cpp` | Butterfly damping ×2 | `*= pow(0.8f,FACTOR)` | `*= EffectDecayExp(0.8f)` |
-| `Engine/AI/GOBoid.cpp` | BOID_UP Velocity | `-= 0.005f*FACTOR` | `-= 0.005f*EffectStep()` |
-| `GameLogic/Pets/CSPetSystem.cpp` | pet LifeTime | `+= FACTOR` | `+= EffectStep()` |
-| `GameLogic/Pets/CSPetSystem.cpp` | AttackTime | `+= FACTOR` | `+= EffectStep()` |
+| **Init one-shot** | `CreateEffect`/`CreateParticle`/`CreateJoint` | ~1598 | **NO** — corre 1× a la creación; factor=1.0 ⇒ constante |
+| **TICK (25 tps)** | `MoveEffects`/`MoveParticles`/`MoveJoints`/`MovePoints`/`MoveBoids`/`UpdatePets` | ~1406 | **NO** — factor=1.0 ⇒ −1/tick = 25/s, ya FPS-indep |
+| **RENDER (per-frame)** | `RenderEffects`/`RenderEffectShadows`/`RenderJoints` | ~30 | **POSIBLE** — solo si mutan estado persistente `o->` |
 
-**Desviaciones del plan (sitios NO tocados — el plan los listaba pero son one-shot/conteo,
-no decays per-frame; en MAIN_SCENE con factor=1.0 YA son correctos y el swap los rompería):**
-- `Render/Effects/ZzzEffect.cpp:621` `LifeTime -= 60*FACTOR` — es **init one-shot** en
-  `CreateEffect` (asigna `LifeTime=1000` absoluto justo antes). Con factor=1.0 resta 60 fijo
-  ⇒ ya FPS-independiente. `EffectStep()` metería jitter por frame-time en un init. **Igual.**
-- `Render/Effects/ZzzEffectJoint.cpp:1251` `MultiUse += FACTOR` — es un **conteo entero**:
-  `TargetIndex[(int)MultiUse]=j` con cap `>5`. Con factor=1.0 suma +1 por target = correcto.
-  `EffectStep()` daría índices fraccionarios y corrompería el array. **Igual** (es cat-C-conteo
-  6c, ya de-facto correcto en MAIN_SCENE).
+**6a fue una REGRESIÓN y se revirtió** (`194966bb`). Swappear sitios del TICK a `EffectStep()`
+hizo que cada tick avanzara `clamp(renderFrameMs)/40` (≈0.17 @144fps) en vez de 1.0 ⇒ los
+efectos decaían **~6× más LENTO** a alto FPS (regresión invertida). La verif in-game de 6a no
+lo detectó porque `eff_step` se muestreaba en el **render path** (sum 25/s), mientras el decay
+real ocurre en el **tick path**. Se restauraron las 8 líneas a `FPS_ANIMATION_FACTOR` en
+`ZzzEffectPoint`/`GOBoid`/`CSPetSystem`.
 
-**Verificación (logs, sin relanzar):**
-- Puro: `tests/effects/test_effect_timing.cpp` — **6/6 casos, 15 assertions** verde
-  (invariancia FPS del avance lineal + decay exp; clamp de stall; fallback frameMs<=0).
-- Empírico por equivalencia: `EffectStep()` en MAIN_SCENE == `clamp(frame_ms,250)/40`, la MISMA
-  cantidad que Stage 4a. `baseline/analyze_effect.py run06_s4.csv` (reusa la columna `frame_ms`
-  ya capturada):
-  - **Decay lineal:** NEW **25.0/s** plano @30/60/144 (disp **0.0%**) vs OLD 30/67/100 (∝FPS = bug).
-  - **Decay exp:** NEW **0.0038 = 0.8²⁵** a todo FPS; OLD colapsa a ~0 (0.8^FPS) a alto FPS.
-- **Empírico in-game (glue REAL, no por equivalencia):** se agregaron columnas
-  `eff_step`/`eff_decay` al CSV (14-col) que muestrean `EffectStep()`/`EffectDecayExp(0.8)`
-  vivos 1×/frame en MAIN_SCENE. Captura `baseline/run09_s6a.csv` (7674 frames, $fps 30/60/144),
-  `analyze_effect_live.py`:
-  | bin FPS | lineal/s | exp/s | eff_step~dt |
-  |---|---|---|---|
-  | ~30 | 24.91 | 0.0039 | OK |
-  | ~60 | 25.00 | 0.0038 | OK |
-  | ~144 | 25.00 | 0.0038 | OK |
+**Se MANTIENE:** módulo `Render/EffectTiming.{h,cpp}` + `EffectTimingGlue.cpp` + tests
+(`tests/effects`, 6/6) + sonda CSV `eff_step`/`eff_decay` + analizadores. El módulo es correcto
+para su uso previsto (**render path**, 1×/frame), solo se aplicó a los sitios equivocados.
 
-  lineal plano ~25/s (disp **0.4%**), exp = **0.8²⁵** a todo FPS, y `eff_step~dt = OK` ⇒ el
-  glue resolvió a `clamp(frame_ms)/40` en **runtime** (no al 1.0 fijado). Esto prueba el path
-  vivo que el doctest puro stubea. El cliente cerró limpio (exit 0).
+## Stage 6 corregido — el bug real son ~20 sitios RENDER-path con estado persistente
 
-**Commit/tag:** `temporal/stage-06a` (+ probe `84aabec8`). CSV: `run09_s6a.csv`.
+Sitios per-frame que mutan estado persistente `o->` (acumulan entre frames ⇒ ∝FPS con
+factor=1.0). El resto de los sitios render-path usan **temporales locales** (`vPos`, `Light1`,
+`Light2`, `Scroll`, `Luminosity`, `fSpeed`) recomputados cada frame ⇒ **no** son bug.
+
+| Archivo / función | Líneas | Estado mutado | Fix |
+|---|---|---|---|
+| `ZzzEffect.cpp` `RenderEffects` | 18347, 18358 | `o->Angle[2] -= 0.1f*F` | `*EffectStep()` |
+| `ZzzEffect.cpp` `RenderEffects` | 18652-18660 | `o->Light[i] *= pow(±fLight,F)` | `EffectDecayExp` |
+| `ZzzEffect.cpp` `RenderEffectShadows` | 19105-19108 | `o->Light[i]*=pow`, `o->Scale+=0.05*F` | `EffectDecayExp`/`*EffectStep` |
+| `ZzzEffect.cpp` `RenderEffectShadows` | 19199-19201, 19211, 19394 | `o->Light[i]*=pow`, `o->Angle[2]+=10*F`, `o->Scale+=0.2*F` | idem |
+| `ZzzEffectJoint.cpp` `RenderJoints` | 7130 | `o->Light *= powf(0.9978,F)` | `EffectDecayExp` |
+| `ZzzEffectJoint.cpp` `RenderJoints` | 7285 | `o->Velocity *= powf(1/1.1,F)` | `EffectDecayExp` |
+| **NO bug (locales)** | `RenderParticles` 8985/9249 (`vPos`), `RenderJoints` 7041-7066/7300-7302 | — | dejar |
+
+⚠️ Notas: (1) algunos `Render*` se llaman 2× por frame (pase blend / reflejo de agua) ⇒ el
+estado persistente se muta 2×/frame (quirk pre-existente; el fix dt al menos lo hace
+FPS-indep por llamada). (2) Mutar estado de sim (`o->Light/Angle/Scale/Velocity`) en el render
+es un smell; el fix mínimo es dt, el ideal sería moverlo al tick (fuera de alcance acá).
+(3) Todos son **cosméticos menores** (parpadeo/fade de luz, rotación, escala de efectos).
+
+**Verificación correcta (cuando se haga):** sonda en el **render path** del estado `o->`
+afectado (p.ej. `o->Light[0]` de un efecto fijo) + capturar a 30/60/144 ⇒ misma curva de
+decay. (NO reusar `eff_step` solo, que ya se probó es la integral por-frame.)
+
+**Estado:** Stage 6 (efectos) **re-scopeado**, pendiente Gate del usuario sobre si vale la pena
+(~20 sitios cosméticos menores) vs pivotar a GPU. Módulo listo para reusar.
