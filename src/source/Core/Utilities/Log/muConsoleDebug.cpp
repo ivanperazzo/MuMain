@@ -12,6 +12,7 @@
 #include <iostream>
 #include "Engine/Object/ZzzInterface.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
+#include "Render/Interpolation.h"
 #include "WindowsConsole.h"
 
 #include "Render/Sprites/GlobalBitmap.h"
@@ -108,6 +109,16 @@ bool CmuConsoleDebug::CheckCommand(const std::wstring& strCommand)
         auto fps_str = strCommand.substr(5);
         auto target_fps = std::stof(fps_str);
         SetTargetFps(target_fps);
+        return true;
+    }
+    else if (strCommand.compare(L"$interp on") == 0)
+    {
+        Render::Interpolation::SetEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$interp off") == 0)
+    {
+        Render::Interpolation::SetEnabled(false);
         return true;
     }
     else if (strCommand.compare(L"$vsync on") == 0)

@@ -33,6 +33,7 @@ FrameTimingState g_frameTiming;
 #include "Core/Time/SimulationClock.h"
 #include "Core/Input/Input.h"
 #include "Core/Diagnostics/TemporalCsvLogger.h"
+#include "Render/Interpolation.h"
 #include "Render/HeroInterpolation.h"
 #include "UI/Legacy/UIMng.h"
 #include "Network/Server/WSclient.h"
@@ -1075,15 +1076,32 @@ void RenderScene(HDC hDC)
         simAlpha = step.alpha;   // render interpolation factor, consumed in Stage 2
     }
 
-    // Stage 0 temporal instrumentation: record hero speed against frame rate so
-    // every later stage can be verified against this baseline. Off (and free)
-    // unless MU_TEMPORAL_CSV is set. Sampled after the fixed steps so the
-    // position reflects this frame's movement, with the actual steps/alpha.
-    if (auto& csv = Core::Diagnostics::TemporalCsvLogger::Instance();
-        csv.Enabled() && SceneFlag == MAIN_SCENE && Hero != nullptr)
+    // Stage 2/3: shared render interpolation alpha for this frame (read by the
+    // Hero and remote-entity renderers).
+    Render::Interpolation::SetFrameAlpha(simAlpha);
+
+    // Compute the Hero's interpolated render position once: used both for the CSV
+    // log (raw vs rendered) and the draw override below.
+    float heroSaved[3] = {0.f, 0.f, 0.f};
+    float heroRender[3] = {0.f, 0.f, 0.f};
+    const bool heroInterp = (SceneFlag == MAIN_SCENE && Hero != nullptr);
+    if (heroInterp)
     {
-        csv.LogFrame(WorldTime, FPS, Hero->Object.Position[0],
-                     Hero->Object.Position[1], simSteps, simAlpha);
+        heroSaved[0] = Hero->Object.Position[0];
+        heroSaved[1] = Hero->Object.Position[1];
+        heroSaved[2] = Hero->Object.Position[2];
+        Render::HeroInterp::RenderPos(heroSaved, heroRender);
+    }
+
+    // Stage 0 instrumentation: log RAW (sim) and RENDERED (interpolated) hero
+    // position per frame so the smoothing can be verified from logs — at high FPS
+    // the rendered position should move in small smooth steps while the raw one
+    // jumps at 25 Hz. Off (and free) unless MU_TEMPORAL_CSV is set.
+    if (auto& csv = Core::Diagnostics::TemporalCsvLogger::Instance();
+        csv.Enabled() && heroInterp)
+    {
+        csv.LogFrame(WorldTime, FPS, heroSaved[0], heroSaved[1],
+                     heroRender[0], heroRender[1], simSteps, simAlpha);
     }
 
     // Drive auto-reconnect after the scene loops have advanced this frame. It
@@ -1096,21 +1114,12 @@ void RenderScene(HDC hDC)
     // Stage 2: render the Hero at the interpolated position for the WHOLE draw —
     // both the camera follow and the model read Hero->Object.Position, so the
     // scene is smooth at any FPS even though the sim advances in 25 Hz jumps.
-    // Restored to the true sim position after the draw, before the next tick
-    // reads it. CSV above logged the real position.
-    float heroSaved[3];
-    const bool heroInterp = (SceneFlag == MAIN_SCENE && Hero != nullptr && Hero->Object.Live);
+    // Restored to the true sim position after the draw, before the next tick.
     if (heroInterp)
     {
-        Render::HeroInterp::SetAlpha(simAlpha);
-        heroSaved[0] = Hero->Object.Position[0];
-        heroSaved[1] = Hero->Object.Position[1];
-        heroSaved[2] = Hero->Object.Position[2];
-        float rp[3];
-        Render::HeroInterp::RenderPos(heroSaved, rp);
-        Hero->Object.Position[0] = rp[0];
-        Hero->Object.Position[1] = rp[1];
-        Hero->Object.Position[2] = rp[2];
+        Hero->Object.Position[0] = heroRender[0];
+        Hero->Object.Position[1] = heroRender[1];
+        Hero->Object.Position[2] = heroRender[2];
     }
 
     try

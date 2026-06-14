@@ -7,10 +7,8 @@ namespace Render::HeroInterp
     // high FPS. OnTick() stores the pre-move position each sim tick; the renderer
     // overrides Hero->Object.Position with RenderPos() = lerp(prev, cur, alpha)
     // for the WHOLE draw (camera follow + model both read it), so the scene is
-    // smooth at any FPS. Snaps (no lerp) on a teleport-sized jump so the Hero
-    // does not visibly slide across the map on warp/spawn. Hero-only for now;
-    // remote entities are Stage 3.
+    // smooth at any FPS. Uses the shared Render::Interpolation frame alpha and its
+    // teleport guard (snaps instead of sliding across the map on warp/spawn).
     void OnTick(const float curPos[3]);                       // start of each sim tick
-    void SetAlpha(float alpha);                               // once per render frame
-    void RenderPos(const float curPos[3], float out[3]);      // out = lerp(prev,cur,alpha) or cur on teleport
+    void RenderPos(const float curPos[3], float out[3]);      // lerp(prev,cur,frameAlpha) or cur on teleport
 }

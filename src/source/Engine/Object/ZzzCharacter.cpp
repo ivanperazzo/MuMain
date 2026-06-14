@@ -15,6 +15,7 @@
 #include "Guild/GuildCache.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Interpolation.h"
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -6487,6 +6488,9 @@ void MoveCharactersClient()
 
     for (int i = 0; i < MAX_CHARACTERS_CLIENT; i++)
     {
+        // Stage 3: snapshot the pre-move position so the renderer can interpolate
+        // remote entities (mobs / other players) between fixed sim ticks.
+        Render::Interpolation::RemoteOnTick(i, CharactersClient[i].Object.Position);
         MoveCharacterClient(&CharactersClient[i]);
     }
     MoveBlurs();
@@ -11377,10 +11381,35 @@ void RenderCharactersClient()
         {
             if (o->Visible)
             {
+                // Stage 3: render remote entities (mobs / other players) at the
+                // interpolated position so they are smooth at high FPS. The Hero
+                // is skipped here — its position is already interpolated for the
+                // whole draw (camera + model) in RenderScene.
+                float remoteSaved[3];
+                const bool remoteInterp = (c != Hero && SceneFlag == MAIN_SCENE);
+                if (remoteInterp)
+                {
+                    remoteSaved[0] = o->Position[0];
+                    remoteSaved[1] = o->Position[1];
+                    remoteSaved[2] = o->Position[2];
+                    float rp[3];
+                    Render::Interpolation::RemoteRenderPos(i, remoteSaved, rp);
+                    o->Position[0] = rp[0];
+                    o->Position[1] = rp[1];
+                    o->Position[2] = rp[2];
+                }
+
                 if (i != SelectedCharacter && i != SelectedNpc)
                     RenderCharacter(c, o);
                 else
                     RenderCharacter(c, o, true);
+
+                if (remoteInterp)
+                {
+                    o->Position[0] = remoteSaved[0];
+                    o->Position[1] = remoteSaved[1];
+                    o->Position[2] = remoteSaved[2];
+                }
 
                 if (o->Type == MODEL_PLAYER)
                     battleCastle::CreateBattleCastleCharacter_Visual(c, o);

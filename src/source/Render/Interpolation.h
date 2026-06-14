@@ -3,9 +3,29 @@
 namespace Render::Interpolation
 {
     // Component-wise linear interpolation from a to b by alpha (clamped to
-    // [0,1]). Pure, no engine deps -> unit-testable. Used to render an entity
-    // between two fixed simulation ticks: a = previous tick position, b =
-    // current tick position, alpha = SimulationClock render interpolation factor.
-    // out may alias a or b.
+    // [0,1]). Pure, no engine deps -> unit-testable. out may alias a or b.
     void Lerp(const float a[3], const float b[3], float alpha, float out[3]);
+
+    // Lerp(prev, cur, alpha) but SNAPS to cur when prev->cur is a teleport-sized
+    // jump (warp/spawn/server correction), so an entity never slides across the
+    // map. Used by every entity renderer.
+    void LerpGuarded(const float prev[3], const float cur[3], float alpha, float out[3]);
+
+    // Master on/off for render interpolation (console: $interp on|off). When off,
+    // LerpGuarded returns cur, so entities render at the raw 25 Hz sim position —
+    // for A/B comparison of the smoothing. Default on.
+    void SetEnabled(bool on);
+    bool Enabled();
+
+    // Shared render interpolation alpha for the current frame (set once per frame
+    // from SimulationClock; read by all entity renderers).
+    void  SetFrameAlpha(float alpha);
+    float FrameAlpha();
+
+    // Per-slot (CharactersClient[index]) previous-tick position, for interpolating
+    // remote entities (mobs / other players) between fixed sim ticks.
+    // RemoteOnTick snapshots the pre-move position each tick; RemoteRenderPos
+    // returns LerpGuarded(prev, cur, FrameAlpha).
+    void RemoteOnTick(int index, const float curPos[3]);
+    void RemoteRenderPos(int index, const float curPos[3], float out[3]);
 }

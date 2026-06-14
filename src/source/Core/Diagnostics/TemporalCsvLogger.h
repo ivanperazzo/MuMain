@@ -27,10 +27,11 @@ namespace Core::Diagnostics
 
         bool Enabled() const { return m_enabled; }
 
-        // Record one render frame. `steps` and `alpha` stay 0 until Stage 1b
-        // wires the SimulationClock into the main loop.
+        // Record one render frame. heroX/heroY = raw sim position; heroRenderX/Y =
+        // interpolated render position (Stage 2). At high FPS the rendered position
+        // moves in small smooth steps while the raw one jumps at 25 Hz.
         void LogFrame(double timeMs, double fps, float heroX, float heroY,
-                      int steps, float alpha);
+                      float heroRenderX, float heroRenderY, int steps, float alpha);
 
     private:
         TemporalCsvLogger();   // reads the env var once
