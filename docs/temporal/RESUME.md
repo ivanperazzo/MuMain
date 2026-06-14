@@ -29,8 +29,8 @@ El cambio central — **desacoplar la simulación del FPS de render (fix del spe
 | 0 — MovementProbe + CSV | ✅ | ✅ 3/3 | ⏸ baseline diferido |
 | 1 — SimulationClock | ✅ | ✅ 6/6 | n/a (puro) |
 | 1b — fixed-step MAIN_SCENE | ✅ | ✅ 2/2 | ✅ E1 verificado (tag stage-01b); E2 pendiente |
-| 2 — movimiento local (interp) | 📄 deep-dive listo (Gate A sin aprobar) | — | ⏸ |
-| 3–8 | ⬜ pendiente | — | ⏸ |
+| 2 — movimiento local (interp Hero) | ✅ | ✅ 4/4 | ✅ visual suave + regresión 1.8% (tag stage-02) |
+| 3–8 | ⬜ pendiente | — | — |
 
 **Tests puros totales: 11 casos / 23 assertions, todo verde.** Build `Main.exe` exit 0.
 
