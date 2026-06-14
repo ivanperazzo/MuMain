@@ -1,0 +1,41 @@
+#pragma once
+
+#include <vector>
+
+// P2 (terrain-VBO, Enfoque A+): batched fixed-function terrain rendering. The
+// legacy path draws each terrain tile with its own glBegin/glEnd + BindTexture
+// (thousands of immediate-mode calls/frame). Here the per-tile Vertex*() output
+// (position/texcoord/colour, already computed each frame in ZzzLodTerrain
+// globals) is accumulated into buckets keyed by (texture, blend-mode); at the
+// end of each terrain pass one glDrawArrays(GL_QUADS) is issued per bucket,
+// collapsing the draws/binds. No shader: one texture per bucket, per-vertex
+// colour via the colour array, alpha in the A channel.
+//
+// Gated by env MU_TERRAINVBO (default off -> legacy path, zero behaviour change).
+// Geometry/texcoords could be static, but per-vertex colour is dynamic
+// (PrimaryTerrainLight changes every frame via AddTerrainLight), so the whole
+// vertex is streamed each frame -- still far cheaper than immediate mode.
+
+namespace Render::Terrain
+{
+    // Blend/state mode for a bucket; applied once before its draw at flush.
+    enum TerrainBatchMode
+    {
+        TB_OPAQUE = 0,   // DisableAlphaBlend (base layer)
+        TB_ALPHATEST,    // EnableAlphaTest   (alpha overlay / special-map base)
+        TB_ALPHABLEND,   // EnableAlphaBlend  (water blend layer)
+    };
+
+    bool TerrainBatchEnabled();   // env MU_TERRAINVBO, read once
+
+    void TerrainBatchBegin();     // start a frame's terrain pass: reset buckets
+
+    // Select the bucket for the next 4 emitted vertices (one tile quad). Returns
+    // the bucket's interleaved float store (9 floats/vertex: x y z u v r g b a)
+    // so the caller appends vertices inline (no per-vertex cross-TU call).
+    std::vector<float>* TerrainBatchSelect(int glTexture, int mode);
+
+    // Flush all buckets: opaque -> alphatest -> alphablend, one
+    // glDrawArrays(GL_QUADS) each (BindTexture + state per bucket). Clears them.
+    void TerrainBatchFlush();
+}
