@@ -110,13 +110,27 @@ namespace Render::GL
         const char* ver = reinterpret_cast<const char*>(glGetString(GL_VERSION));
         const char* ren = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
         const char* glsl = reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION));
+
+        s_loaded = (s_failures == 0);
+
+        // The client is a GUI subsystem app -> stderr is not captured. Write an
+        // ASCII status file too (next to the working dir) so the GL version and
+        // loaded count are verifiable from logs. The same file path is the home
+        // for later shader-compile diagnostics, which also can't use stderr.
         std::fprintf(stderr,
             "[GL] version=%s | renderer=%s | glsl=%s | modern-GL %s (%d missing)\n",
             ver ? ver : "?", ren ? ren : "?", glsl ? glsl : "?",
-            s_failures == 0 ? "LOADED" : "INCOMPLETE", s_failures);
+            s_loaded ? "LOADED" : "INCOMPLETE", s_failures);
         std::fflush(stderr);
 
-        s_loaded = (s_failures == 0);
+        if (FILE* f = std::fopen("gl_info.txt", "w"))
+        {
+            std::fprintf(f, "GL_VERSION=%s\nGL_RENDERER=%s\nGLSL=%s\nmodern_gl=%s\nmissing=%d\n",
+                         ver ? ver : "?", ren ? ren : "?", glsl ? glsl : "?",
+                         s_loaded ? "LOADED" : "INCOMPLETE", s_failures);
+            std::fclose(f);
+        }
+
         return s_loaded;
     }
 
