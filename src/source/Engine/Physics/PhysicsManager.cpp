@@ -977,6 +977,8 @@ BOOL CPhysicsClothMesh::Create(OBJECT* o, int iMesh, int iBone, DWORD dwType, in
 
     float(*BoneMatrix)[3][4] = m_oOwner->BoneTransform;
 
+    b->EnsureMeshSkinned(m_iMesh);   // P-bmd-skinskip: initial cloth verts from bone-skin
+
     for (int iVertex = 0; iVertex < m_iNumVertices; ++iVertex)
     {
         Vertex_t* v = &pMesh->Vertices[iVertex];
@@ -1120,6 +1122,9 @@ void CPhysicsClothMesh::SetFixedVertices(float Matrix[3][4])
 
     BMD* b = &Models[m_iBMDType];
     Mesh_t* pMesh = &b->Meshs[m_iMesh];
+    // P-bmd-skinskip: cloth attaches its fixed edge to bone-skinned body vertices;
+    // make sure they're skinned (no-op unless Transform deferred them).
+    b->EnsureMeshSkinned(m_iMesh);
     for (int iVertex = 0; iVertex < m_iNumVertices; ++iVertex)
     {
         Vertex_t* v = &pMesh->Vertices[iVertex];
@@ -1176,6 +1181,9 @@ void CPhysicsClothMesh::Render(vec3_t* pvColor, int iLevel)
         m_pVertices[iVertex].GetPosition(&vPos);
         VectorCopy(vPos, VertexTransform[m_iMesh][iVertex]);
     }
+    // P-bmd-skinskip: these simulated positions ARE the cloth mesh's skin — mark it
+    // skinned so a later EnsureMeshSkinned (cape RenderMesh) won't overwrite them.
+    Models[m_iBMDType].MarkMeshSkinned(m_iMesh);
 }
 
 float CPhysicsManager::s_fWind = 0.0f;

@@ -181,6 +181,15 @@ namespace Render::Models
         return s_gpuInstEnabled;
     }
 
+    bool GpuSkinDeferEnabled()
+    {
+        // MU_GPUSKIN=1: defer CPU skin for instanced characters (consumers force-skin
+        // lazily). Off by default; the Transform-side gate also requires the char pass +
+        // GPU shadows on, so this is just the master flag.
+        static const bool s_on = EnvFlag("MU_GPUSKIN");
+        return s_on;
+    }
+
     void SetSkinSkip(bool on) { s_skinSkip = on; }
     bool SkinSkip()
     {

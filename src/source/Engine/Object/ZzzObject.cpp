@@ -1244,6 +1244,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                                                         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
                                                         b->EndRender();
                                                         auto* pSideHair = new CSideHair;
+                                                        b->EnsureMeshSkinned(1);   // P-bmd-skinskip: SideHair reads VertexTransform[1]
                                                         pSideHair->Create(VertexTransform, b, o);
                                                         pSideHair->Render(VertexTransform, LightTransform);
                                                         pSideHair->Destroy();

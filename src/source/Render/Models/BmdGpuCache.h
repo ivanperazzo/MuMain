@@ -68,6 +68,13 @@ namespace Render::Models
     void SetGpuInstEnabled(bool on);
     bool GpuInstEnabled();
 
+    // P-bmd-skinskip: production skip-skin (env MU_GPUSKIN=1, default off). When on AND
+    // in the instanced Characters pass with GPU shadows on, BMD::Transform DEFERS the
+    // per-vertex CPU skin; consumers that read VertexTransform/NormalTransform force-skin
+    // lazily (BMD::EnsureMeshSkinned). Saves the skin cost of meshes that only render via
+    // the instanced GPU path + GPU shadow (nothing reads their CPU skin).
+    bool GpuSkinDeferEnabled();
+
     // --- Diagnostics (measurement only) ---
     // "$skinskip on": BMD::Transform skips its per-vertex CPU skinning loops. Breaks
     // visuals, but isolates how much of the Characters cost is CPU skinning.

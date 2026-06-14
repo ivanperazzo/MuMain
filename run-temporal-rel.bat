@@ -9,7 +9,8 @@ cd /d "%REL%" || (echo No se encontro %REL% & exit /b 1)
 set "MU_GPUBMD=1"
 set "MU_GPUINST=1"
 set "MU_GPUSHADOW=1"
+set "MU_GPUSKIN=1"
 set "MU_FPS=1"
-echo [temporal-rel] MU_GPUINST=1 MU_GPUBMD=1 MU_GPUSHADOW=1 MU_FPS=1 launching client connect /u127.0.0.1 /p44406
+echo [temporal-rel] GPUINST/BMD/SHADOW/SKIN=1 FPS=1 launching client connect /u127.0.0.1 /p44406
 "%REL%\Main.exe" connect /u127.0.0.1 /p44406
 endlocal

@@ -234,6 +234,18 @@ public:
     void Animation(float(*BoneTransform)[3][4], float AnimationFrame, float PriorAnimationFrame, unsigned short PriorAction, vec3_t Angle, vec3_t HeadAngle, bool Parent = false, bool Translate = true);
     void InterpolationTrans(float(*Mat1)[4], float(*TransMat2)[4], float _Scale);
     void Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t BoundingBoxMax, OBB_t* OBB, bool Translate = false, float _Scale = 0.0f);
+    // P-bmd-skinskip: per-mesh CPU skin (writes VertexTransform/NormalTransform/
+    // IntensityTransform for one mesh). Extracted from Transform so it can run lazily.
+    void SkinMesh(int meshIndex, float(*BoneMatrix)[3][4], bool Translate, float _Scale,
+                  const float* LightPosition, float* BoundingMin, float* BoundingMax) const;
+    // P-bmd-skinskip: skin one mesh on demand if Transform deferred it this frame
+    // (using the context Transform recorded). No-op if already skinned for this serial.
+    // const: writes only the global skin arrays + file statics, never *this.
+    void EnsureMeshSkinned(int meshIndex) const;
+    // P-bmd-skinskip: mark a mesh as already skinned this frame so EnsureMeshSkinned
+    // won't recompute/overwrite it. Used by cloth, which writes its own simulated
+    // positions into VertexTransform[mesh] and must not be re-skinned from bones.
+    void MarkMeshSkinned(int meshIndex) const;
     void TransformByObjectBone(vec3_t vResultPosition, OBJECT* pObject, int iBoneNumber, vec3_t vRelativePosition = NULL);
     void TransformByBoneMatrix(vec3_t vResultPosition, float(*BoneMatrix)[4], vec3_t vWorldPosition = NULL, vec3_t vRelativePosition = NULL);
     void TransformPosition(float(*Matrix)[4], vec3_t Position, vec3_t WorldPosition, bool Translate = false);

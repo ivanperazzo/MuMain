@@ -181,6 +181,106 @@ static float  s_lastTransformScale     = 0.f;
 // the serial does (one palette appended per character-part, shared by its meshes).
 static unsigned s_transformSerial = 0;
 
+// P-bmd-skinskip: context recorded by Transform so a deferred mesh can be skinned
+// on demand later (EnsureMeshSkinned) with the exact same inputs. Valid because the
+// model's RenderMesh/shadow/effect reads happen right after its Transform with no
+// intervening Transform (same invariant the instanced palette base relies on).
+static vec3_t   s_lastLightPosition = { 0.f, 0.f, 0.f };
+static bool     s_lastLightEnable   = false;
+// "skinned this mesh for this serial" set; reset when the serial changes.
+static unsigned s_skinnedSerial = 0xFFFFFFFFu;
+static bool     s_meshSkinned[MAX_MESH] = {};
+static vec3_t   s_skinScratchMin, s_skinScratchMax;   // bounding sink for lazy skin (unused in gameplay)
+
+void BMD::SkinMesh(int meshIndex, float(*BoneMatrix)[3][4], bool Translate, float _Scale,
+                   const float* LightPosition, float* BoundingMin, float* BoundingMax) const
+{
+    Mesh_t* m = &Meshs[meshIndex];
+    const int i = meshIndex;
+    for (int j = 0; j < m->NumVertices; j++)
+    {
+        Vertex_t* v = &m->Vertices[j];
+        float* vp = VertexTransform[i][j];
+
+        if (BoneScale == 1.f)
+        {
+            if (_Scale)
+            {
+                vec3_t Position;
+                VectorCopy(v->Position, Position);
+                VectorScale(Position, _Scale, Position);
+                VectorTransform(Position, BoneMatrix[v->Node], vp);
+            }
+            else
+                VectorTransform(v->Position, BoneMatrix[v->Node], vp);
+            if (Translate)
+                VectorScale(vp, BodyScale, vp);
+        }
+        else
+        {
+            VectorRotate(v->Position, BoneMatrix[v->Node], vp);
+            vp[0] = vp[0] * BoneScale + BoneMatrix[v->Node][0][3];
+            vp[1] = vp[1] * BoneScale + BoneMatrix[v->Node][1][3];
+            vp[2] = vp[2] * BoneScale + BoneMatrix[v->Node][2][3];
+            if (Translate)
+                VectorScale(vp, BodyScale, vp);
+        }
+#ifdef _DEBUG
+#else
+        if (EditFlag == 2)
+#endif
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                if (vp[k] < BoundingMin[k]) BoundingMin[k] = vp[k];
+                if (vp[k] > BoundingMax[k]) BoundingMax[k] = vp[k];
+            }
+        }
+        if (Translate)
+            VectorAdd(vp, BodyOrigin, vp);
+    }
+
+    for (int j = 0; j < m->NumNormals; j++)
+    {
+        Normal_t* sn = &m->Normals[j];
+        float* tn = NormalTransform[i][j];
+        VectorRotate(sn->Normal, BoneMatrix[sn->Node], tn);
+        if (LightEnable && LightPosition)
+        {
+            float Luminosity = DotProduct(tn, LightPosition) * 0.8f + 0.4f;
+            if (Luminosity < 0.2f) Luminosity = 0.2f;
+            IntensityTransform[i][j] = Luminosity;
+        }
+    }
+}
+
+void BMD::EnsureMeshSkinned(int meshIndex) const
+{
+    if (s_skinnedSerial != s_transformSerial)
+    {
+        for (bool& b : s_meshSkinned) b = false;
+        s_skinnedSerial = s_transformSerial;
+    }
+    if (meshIndex < 0 || meshIndex >= NumMeshs || meshIndex >= MAX_MESH)
+        return;
+    if (s_meshSkinned[meshIndex] || s_lastBoneMatrix == nullptr)
+        return;
+    s_meshSkinned[meshIndex] = true;
+    SkinMesh(meshIndex, s_lastBoneMatrix, s_lastTransformTranslate, s_lastTransformScale,
+             s_lastLightEnable ? s_lastLightPosition : nullptr, s_skinScratchMin, s_skinScratchMax);
+}
+
+void BMD::MarkMeshSkinned(int meshIndex) const
+{
+    if (s_skinnedSerial != s_transformSerial)
+    {
+        for (bool& b : s_meshSkinned) b = false;
+        s_skinnedSerial = s_transformSerial;
+    }
+    if (meshIndex >= 0 && meshIndex < MAX_MESH)
+        s_meshSkinned[meshIndex] = true;
+}
+
 void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t BoundingBoxMax, OBB_t* OBB, bool Translate, float _Scale)
 {
     // P-bmd-gpu: record the context this CPU transform ran with so a following
@@ -224,67 +324,30 @@ void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t Boun
         Vector(999999.f, 999999.f, 999999.f, BoundingMin);
         Vector(-999999.f, -999999.f, -999999.f, BoundingMax);
     }
+    // P-bmd-skinskip: record context for lazy skin + reset the per-serial skinned set.
+    s_lastLightEnable = LightEnable;
+    if (LightEnable)
+        VectorCopy(LightPosition, s_lastLightPosition);
+    for (bool& b : s_meshSkinned) b = false;
+    s_skinnedSerial = s_transformSerial;
+
+    // measureSkip (MU_SKINSKIP): raw skip, breaks visuals -- skinning-ceiling measurement.
+    // deferActive (MU_GPUSKIN): skip CPU skin in the instanced character pass; consumers
+    // that still read VertexTransform/NormalTransform (legacy draw, CPU shadow fallback,
+    // effects, side-hair, cloth) force-skin lazily via EnsureMeshSkinned. Requires GPU
+    // shadows ON (else the CPU shadow would read unskinned vertices for every mesh).
+    const bool measureSkip = Render::Models::SkinSkip();
+    const bool deferActive = Render::Models::GpuSkinDeferEnabled()
+        && Render::Models::GpuCharsPass() && Render::Models::GpuBmdEnabled()
+        && Render::Models::GpuInstEnabled() && Render::Models::GpuShadowEnabled();
+
     for (int i = 0; i < NumMeshs; i++)
     {
-        Mesh_t* m = &Meshs[i];
-        if (Render::Models::SkinSkip()) continue;   // $skinskip: measurement only
-        for (int j = 0; j < m->NumVertices; j++)
-        {
-            Vertex_t* v = &m->Vertices[j];
-            float* vp = VertexTransform[i][j];
-
-            if (BoneScale == 1.f)
-            {
-                if (_Scale)
-                {
-                    vec3_t Position;
-                    VectorCopy(v->Position, Position);
-                    VectorScale(Position, _Scale, Position);
-                    VectorTransform(Position, BoneMatrix[v->Node], vp);
-                }
-                else
-                    VectorTransform(v->Position, BoneMatrix[v->Node], vp);
-                if (Translate)
-                    VectorScale(vp, BodyScale, vp);
-            }
-            else
-            {
-                VectorRotate(v->Position, BoneMatrix[v->Node], vp);
-                vp[0] = vp[0] * BoneScale + BoneMatrix[v->Node][0][3];
-                vp[1] = vp[1] * BoneScale + BoneMatrix[v->Node][1][3];
-                vp[2] = vp[2] * BoneScale + BoneMatrix[v->Node][2][3];
-                if (Translate)
-                    VectorScale(vp, BodyScale, vp);
-            }
-#ifdef _DEBUG
-#else
-            if (EditFlag == 2)
-#endif
-            {
-                for (int k = 0; k < 3; k++)
-                {
-                    if (vp[k] < BoundingMin[k]) BoundingMin[k] = vp[k];
-                    if (vp[k] > BoundingMax[k]) BoundingMax[k] = vp[k];
-                }
-            }
-            if (Translate)
-                VectorAdd(vp, BodyOrigin, vp);
-        }
-
-        for (int j = 0; j < m->NumNormals; j++)
-        {
-            Normal_t* sn = &m->Normals[j];
-            float* tn = NormalTransform[i][j];
-            VectorRotate(sn->Normal, BoneMatrix[sn->Node], tn);
-            if (LightEnable)
-            {
-                float Luminosity;
-                Luminosity = DotProduct(tn, LightPosition) * 0.8f + 0.4f;
-
-                if (Luminosity < 0.2f) Luminosity = 0.2f;
-                IntensityTransform[i][j] = Luminosity;
-            }
-        }
+        if (measureSkip) continue;
+        if (deferActive) continue;   // leave unskinned; EnsureMeshSkinned does it on read
+        SkinMesh(i, BoneMatrix, Translate, _Scale,
+                 LightEnable ? LightPosition : nullptr, BoundingMin, BoundingMax);
+        if (i < MAX_MESH) s_meshSkinned[i] = true;
     }
     if (EditFlag == 2)
     {
@@ -1561,6 +1624,10 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     if (wentGpu)
         return;
 
+    // P-bmd-skinskip: legacy CPU draw reads VertexTransform/LightTransform — force-skin
+    // this mesh now if Transform deferred it (no-op if already skinned this frame).
+    EnsureMeshSkinned(meshIndex);
+
     glEnableClientState(GL_VERTEX_ARRAY);
     if (enableColor) glEnableClientState(GL_COLOR_ARRAY);
     glEnableClientState(GL_TEXTURE_COORD_ARRAY);
@@ -1664,6 +1731,7 @@ void BMD::RenderMeshAlternative(int iRndExtFlag, int iParam, int i, int RenderFl
 
     Mesh_t* m = &Meshs[i];
     if (m->NumTriangles == 0) return;
+    EnsureMeshSkinned(i);   // P-bmd-skinskip: CPU draw reads VertexTransform
     float Wave = (int)WorldTime % 10000 * 0.0001f;
 
     int Texture = IndexTexture[m->Texture];
@@ -1999,6 +2067,7 @@ void BMD::RenderMeshEffect(int i, int iType, int iSubType, vec3_t Angle, VOID* o
 
     Mesh_t* m = &Meshs[i];
     if (m->NumTriangles <= 0) return;
+    EnsureMeshSkinned(i);   // P-bmd-skinskip: spawns effects at VertexTransform positions
 
     vec3_t angle, Light;
     int iEffectCount = 0;
@@ -2244,6 +2313,7 @@ void BMD::RenderMeshTranslate(int i, int RenderFlag, float Alpha, int BlendMesh,
 
     Mesh_t* m = &Meshs[i];
     if (m->NumTriangles == 0) return;
+    EnsureMeshSkinned(i);   // P-bmd-skinskip: CPU draw reads VertexTransform
     float Wave = (int)WorldTime % 10000 * 0.0001f;
 
     int Texture = IndexTexture[m->Texture];
@@ -2595,6 +2665,8 @@ void BMD::AddMeshShadowTriangles(const int blendMesh, const int hiddenMesh, cons
         {
             continue;
         }
+
+        EnsureMeshSkinned(i);   // P-bmd-skinskip: CPU shadow fallback reads VertexTransform
 
         for (int j = 0; j < mesh->NumTriangles; j++)
         {
