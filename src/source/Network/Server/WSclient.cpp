@@ -21,6 +21,7 @@
 #include "Engine/Object/ZzzOpenData.h"
 #include "Scenes/SceneCore.h"
 #include "Network/Reconnect/ReconnectManager.h"
+#include "Network/NetDebugLog.h"
 #include "Network/IncomingPacketQueue.h"
 #include "I18N/All.h"
 
@@ -2057,6 +2058,15 @@ void ReceiveMovePosition(const BYTE* ReceiveBuffer)
     CHARACTER* c = &CharactersClient[FindCharacterIndex(Key)];
 
     OBJECT* o = &c->Object;
+
+    // Server-authority resync trace: when the server corrects the hero's position (e.g. WalkToAsync
+    // rejected a path), the client snaps here. Logging old->new exposes "warp" magnitude/frequency.
+    if (Key == HeroKey)
+    {
+        NetDebugLog(L"[RECV MovePosition] HERO old=(%d,%d) -> new=(%d,%d)",
+            (int)c->PositionX, (int)c->PositionY, (int)Data->PositionX, (int)Data->PositionY);
+    }
+
     if (o->Type == MODEL_BALL)
     {
         o->Gravity = 20.f;

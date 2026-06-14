@@ -12,6 +12,7 @@
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
 #include "Engine/Object/PlayerActionState.h"
+#include "Network/NetDebugLog.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Engine/Object/ZzzInterface.h"
@@ -1068,6 +1069,7 @@ void SendCharacterMove(unsigned short Key, float Angle, unsigned char PathNum, u
         Dir = ((BYTE)((Angle + 22.5f) / 360.f * 8.f + 1.f) % 8);
     }
 
+    NetDebugLog(L"[SEND Walk] src=(%d,%d) steps=%d dir=%d", (int)PathX[0], (int)PathY[0], (int)(PathNum - 1), (int)Dir);
     SocketClient->ToGameServer()->SendWalkRequest(PathX[0], PathY[0], PathNum - 1, Dir, PathNew, PathNum / 2);
 }
 
@@ -1251,6 +1253,15 @@ namespace
     uint32_t g_AttackIntentSeq = 0;       // Monotonic input-sequence; lets the server correlate intents.
     int g_LastAttackIntentTargetKey = -1; // Server target key of the active engagement, -1 when disengaged.
 
+    // The per-frame `Attacking == -1` catch-all (further below) flickers to -1 between swing animations.
+    // Disengaging on that flicker tore down the server-side engagement every swing (Engage->Disengage in
+    // ~15ms, before the server's first swing at ~half the attack interval), so the authoritative cadence
+    // loop never sustained. Instead, refresh this timestamp on every attack frame and only emit
+    // StopAttackIntent once the player has issued no attack for longer than this grace window -- which
+    // outlasts the gap between swings of even the slowest attack speed.
+    uint32_t g_LastAttackActivityTick = 0;
+    constexpr uint32_t kAttackEngageGraceMs = 1500;
+
     // Begin/refresh an auto-attack engagement on targetKey. Sends exactly one AttackIntent when the
     // engaged target changes; repeat calls for the same target are no-ops (no per-swing spam).
     void SendAttackIntentIfNewEngagement(int targetKey, BYTE animationHint)
@@ -1262,6 +1273,7 @@ namespace
 
         g_LastAttackIntentTargetKey = targetKey;
         constexpr BYTE kAttackIntentKindMelee = 0;
+        NetDebugLog(L"[SEND AttackIntent] target=%d seq=%u animHint=%d", targetKey, (unsigned)(g_AttackIntentSeq + 1), (int)animationHint);
         SocketClient->ToGameServer()->SendAttackIntent(
             ++g_AttackIntentSeq, static_cast<uint16_t>(targetKey), kAttackIntentKindMelee, animationHint);
     }
@@ -1276,6 +1288,7 @@ namespace
         }
 
         g_LastAttackIntentTargetKey = -1;
+        NetDebugLog(L"[SEND StopAttackIntent] seq=%u", (unsigned)(g_AttackIntentSeq + 1));
         SocketClient->ToGameServer()->SendStopAttackIntent(++g_AttackIntentSeq);
     }
 }
@@ -1357,12 +1370,14 @@ void Action(CHARACTER* c, OBJECT* o, bool Now)
         // Announce the engagement once (on target change) so the server can drive the swing cadence
         // itself. AnimationHint mirrors the legacy HitRequest's AttackAnimation so observers animate.
         SendAttackIntentIfNewEngagement(CharactersClient[ActionTarget].Key, AT_ATTACK1);
+        g_LastAttackActivityTick = GetTickCount();
 
-        // TODO Phase 2 (needs runtime tuning): replace per-swing HitRequest with intent-only +
-        // client-side prediction/reconciliation. The server already runs an authoritative cadence
-        // loop from AttackIntent; this per-swing HitRequest stays only until prediction lands so the
-        // current feel (local swing timing/damage echo) is preserved.
-        SocketClient->ToGameServer()->SendHitRequest(CharactersClient[ActionTarget].Key, AT_ATTACK1, Dir);
+        // Phase 2: the server now drives every swing from the sustained engagement (AttackIntent +
+        // the AttackTaskManager cadence loop), so we no longer send a per-swing HitRequest -- doing so
+        // alongside the loop would double the hits. The local swing animation still plays from
+        // SetPlayerAttack above; the damage and hit/animation echo come back from the server
+        // (ShowHit / ShowAnimation). Dir is now unused here but kept computed for the animation facing.
+        (void)Dir;
     }
     break;
     case MOVEMENT_SKILL:
@@ -2955,9 +2970,18 @@ void MoveHero()
     // Catch-all disengage: `Attacking` is cleared to -1 from many code paths (target died, manual
     // stop, zone change, skill cast, selection cleared) across several files. Rather than emit a
     // StopAttackIntent at each of those sites, observe the flag here in the per-frame hero loop and
-    // send exactly one stop when an engagement we announced has ended. SendStopAttackIntentIfEngaged
+    // send exactly one stop when an engagement we announced has truly ended. SendStopAttackIntentIfEngaged
     // is a no-op when not engaged, so this stays cheap on the hot path (no alloc, one int compare).
-    if (Attacking == -1)
+    //
+    // We must NOT disengage just because the hero is moving: melee combat constantly walks the hero
+    // (approaching and repositioning around the target), and the server keeps the engagement alive
+    // across that movement (WalkToAsync no longer disengages). Tearing it down on motion sent a
+    // StopAttackIntent on the very frame the engagement began (engage->disengage in ~15ms on the
+    // server), so no swing ever landed and the target took no damage. Instead, `Attacking` flickers
+    // to -1 between swing animations while the player still holds the attack, so we only disengage
+    // once it has stayed -1 longer than the grace window -- i.e. the player genuinely stopped attacking.
+    if (Attacking == -1
+        && (GetTickCount() - g_LastAttackActivityTick) > kAttackEngageGraceMs)
     {
         SendStopAttackIntentIfEngaged();
     }

@@ -52,14 +52,20 @@ public unsafe partial class ConnectionManager
     [UnmanagedCallersOnly(EntryPoint = "ConnectionManager_Connect")]
     public static int Connect(IntPtr hostPtr, int port, byte isEncrypted, delegate* unmanaged<int, int, byte*, void> onPacketReceived, delegate* unmanaged<int, void> onDisconnected)
     {
+        string? host = null;
         try
         {
-            var host = Marshal.PtrToStringAuto(hostPtr) ?? throw new ArgumentNullException(nameof(hostPtr));
+            // The C++ side passes the host as a wchar_t* (UTF-16). Decode it explicitly
+            // as Unicode: PtrToStringAuto resolves to ANSI under Native AOT, which would
+            // read the UTF-16 "127.0.0.1" up to its first null byte and yield "1".
+            host = Marshal.PtrToStringUni(hostPtr) ?? throw new ArgumentNullException(nameof(hostPtr));
+            try { System.IO.File.AppendAllText(@"I:\MuOnline\.clientlib_err.log", $"{DateTime.Now:O} Connect host='{host}' len={host.Length} port={port} enc={isEncrypted}\n"); } catch { /* diagnostics only */ }
             return ConnectInner(host, port, isEncrypted == 1, onPacketReceived, onDisconnected);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"Error establishing connection: {ex}");
+            try { System.IO.File.AppendAllText(@"I:\MuOnline\.clientlib_err.log", $"{DateTime.Now:O} Connect(host='{host}',{port},enc={isEncrypted}) FAILED:\n{ex}\n\n"); } catch { /* diagnostics only */ }
             return -1;
         }
     }
