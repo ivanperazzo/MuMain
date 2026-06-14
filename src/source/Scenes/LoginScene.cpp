@@ -417,6 +417,9 @@ bool NewRenderLogInScene(HDC hDC)
             ResetFrustrumBoundsFullTerrain();
         else
             CreateFrustrum((float)Width / (float)REFERENCE_WIDTH, (float)Height / (float)REFERENCE_HEIGHT, pos);
+        // Enable per-tile/per-object frustum culling for login only when we built a real
+        // frustum above (otherwise TestFrustrum2D has no valid hull and must pass all).
+        g_LoginFrustumValid = !s_full;
     }
 
     if (!CUIMng::Instance().m_CreditWin.IsShow())

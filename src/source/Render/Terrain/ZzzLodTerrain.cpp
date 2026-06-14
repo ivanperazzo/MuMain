@@ -2603,11 +2603,17 @@ void CacheActiveFrustum()
 #endif
 }
 
+// Set by LoginScene: true once it has built a real camera frustum (CreateFrustrum) so
+// LOG_IN_SCENE can cull terrain/objects instead of drawing the whole map. Stays false
+// for the full-terrain fallback (MU_LOGIN_FULLTERRAIN) and the other early scenes, which
+// have no valid frustum hull and must keep rendering everything.
+bool g_LoginFrustumValid = false;
+
 bool TestFrustrum2D(float x, float y, float Range)
 {
     extern EGameScene SceneFlag;
     if (SceneFlag == SERVER_LIST_SCENE || SceneFlag == WEBZEN_SCENE || SceneFlag == LOADING_SCENE
-        || SceneFlag == LOG_IN_SCENE)
+        || (SceneFlag == LOG_IN_SCENE && !g_LoginFrustumValid))
         return true;
 
     // Fast path: unrolled 4-edge test for Legacy/Default cameras

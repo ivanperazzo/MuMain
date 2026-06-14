@@ -71,6 +71,7 @@ void CreateFrustrum(float xAspect, float yAspect, vec3_t position);
 void CreateFrustrum2D(vec3_t Position);
 bool TestFrustrum(vec3_t Position, float Range);
 bool TestFrustrum2D(float x, float y, float Range);
+extern bool g_LoginFrustumValid;   // LoginScene sets per frame (see ZzzLodTerrain.cpp)
 void CacheActiveFrustum();   // Call once per frame after camera update
 void UpdateFrustrumBounds();
 void ResetFrustrumBoundsFullTerrain();  // Set bounds to cover entire terrain (for scenes without CreateFrustrum)
