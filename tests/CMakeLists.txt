@@ -60,4 +60,6 @@ add_subdirectory(motion)
 
 add_subdirectory(anim)
 
+add_subdirectory(effects)
+
 add_subdirectory(editor)
