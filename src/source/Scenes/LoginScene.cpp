@@ -436,8 +436,9 @@ bool NewRenderLogInScene(HDC hDC)
             Render::Models::InstBegin();
             Render::Models::ShadowBegin();    // P-bmd-shadow: collect instanced shadows
             RenderCharactersClient();
-            Render::Models::InstFlush();
-            Render::Models::ShadowFlush();    // draw shadows after bodies (palette uploaded)
+            { FRAME_PROFILE(Flush);
+              Render::Models::InstFlush();
+              Render::Models::ShadowFlush(); }  // draw shadows after bodies (palette uploaded)
             Render::Models::InstSelfTest();   // env-gated; exercises glDrawArraysInstanced
             Render::Models::SetGpuCharsPass(false);
         }

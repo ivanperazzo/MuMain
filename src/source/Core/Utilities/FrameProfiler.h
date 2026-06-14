@@ -21,12 +21,16 @@ namespace FrameProfiler
         Characters,
         Items,
         Effects,
+        Sim,        // MainSceneFixedUpdate (UpdateGameEntities), outside the render pass
+        Cloth,      // g_PhysicsManager.Move (cloth/cape sim), once per frame
+        Flush,      // Inst/Shadow flush (GPU buffer build+upload+draw); subset of Chars
+        Anim,       // BMD::Animation+Transform (bone keyframe build); subset of Chars/Objects
         Other,
         Count_
     };
 
     inline constexpr const char* kPassNames[(int)Pass::Count_] = {
-        "Terrain", "Objects", "Chars", "Items", "Effects", "Other"
+        "Terrain", "Objects", "Chars", "Items", "Effects", "Sim", "Cloth", "Flush", "Anim", "Other"
     };
 
     inline float& AccumulatorMs(Pass p)

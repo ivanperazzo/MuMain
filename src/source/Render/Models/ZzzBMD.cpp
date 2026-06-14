@@ -23,6 +23,7 @@
 #include "Render/Models/ShadowInstanceBatch.h"  // P-bmd-shadow: instanced GPU shadows
 #include "Render/GL/BmdShader.h"
 #include "Render/GL/GLLoader.h"
+#include "Core/Utilities/FrameProfiler.h"   // bottleneck profiling (Anim slot)
 
 BMD* Models;
 BMD* ModelsDump;
@@ -51,6 +52,7 @@ static vec3_t LightVector2 = { 0.f, -0.5f, -0.8f };
 
 void BMD::Animation(float(*BoneMatrix)[3][4], float AnimationFrame, float PriorFrame, unsigned short PriorAction, vec3_t Angle, vec3_t HeadAngle, bool Parent, bool Translate)
 {
+    FRAME_PROFILE(Anim);
     if (NumActions <= 0) return;
 
     if (PriorAction >= NumActions) PriorAction = 0;
@@ -283,6 +285,7 @@ void BMD::MarkMeshSkinned(int meshIndex) const
 
 void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t BoundingBoxMax, OBB_t* OBB, bool Translate, float _Scale)
 {
+    FRAME_PROFILE(Anim);
     // P-bmd-gpu: record the context this CPU transform ran with so a following
     // RenderMesh can reproduce it exactly on the GPU (A/B identical).
     s_lastBoneMatrix        = BoneMatrix;
@@ -1226,13 +1229,11 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         glColor3fv(BodyLight);
         enableLight = false;
     }
-    else if (enableLight)
-    {
-        for (int j = 0; j < m->NumNormals; j++)
-        {
-            VectorScale(BodyLight, IntensityTransform[meshIndex][j], LightTransform[meshIndex][j]);
-        }
-    }
+    // The per-normal LightTransform[] = BodyLight * IntensityTransform[] build is
+    // relocated past the instancing early-return + EnsureMeshSkinned (see below):
+    // the instanced lit shader does lighting from palette normals, so the loop is
+    // pure waste for collected meshes, and on the legacy path it must read freshly
+    // skinned IntensityTransform under deferred skinning.
 
     int finalRenderFlags = renderFlags;
     if ((renderFlags & RENDER_COLOR) == RENDER_COLOR)
@@ -1615,6 +1616,17 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     // P-bmd-skinskip: legacy CPU draw reads VertexTransform/LightTransform — force-skin
     // this mesh now if Transform deferred it (no-op if already skinned this frame).
     EnsureMeshSkinned(meshIndex);
+
+    // Per-normal lighting for the legacy draw, relocated from the top of RenderMesh:
+    // only reached when the mesh did NOT instance, and after EnsureMeshSkinned so
+    // IntensityTransform is current under deferred skinning.
+    if (enableLight)
+    {
+        for (int j = 0; j < m->NumNormals; j++)
+        {
+            VectorScale(BodyLight, IntensityTransform[meshIndex][j], LightTransform[meshIndex][j]);
+        }
+    }
 
     // Chrome sphere-map texcoords for the legacy draw, relocated here from the chrome
     // state block: only reached when the mesh did NOT instance (wentGpu returned above),

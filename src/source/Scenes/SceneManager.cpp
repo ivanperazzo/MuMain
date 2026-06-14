@@ -341,7 +341,7 @@ static void UpdateWaterAnimation()
  */
 static void UpdateCoreSystems()
 {
-    g_PhysicsManager.Move(0.025f * FPS_ANIMATION_FACTOR);
+    { FRAME_PROFILE(Cloth); g_PhysicsManager.Move(0.025f * FPS_ANIMATION_FACTOR); }
     Bitmaps.Manage();
     Set3DSoundPosition();
 }
@@ -1060,13 +1060,15 @@ void MainScene(HDC hDC)
                 {
                     s_frameSplitCtr = 0;
                     using FP = FrameProfiler::Pass;
-                    Render::GL::Log("[frame] scene=%d cpuRender=%.1fms swap=%.1fms | terrain=%.1f objects=%.1f chars=%.1f items=%.1f effects=%.1f other=%.1f",
+                    Render::GL::Log("[frame] scene=%d cpuRender=%.1fms swap=%.1fms | terrain=%.1f objects=%.1f chars=%.1f items=%.1f effects=%.1f sim=%.1f cloth=%.1f flush=%.1f anim=%.1f other=%.1f",
                         (int)SceneFlag,
                         Render::FrameProfiler::LastCpuRenderMs(),
                         Render::FrameProfiler::LastSwapMs(),
                         FrameProfiler::LastMs(FP::Terrain), FrameProfiler::LastMs(FP::Objects),
                         FrameProfiler::LastMs(FP::Characters), FrameProfiler::LastMs(FP::Items),
-                        FrameProfiler::LastMs(FP::Effects), FrameProfiler::LastMs(FP::Other));
+                        FrameProfiler::LastMs(FP::Effects), FrameProfiler::LastMs(FP::Sim),
+                        FrameProfiler::LastMs(FP::Cloth), FrameProfiler::LastMs(FP::Flush),
+                        FrameProfiler::LastMs(FP::Anim), FrameProfiler::LastMs(FP::Other));
                 }
             }
         }
@@ -1105,9 +1107,12 @@ void RenderScene(HDC hDC)
         s_prevWorldMs = WorldTime;
 
         const auto step = s_simClock.Advance(frameMs);
-        for (int i = 0; i < step.steps; ++i)
         {
-            MainSceneFixedUpdate();
+            FRAME_PROFILE(Sim);
+            for (int i = 0; i < step.steps; ++i)
+            {
+                MainSceneFixedUpdate();
+            }
         }
 
         simSteps   = step.steps;
