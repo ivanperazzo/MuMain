@@ -14,6 +14,8 @@ namespace Render::GL
             "#version 150 compatibility\n"
             "uniform samplerBuffer uPalette;\n"
             "uniform vec3 uLightPos;\n"
+            "uniform int  uChromeMode;\n"   // 0 = textured (aUV), 1 = chrome (sphere-map from normal)
+            "uniform float uWave;\n"        // chrome reflection scroll (WorldTime-based)
             "in vec3  aPos;\n"
             "in float aVBone;\n"
             "in vec3  aNormal;\n"
@@ -36,17 +38,27 @@ namespace Render::GL
             "                   dot(r2.xyz, aPos) + r2.w);\n"
             "    vp = vp * aBodyScale + aBodyOrigin;\n"
             "    gl_Position = gl_ModelViewProjectionMatrix * vec4(vp, 1.0);\n"
-            "    float lum = 1.0;\n"
-            "    if (aLit > 0.5) {\n"
+            "    if (uChromeMode > 0) {\n"
+            // sphere-map texcoord from the skinned normal (matches legacy RENDER_CHROME:
+            // uv = (n.z*0.5 + wave, n.y*0.5 + wave*2)); body light modulates the reflection.
             "        int nb = (int(aPaletteBase) + int(aNBone)) * 3;\n"
-            "        vec4 n0 = texelFetch(uPalette, nb + 0);\n"
-            "        vec4 n1 = texelFetch(uPalette, nb + 1);\n"
-            "        vec4 n2 = texelFetch(uPalette, nb + 2);\n"
-            "        vec3 tn = vec3(dot(n0.xyz, aNormal), dot(n1.xyz, aNormal), dot(n2.xyz, aNormal));\n"
-            "        lum = max(dot(tn, uLightPos) * 0.8 + 0.4, 0.2);\n"
+            "        vec3 n = vec3(dot(texelFetch(uPalette, nb + 0).xyz, aNormal),\n"
+            "                      dot(texelFetch(uPalette, nb + 1).xyz, aNormal),\n"
+            "                      dot(texelFetch(uPalette, nb + 2).xyz, aNormal));\n"
+            "        vUV = vec2(n.z * 0.5 + uWave, n.y * 0.5 + uWave * 2.0);\n"
+            "        vColor = aColor;\n"
+            "    } else {\n"
+            "        float lum = 1.0;\n"
+            "        if (aLit > 0.5) {\n"
+            "            int nb = (int(aPaletteBase) + int(aNBone)) * 3;\n"
+            "            vec3 tn = vec3(dot(texelFetch(uPalette, nb + 0).xyz, aNormal),\n"
+            "                           dot(texelFetch(uPalette, nb + 1).xyz, aNormal),\n"
+            "                           dot(texelFetch(uPalette, nb + 2).xyz, aNormal));\n"
+            "            lum = max(dot(tn, uLightPos) * 0.8 + 0.4, 0.2);\n"
+            "        }\n"
+            "        vColor = vec4(aColor.rgb * lum, aColor.a);\n"
+            "        vUV = aUV;\n"
             "    }\n"
-            "    vColor = vec4(aColor.rgb * lum, aColor.a);\n"
-            "    vUV = aUV;\n"
             "}\n";
 
         const char* kFS =
@@ -73,9 +85,11 @@ namespace Render::GL
         if (!m_prog.Compile(kVS, kFS, "bmd_inst"))
             return false;
 
-        m_uLightPos = m_prog.Uniform("uLightPos");
-        m_uPalette  = m_prog.Uniform("uPalette");
-        m_uTex      = m_prog.Uniform("uTex");
+        m_uLightPos   = m_prog.Uniform("uLightPos");
+        m_uPalette    = m_prog.Uniform("uPalette");
+        m_uTex        = m_prog.Uniform("uTex");
+        m_uChromeMode = m_prog.Uniform("uChromeMode");
+        m_uWave       = m_prog.Uniform("uWave");
 
         const GLuint id = m_prog.Id();
         m_aPos         = GetAttribLocation(id, "aPos");
@@ -110,6 +124,16 @@ namespace Render::GL
     void InstancedBmdShader::SetTextureUnit(int unit) const
     {
         if (m_uTex >= 0) Uniform1i(m_uTex, unit);
+    }
+
+    void InstancedBmdShader::SetChromeMode(int mode) const
+    {
+        if (m_uChromeMode >= 0) Uniform1i(m_uChromeMode, mode);
+    }
+
+    void InstancedBmdShader::SetWave(float wave) const
+    {
+        if (m_uWave >= 0) Uniform1f(m_uWave, wave);
     }
 
     InstancedBmdShader& GetInstancedBmdShader()

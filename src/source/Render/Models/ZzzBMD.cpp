@@ -1442,11 +1442,29 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     // (props) or Characters (players/mobs + parts) pass, $gpubmd on. Reuses the
     // texture/blend state set above; replaces the CPU per-vertex rebuild + client-
     // side draw below. Falls through to legacy otherwise.
+    // P-bmd-instance (chrome): PLAIN RENDER_CHROME only — not CHROME2..7/METAL/OIL (those
+    // share finalRenderFlags==RENDER_CHROME but use different formulas/textures), not
+    // DARK/LIGHTMAP/NODEPTH, standard chrome texture. Two sub-cases: OPAQUE (no BRIGHT,
+    // alpha>=0.99 -> alpha-test bucket) and ADDITIVE (RENDER_BRIGHT -> GL_ONE/ONE bucket,
+    // order-independent). Char equipment chrome is overwhelmingly CHROME|BRIGHT (additive).
+    // The instanced shader reproduces the plain-chrome sphere-map UV (normal.z*0.5+wave,
+    // normal.y*0.5+wave*2).
+    const bool chromeBase =
+        finalRenderFlags == RENDER_CHROME
+        && (renderFlags & RENDER_CHROME) != 0
+        && (renderFlags & (RENDER_CHROME2 | RENDER_CHROME3 | RENDER_CHROME4 | RENDER_CHROME5
+                           | RENDER_CHROME6 | RENDER_CHROME7 | RENDER_METAL | RENDER_OIL
+                           | RENDER_DARK | RENDER_LIGHTMAP | RENDER_NODEPTH)) == 0
+        && explicitTextureIndex == -1;
+    const bool chromeAdditive = chromeBase && (renderFlags & RENDER_BRIGHT) != 0;
+    const bool chromeOpaque   = chromeBase && (renderFlags & RENDER_BRIGHT) == 0 && alpha >= 0.99f;
+    const bool plainChrome    = chromeOpaque || chromeAdditive;
+
     bool wentGpu = false;
     bool instanced = false;
     if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
         && Render::GL::IsLoaded()
-        && finalRenderFlags == RENDER_TEXTURE && !EnableWave
+        && (finalRenderFlags == RENDER_TEXTURE || plainChrome) && !EnableWave
         && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
         && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
     {
@@ -1462,9 +1480,12 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
             // Excluded: alpha-blended meshes (the flush is alpha-test only); those keep
             // the per-mesh GPU path. (HighLight is a constant 'true' here, not a per-
             // object highlight, so it is not an exclusion.)
+            // Additive chrome (CHROME|BRIGHT) is allowed despite being "blended" because the
+            // instanced flush has a dedicated additive (GL_ONE/ONE) pass. Other blended
+            // (textured BRIGHT/DARK) meshes still keep the legacy/per-mesh path.
             const bool blended = (renderFlags & (RENDER_BRIGHT | RENDER_DARK)) != 0;
             if (Render::Models::GpuCharsPass() && Render::Models::GpuInstEnabled()
-                && s_lastTransformTranslate && !blended)
+                && s_lastTransformTranslate && (!blended || chromeAdditive))
             {
                 Render::Models::InstanceRec rec;
                 rec.paletteBase   = (float)InstPaletteBaseForCurrentPart(NumBones);
@@ -1472,7 +1493,24 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                 rec.bodyOrigin[0] = BodyOrigin[0];
                 rec.bodyOrigin[1] = BodyOrigin[1];
                 rec.bodyOrigin[2] = BodyOrigin[2];
-                if (enableLight)
+                int instMode  = 0;           // 0 textured / 1 chrome sphere-map
+                int instBlend = 0;           // 0 opaque (alpha-test) / 1 additive (GL_ONE/ONE)
+                int instTex   = textureIndex;
+                if (plainChrome)
+                {
+                    // Chrome: flat BodyLight colour (legacy chrome ignores per-normal
+                    // lighting; BRIGHT already scaled BodyLight by alpha above); the shader
+                    // builds the sphere-map UV from the skinned normal. Binds the shared
+                    // chrome texture; wave drives the scroll. Additive when RENDER_BRIGHT.
+                    rec.color[0] = BodyLight[0]; rec.color[1] = BodyLight[1]; rec.color[2] = BodyLight[2];
+                    rec.color[3] = alpha;
+                    rec.lit = 0.f;
+                    instMode  = 1;
+                    instBlend = chromeAdditive ? 1 : 0;
+                    instTex   = BITMAP_CHROME;
+                    Render::Models::InstSetWave(wave);
+                }
+                else if (enableLight)
                 {
                     // Lit: base colour = BodyLight, per-normal lum in the shader.
                     rec.color[0] = BodyLight[0]; rec.color[1] = BodyLight[1]; rec.color[2] = BodyLight[2];
@@ -1489,12 +1527,14 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                     rec.color[0] = cur[0]; rec.color[1] = cur[1]; rec.color[2] = cur[2]; rec.color[3] = cur[3];
                     rec.lit = 0.f;
                 }
-                Render::Models::InstAdd(this, meshIndex, textureIndex, rec);
+                Render::Models::InstAdd(this, meshIndex, instTex, rec, instMode, instBlend);
                 wentGpu = true;
                 instanced = true;
             }
-            else if (RenderMeshGpu(meshIndex, gpu, alpha, enableLight))
+            else if (!plainChrome && RenderMeshGpu(meshIndex, gpu, alpha, enableLight))
             {
+                // Per-mesh GPU path is textured-only; chrome that did not instance
+                // (instancing off / objects pass) falls through to the legacy path.
                 wentGpu = true;
             }
         }

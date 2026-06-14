@@ -26,8 +26,13 @@ namespace Render::Models
 
     void InstBegin();
     int  InstAppendPalette(const float (*boneMatrix)[3][4], int boneCount);
-    void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec);
+    // mode:  0 = textured (sample aUV), 1 = chrome (sphere-map UV from normal + scroll).
+    // blend: 0 = opaque (alpha-test, depth write), 1 = additive (RENDER_BRIGHT, GL_ONE/ONE,
+    //        no depth write, order-independent). Each (mode, blend) is a separate bucket so
+    //        FLUSH draws opaque first then additive, switching uChromeMode/uWave per bucket.
+    void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec, int mode = 0, int blend = 0);
     void InstSetLight(const float lightPos[3]);   // global lit dir for lit instances
+    void InstSetWave(float wave);                 // global chrome reflection scroll
     void InstFlush();
 
     // Stats for the diagnostics log: instanced draws issued + instances covered.

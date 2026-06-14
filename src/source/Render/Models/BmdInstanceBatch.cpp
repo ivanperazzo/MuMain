@@ -37,6 +37,8 @@ namespace Render::Models
             const BMD* model = nullptr;
             int        meshIndex = 0;
             int        texId = 0;
+            int        mode = 0;           // 0 = textured, 1 = chrome (sphere-map)
+            int        blend = 0;          // 0 = opaque (alpha-test), 1 = additive (GL_ONE/ONE)
             std::vector<float>     recs;   // flattened InstanceRec (10 floats each)
             Render::GL::GpuBuffer  instVbo;
         };
@@ -45,10 +47,16 @@ namespace Render::Models
         int s_drawCount = 0;
         int s_instCount = 0;
         float s_instLight[3] = { 0.f, 0.f, 0.f };   // global lit light dir (lit instances)
+        float s_instWave = 0.f;                     // global chrome reflection scroll
 
-        uint64_t Key(const BMD* m, int mesh, int tex)
+        // mode/blend in the top nibble (bits 60-63): on the x86 build a 32-bit model
+        // pointer <<24 reaches bit 56 at most, so chrome/additive variants never collide
+        // with the textured-opaque bucket of the same (model, mesh, tex).
+        uint64_t Key(const BMD* m, int mesh, int tex, int mode, int blend)
         {
             return (static_cast<uint64_t>(reinterpret_cast<uintptr_t>(m)) << 24)
+                 ^ (static_cast<uint64_t>(mode & 0x3) << 60)
+                 ^ (static_cast<uint64_t>(blend & 0x3) << 62)
                  ^ (static_cast<uint64_t>(mesh & 0xFF) << 16)
                  ^ static_cast<uint64_t>(tex & 0xFFFF);
         }
@@ -62,6 +70,7 @@ namespace Render::Models
         s_drawCount = 0;
         s_instCount = 0;
         s_instLight[0] = s_instLight[1] = s_instLight[2] = 0.f;
+        s_instWave = 0.f;
     }
 
     int InstAppendPalette(const float (*boneMatrix)[3][4], int boneCount)
@@ -74,10 +83,15 @@ namespace Render::Models
         s_instLight[0] = lightPos[0]; s_instLight[1] = lightPos[1]; s_instLight[2] = lightPos[2];
     }
 
-    void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec)
+    void InstSetWave(float wave)
     {
-        Bucket& b = s_buckets[Key(model, meshIndex, texId)];
-        b.model = model; b.meshIndex = meshIndex; b.texId = texId;
+        s_instWave = wave;
+    }
+
+    void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec, int mode, int blend)
+    {
+        Bucket& b = s_buckets[Key(model, meshIndex, texId, mode, blend)];
+        b.model = model; b.meshIndex = meshIndex; b.texId = texId; b.mode = mode; b.blend = blend;
         b.recs.push_back(rec.paletteBase);
         b.recs.push_back(rec.bodyScale);
         b.recs.push_back(rec.bodyOrigin[0]);
@@ -111,25 +125,22 @@ namespace Render::Models
         sh.SetLight(s_instLight);   // global lit dir set during collect (lit instances)
         ActiveTexture(GL_TEXTURE0);
 
-        glEnable(GL_DEPTH_TEST);
-        glDepthMask(GL_TRUE);
-        EnableAlphaTest();   // opaque + cutout (all instanced meshes are opaque)
-
         const GLint aPos = sh.AttrPos(), aVB = sh.AttrVBone(), aN = sh.AttrNormal(),
                     aNB = sh.AttrNBone(), aUV = sh.AttrUV();
         const GLint iBase = sh.AttrPaletteBase(), iScale = sh.AttrBodyScale(),
                     iOrig = sh.AttrBodyOrigin(), iCol = sh.AttrColor(), iLit = sh.AttrLit();
 
-        for (auto& kv : s_buckets)
+        // Issue one bucket: bind shared geometry (divisor 0) + per-instance data
+        // (divisor 1), set chrome/wave uniforms, bind texture, one instanced draw.
+        auto drawBucket = [&](Bucket& b)
         {
-            Bucket& b = kv.second;
             const int instances = (int)(b.recs.size() / kInstFloats);
             if (instances == 0)
-                continue;
+                return;
 
             const MeshGpu* g = GetOrBuildMeshGpu(b.model, b.meshIndex, BmdShader::kMaxBones);
             if (g == nullptr || !g->eligible)
-                continue;
+                return;
 
             // Per-vertex geometry (divisor 0).
             namespace L = Render::Models::GpuVtxLayout;
@@ -150,11 +161,31 @@ namespace Render::Models
             if (iCol   >= 0) { EnableVertexAttribArray(iCol);   VertexAttribPointer(iCol,   4, GL_FLOAT, GL_FALSE, kInstStride, (const GLvoid*)(size_t)kOffColor);  VertexAttribDivisor(iCol, 1); }
             if (iLit   >= 0) { EnableVertexAttribArray(iLit);   VertexAttribPointer(iLit,   1, GL_FLOAT, GL_FALSE, kInstStride, (const GLvoid*)(size_t)kOffLit);    VertexAttribDivisor(iLit, 1); }
 
+            sh.SetChromeMode(b.mode);   // 0 textured / 1 chrome sphere-map
+            sh.SetWave(s_instWave);
             BindTexture(b.texId);
             DrawArraysInstanced(GL_TRIANGLES, 0, g->vertexCount, instances);
             ++s_drawCount;
             s_instCount += instances;
-        }
+        };
+
+        glEnable(GL_DEPTH_TEST);
+
+        // Pass 1: opaque meshes (textured bodies + opaque chrome) — alpha-test, depth write.
+        EnableAlphaTest();
+        for (auto& kv : s_buckets)
+            if (kv.second.blend == 0) drawBucket(kv.second);
+
+        // Pass 2: additive chrome (RENDER_BRIGHT -> GL_ONE/GL_ONE; EnableAlphaBlend turns OFF
+        // depth writes). Additive is order-independent, so no per-instance sort is needed; the
+        // depth test still rejects chrome behind the opaque geometry drawn in pass 1.
+        EnableAlphaBlend();
+        for (auto& kv : s_buckets)
+            if (kv.second.blend == 1) drawBucket(kv.second);
+
+        // Restore the opaque alpha-test end-state (depth write on) the textured-only flush
+        // guaranteed, so downstream legacy draws see the same state as before.
+        EnableAlphaTest();
 
         if (s_drawCount > 0)
         {
