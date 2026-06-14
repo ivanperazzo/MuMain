@@ -7,6 +7,19 @@
 
 #include <unordered_map>
 #include <vector>
+#include <cstdlib>
+
+namespace
+{
+    // Autonomous/headless smoke-tests can't type "$gpubmd on", so honour an env
+    // var once: MU_GPUBMD=1 / MU_GPUINST=1 enable the paths at startup.
+    bool EnvFlag(const char* name)
+    {
+        char buf[8] = {};
+        size_t n = 0;
+        return getenv_s(&n, buf, sizeof(buf), name) == 0 && n > 0 && buf[0] == '1';
+    }
+}
 
 namespace Render::Models
 {
@@ -135,7 +148,12 @@ namespace Render::Models
     }
 
     void SetGpuBmdEnabled(bool on) { s_gpuBmdEnabled = on; }
-    bool GpuBmdEnabled()           { return s_gpuBmdEnabled; }
+    bool GpuBmdEnabled()
+    {
+        static const bool s_envInit = [] { if (EnvFlag("MU_GPUBMD")) s_gpuBmdEnabled = true; return true; }();
+        (void)s_envInit;
+        return s_gpuBmdEnabled;
+    }
     void SetGpuObjectsPass(bool on) { s_gpuObjectsPass = on; }
     bool GpuObjectsPass()           { return s_gpuObjectsPass; }
     void SetGpuCharsPass(bool on)   { s_gpuCharsPass = on; }

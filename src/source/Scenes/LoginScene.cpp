@@ -11,6 +11,7 @@
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
+#include "Render/Models/BmdGpuCache.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Engine/Object/ZzzInterface.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -408,16 +409,26 @@ bool NewRenderLogInScene(HDC hDC)
     if (!CUIMng::Instance().m_CreditWin.IsShow())
     {
         RenderTerrain(false);
+        // P-bmd-gpu/instance (A0): exercise the GPU/instancing path in the login
+        // town too, so autonomous cdb smoke-tests render characters+props without
+        // needing to enter the world. Same $gpubmd/$gpuinst gating applies.
+        Render::Models::SetGpuCharsPass(true);
         RenderCharactersClient();
+        Render::Models::SetGpuCharsPass(false);
         RenderMount();
+        Render::Models::SetGpuObjectsPass(true);
         RenderObjects();
+        Render::Models::SetGpuObjectsPass(false);
         RenderJoints();
         RenderEffects();
         CheckSprites();
         RenderLeaves();
         RenderBoids();
+        Render::Models::SetGpuObjectsPass(true);
         RenderObjects_AfterCharacter();
+        Render::Models::SetGpuObjectsPass(false);
         ThePetProcess().RenderPets();
+        Render::Models::LogAndResetGpuStats();   // A0: GPU/instancing stats in the login town
     }
 
     BeginSprite();
