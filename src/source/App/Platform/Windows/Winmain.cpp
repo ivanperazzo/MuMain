@@ -1434,6 +1434,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
     // never calls glewInit, so without this every glGenBuffers/glCreateShader is a
     // null pointer. Logs GL_VERSION + loaded count; GPU paths check IsLoaded().
     Render::GL::LoadModernGL();
+    Render::GL::SelfTest();   // smoke-test shader+VBO on the real driver (gl_log.txt)
 
     // Bridge SDL's native handles so the remaining Win32 code (IME, DirectSound,
     // cursor, the legacy EDIT-control text boxes) keeps working.

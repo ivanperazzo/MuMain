@@ -68,4 +68,10 @@ namespace Render::GL
     // True after a successful LoadModernGL(); GPU paths must check this and fall
     // back to the legacy renderer when false.
     bool IsLoaded();
+
+    // Smoke-test the modern pipeline on the real driver: compile a representative
+    // shader (uses compat built-in matrices, so it slots into the existing
+    // fixed-function setup) and create a VBO. Logs the result to gl_log.txt.
+    // Returns true if both succeed. Call once after LoadModernGL().
+    bool SelfTest();
 }
