@@ -1281,6 +1281,71 @@ void BMD::ComputeInstLitLight(vec3_t out)
     VectorIRotate(Position, Matrix, out);
 }
 
+// ===========================================================================
+// Etapa 3b 3b-diag: MU_JOBSDIAG-gated, thread-safe RenderMesh collect tracer.
+// All counters are std::atomic so concurrent workers don't corrupt them; the
+// dump runs serially (LogAndResetGpuStats cadence). Localises WHERE a chars-pass
+// RenderMesh call exits when the [bmd_cov] inst count jitters under MU_JOBS.
+// Removed/gated before the fix commit.
+// ===========================================================================
+namespace
+{
+    bool JobsDiagEnabled()
+    {
+        static const bool s_on = [] {
+            char b[8] = {}; size_t n = 0;
+            return getenv_s(&n, b, sizeof(b), "MU_JOBSDIAG") == 0 && n > 0 && b[0] != '0';
+        }();
+        return s_on;
+    }
+    // One bucket per early-return / branch in the chars pass.
+    enum DiagSlot {
+        DIAG_ENTRY = 0,      // entered RenderMesh on the chars pass (post suppress)
+        DIAG_RET_BOUNDS,     // meshIndex OOB
+        DIAG_RET_NOTRI,      // NumTriangles == 0
+        DIAG_RET_BITMAPHIDE, // textureIndex == BITMAP_HIDE
+        DIAG_RET_SKINHAIR,   // IsSkin/IsHair && HideSkin
+        DIAG_RET_NONEBLEND,  // chrome NoneBlendMesh
+        DIAG_REACH_GATE,     // reached the GPU/instancing outer gate
+        DIAG_GATE_GPUNULL,   // outer gate true but gpu==null/ineligible (worker-defer etc.)
+        DIAG_INSTADD,        // reached InstAdd (cls=0)
+        DIAG_CLASSIFY,       // reached the classify block (line 1777)
+        DIAG_N
+    };
+    std::atomic<long long> g_diag[DIAG_N];
+    inline void DiagHit(int slot) { if (JobsDiagEnabled()) g_diag[slot].fetch_add(1, std::memory_order_relaxed); }
+    // Per-meshIndex entry vs instadd histogram (which body mesh slot loses InstAdds).
+    std::atomic<long long> g_diagEntryByMesh[MAX_MESH];
+    std::atomic<long long> g_diagInstByMesh[MAX_MESH];
+    inline void DiagEntryMesh(int mi) { if (JobsDiagEnabled() && mi >= 0 && mi < MAX_MESH) g_diagEntryByMesh[mi].fetch_add(1, std::memory_order_relaxed); }
+    inline void DiagInstMesh(int mi)  { if (JobsDiagEnabled() && mi >= 0 && mi < MAX_MESH) g_diagInstByMesh[mi].fetch_add(1, std::memory_order_relaxed); }
+}
+void JobsDiagDumpAndReset();   // fwd; called from LogAndResetGpuStats-adjacent site
+
+void JobsDiagDumpAndReset()
+{
+    if (!JobsDiagEnabled()) return;
+    long long v[DIAG_N];
+    for (int i = 0; i < DIAG_N; ++i) v[i] = g_diag[i].exchange(0, std::memory_order_relaxed);
+    Render::GL::Log("[jobsdiag] entry=%lld | ret: bounds=%lld notri=%lld bmphide=%lld skinhair=%lld noneblend=%lld "
+                    "| gate=%lld gpunull=%lld instadd=%lld classify=%lld | dropped(entry-classify-instadd)=%lld",
+                    v[DIAG_ENTRY], v[DIAG_RET_BOUNDS], v[DIAG_RET_NOTRI], v[DIAG_RET_BITMAPHIDE],
+                    v[DIAG_RET_SKINHAIR], v[DIAG_RET_NONEBLEND], v[DIAG_REACH_GATE], v[DIAG_GATE_GPUNULL],
+                    v[DIAG_INSTADD], v[DIAG_CLASSIFY],
+                    v[DIAG_ENTRY] - v[DIAG_CLASSIFY] - (v[DIAG_RET_BOUNDS]+v[DIAG_RET_NOTRI]+v[DIAG_RET_BITMAPHIDE]+v[DIAG_RET_SKINHAIR]+v[DIAG_RET_NONEBLEND]));
+    char buf[1024]; int off = 0;
+    off += snprintf(buf+off, sizeof(buf)-off, "[jobsdiag] perMesh entry/inst (mi:e,i):");
+    for (int mi = 0; mi < MAX_MESH; ++mi)
+    {
+        long long e = g_diagEntryByMesh[mi].exchange(0, std::memory_order_relaxed);
+        long long ia = g_diagInstByMesh[mi].exchange(0, std::memory_order_relaxed);
+        if (e != 0 || ia != 0)
+            off += snprintf(buf+off, sizeof(buf)-off, " %d:%lld,%lld", mi, e, ia);
+        if (off > (int)sizeof(buf) - 32) break;
+    }
+    Render::GL::Log("%s", buf);
+}
+
 void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshIndex, float blendMeshAlpha, float blendMeshTextureCoordU, float blendMeshTextureCoordV, int explicitTextureIndex)
 {
     // Etapa 3b 6.8b: the EffectsOnly serial replay re-walks RenderCharacter ONLY to
@@ -1291,16 +1356,20 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     if (Render::Build::BuildSuppressMesh())
         return;
 
-    if (meshIndex >= NumMeshs || meshIndex < 0) return;
+    const bool diagCharsPass = JobsDiagEnabled() && Render::Models::GpuCharsPass();
+    if (diagCharsPass) { DiagHit(DIAG_ENTRY); DiagEntryMesh(meshIndex); }
+
+    if (meshIndex >= NumMeshs || meshIndex < 0) { if (diagCharsPass) DiagHit(DIAG_RET_BOUNDS); return; }
 
     Mesh_t* m = &Meshs[meshIndex];
-    if (m->NumTriangles == 0) return;
+    if (m->NumTriangles == 0) { if (diagCharsPass) DiagHit(DIAG_RET_NOTRI); return; }
 
     float wave = static_cast<long>(WorldTime) % 10000 * 0.0001f;
 
     int textureIndex = IndexTexture[m->Texture];
     if (textureIndex == BITMAP_HIDE)
     {
+        if (diagCharsPass) DiagHit(DIAG_RET_BITMAPHIDE);
         return;
     }
 
@@ -1317,11 +1386,13 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     const auto texture = Bitmaps.GetTexture(textureIndex);
     if (texture->IsSkin && HideSkin)
     {
+        if (diagCharsPass) DiagHit(DIAG_RET_SKINHAIR);
         return;
     }
 
     if (texture->IsHair && HideSkin)
     {
+        if (diagCharsPass) DiagHit(DIAG_RET_SKINHAIR);
         return;
     }
 
@@ -1413,11 +1484,11 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     {
         if (m->m_csTScript != nullptr)
         {
-            if (m->m_csTScript->getNoneBlendMesh()) return;
+            if (m->m_csTScript->getNoneBlendMesh()) { if (diagCharsPass) DiagHit(DIAG_RET_NONEBLEND); return; }
         }
 
         if (m->NoneBlendMesh)
-            return;
+            { if (diagCharsPass) DiagHit(DIAG_RET_NONEBLEND); return; }
 
         finalRenderFlags = RENDER_CHROME;
         if ((renderFlags & RENDER_CHROME4) == RENDER_CHROME4)
@@ -1652,8 +1723,10 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
         && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
     {
+        if (diagCharsPass) DiagHit(DIAG_REACH_GATE);
         // enableLight true -> per-normal lit (props); false -> flat glColor (chars).
         const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
+        if (diagCharsPass && (gpu == nullptr || !gpu->eligible)) DiagHit(DIAG_GATE_GPUNULL);
         if (gpu != nullptr && gpu->eligible)
         {
             // P-bmd-instance: in the Characters pass, COLLECT world-baked
@@ -1761,6 +1834,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                 // bucket so InstFlush pass 2 draws it GL_ONE/ONE, matching the legacy path.
                 if (blendMeshAdditive)
                     instBlend = 1;
+                if (diagCharsPass) { DiagHit(DIAG_INSTADD); DiagInstMesh(meshIndex); }
                 Render::Models::InstAdd(this, meshIndex, instTex, rec, instMode, instBlend);
                 wentGpu = true;
                 instanced = true;
@@ -1776,6 +1850,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     }
     if (Render::Models::GpuCharsPass())
     {
+        if (diagCharsPass) DiagHit(DIAG_CLASSIFY);
         int cls;
         if (wentGpu)
             cls = instanced ? 0 : 1;                                   // instanced / per-mesh GPU

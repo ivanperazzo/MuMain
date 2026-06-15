@@ -27,6 +27,8 @@ namespace
     }
 }
 
+void JobsDiagDumpAndReset();   // 3b-diag: defined in ZzzBMD.cpp (global scope)
+
 namespace Render::Models
 {
     namespace
@@ -349,6 +351,7 @@ namespace Render::Models
                 cc[0], cc[1], cc[2], cc[3], cc[4], cc[5], cc[6], cc[7]);
             Render::GL::Log("[bmd_shadow] gpu: %d draws / %d instances (MU_GPUSHADOW=%d)",
                 ShadowDrawCount(), ShadowInstanceCount(), (int)GpuShadowEnabled());
+            ::JobsDiagDumpAndReset();   // 3b-diag: chars-pass RenderMesh collect tracer (global scope)
             s_statFrameCtr = 0;
         }
         s_charMeshTotal.store(0, std::memory_order_relaxed);

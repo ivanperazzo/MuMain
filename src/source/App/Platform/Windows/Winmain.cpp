@@ -1449,6 +1449,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
     // repoint the per-render BMD fields onto CurrentRenderCtx().field.
     Render::Build::InitRenderCtxs(Core::Jobs::ThreadPool::Instance().WorkerCount());
 
+    // Etapa 3b 3b: pre-allocate the per-worker RenderLinkObject scratch OBJECTs (was the
+    // shared, racing g_ItemObject[Type]). Same worker count as the arenas/ctxs.
+    extern void InitItemObjectScratch(int count);
+    InitItemObjectScratch(Core::Jobs::ThreadPool::Instance().WorkerCount());
+
     // Bridge SDL's native handles so the remaining Win32 code (IME, DirectSound,
     // cursor, the legacy EDIT-control text boxes) keeps working.
     g_hWnd = static_cast<HWND>(SDL_GetPointerProperty(

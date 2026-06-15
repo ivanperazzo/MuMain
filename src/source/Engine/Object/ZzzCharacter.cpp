@@ -13,6 +13,7 @@
 #include "Render/GL/GLLog.h"                 // Etapa 3b 6.9: [jobs] log line
 #include <chrono>                            // Etapa 3b 6.9: [jobs] wall-time
 #include <cstdlib>                           // Etapa 3b 6.9: MU_JOBSLOG env
+#include <memory>                            // Etapa 3b 3b: per-worker link-object scratch
 #include "UI/Chat/Chat.h"
 #include "Core/Globals/_enum.h"
 #ifdef _WIN32
@@ -6575,6 +6576,46 @@ void RenderBrightEffect(BMD* b, int Bitmap, int Link, float Scale, vec3_t Light,
 
 OBJECT g_ItemObject[ITEM_ETC + MAX_ITEM_INDEX];
 
+// Etapa 3b 3b: RenderLinkObject's transient render-control scratch (Object->Type/Angle/
+// Position/buffs, fully re-initialised by ItemObjectAttribute + g_CharacterCopyBuff every
+// call) used to live in the SHARED, Type-indexed g_ItemObject[]. Under the parallel Phase-B
+// char build (MU_JOBS=1), two workers rendering the SAME item Type on different characters
+// (a crowd in identical gear) concurrently wrote/read g_ItemObject[Type] -> a data race that
+// intermittently corrupted the per-render state and dropped mesh-0 emissions (non-deterministic
+// [bmd_cov] inst, localised to mesh-index 0 of link objects = weapons/wings/capes). The
+// scratch is purely per-call (nothing persists per Type across calls), so a PER-WORKER scratch
+// is race-free and serial-identical: worker 0 (the main/serial thread) keeps the ORIGINAL
+// g_ItemObject[Type] slot byte-for-byte; workers >=1 use their own OBJECT. Pre-allocated at
+// startup (InitItemObjectScratch); the grow path never runs during a parallel ParallelFor.
+namespace
+{
+    std::vector<std::unique_ptr<OBJECT>> s_workerItemObject;   // index = worker id (>=1)
+
+    OBJECT& WorkerItemObjectScratch(int workerIdx)
+    {
+        if ((int)s_workerItemObject.size() <= workerIdx) s_workerItemObject.resize(workerIdx + 1);
+        if (!s_workerItemObject[workerIdx]) s_workerItemObject[workerIdx] = std::make_unique<OBJECT>();
+        return *s_workerItemObject[workerIdx];
+    }
+
+    // Resolve the link-object scratch for the calling worker. Worker 0 == the serial /
+    // main thread -> the original shared global slot (MU_JOBS=0 byte-identical). Workers
+    // >=1 each get a private OBJECT so concurrent same-Type renders never collide.
+    OBJECT* LinkObjectScratch(int Type)
+    {
+        const int w = Core::Jobs::ThreadPool::CurrentWorkerIndex();
+        if (w <= 0)
+            return &g_ItemObject[Type];
+        return &WorkerItemObjectScratch(w);
+    }
+}
+
+// Pre-allocate worker link-object scratches (call once at startup, alongside InitArenas).
+void InitItemObjectScratch(int count)
+{
+    for (int i = 0; i < count; ++i) (void)WorkerItemObjectScratch(i);
+}
+
 void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Type, int Level, int Option1, bool Link, bool Translate, int RenderType, bool bRightHandItem)
 {
     OBJECT* o = &c->Object;
@@ -6603,7 +6644,9 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     Render::Build::CurrentRenderCtx().currentAction = f->CurrentAction;
     Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
 
-    OBJECT* Object = &g_ItemObject[Type];
+    // Etapa 3b 3b: per-worker scratch (see WorkerItemObjectScratch above) — was the shared,
+    // racing g_ItemObject[Type]. Worker 0 still uses g_ItemObject[Type] (serial-identical).
+    OBJECT* Object = LinkObjectScratch(Type);
 
     Object->Type = Type;
     ItemObjectAttribute(Object);
