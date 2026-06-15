@@ -60,9 +60,9 @@
     {
       "id": 10,
       "subject": "Task 6.3: Migrate lighting group to CurrentRenderCtx() (HIGH visual risk)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [9],
-      "description": "BodyLight (~40 reads), LightEnable, ContrastEnable, ShadowAngle -> CurrentRenderCtx(). Repoint setters + RenderMesh color path + Render*Alternative/Translate/Shadow variants + 4 InstanceRec builders. Remove BMD members. A/B (highest visual risk).",
+      "description": "DONE commit dfee77f6. BodyLight/LightEnable/ContrastEnable/ShadowAngle -> CurrentRenderCtx(). CRITICAL FIX: do NOT delete BMD members — RETAIN as reserved layout padding (also re-added 6.2's). Deleting shrinks sizeof(BMD), shifts Models[] rand-offset base onto a pre-existing heap overflow -> silent crash in char render (crash-login). bmd_cov=2300 + login crowd visual OK.",
       "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzObject.cpp","src/source/Engine/Object/ZzzCharacter.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_lighting; [bmd_cov] identical; in-game lighting pixel-identical"}
     },
     {
@@ -70,7 +70,7 @@
       "subject": "Task 6.4: Migrate animation group to CurrentRenderCtx()",
       "status": "pending",
       "blockedBy": [10],
-      "description": "BodyAngle, CurrentAction, PriorAction, CurrentAnimation, CurrentAnimationFrame -> CurrentRenderCtx(). Mind PriorAction param-vs-member shadow in Animation. Repoint Animation/PlayAnimation + effect writers (ZzzEffect.cpp:15205-15210). Remove BMD members. A/B.",
+      "description": "BodyAngle, CurrentAction, PriorAction, CurrentAnimation, CurrentAnimationFrame -> CurrentRenderCtx(). Mind PriorAction param-vs-member shadow in Animation. Repoint Animation/PlayAnimation + effect writers (ZzzEffect.cpp:15205-15210). RETAIN BMD members as reserved layout padding (do NOT delete — sizeof(BMD) must stay byte-identical, crash-login). A/B + login crowd harness (crash is silent in bmd_cov).",
       "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzEffect.cpp","src/source/Engine/Object/ZzzObject.cpp","src/source/Engine/Object/ZzzCharacter.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_anim; [bmd_cov] identical; in-game animation identical"}
     },
     {
@@ -78,7 +78,7 @@
       "subject": "Task 6.5: Migrate mesh-selection group to CurrentRenderCtx()",
       "status": "pending",
       "blockedBy": [11],
-      "description": "StreamMesh, Skin, HideSkin, fTransformedSize -> CurrentRenderCtx(). Repoint setters + RenderMesh gates + cross-TU HideSkin reads in ZzzObject.cpp:7661-8859. Remove BMD members. A/B.",
+      "description": "StreamMesh, Skin, HideSkin, fTransformedSize -> CurrentRenderCtx(). Repoint setters + RenderMesh gates + cross-TU HideSkin reads in ZzzObject.cpp:7661-8859. RETAIN BMD members as reserved layout padding (do NOT delete — sizeof(BMD) must stay byte-identical, crash-login). A/B + login crowd harness (crash is silent in bmd_cov).",
       "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzObject.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_mesh; [bmd_cov] identical"}
     },
     {
