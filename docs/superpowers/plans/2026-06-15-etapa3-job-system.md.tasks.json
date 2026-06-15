@@ -52,7 +52,7 @@
     {
       "id": 9,
       "subject": "Task 6.2: Migrate placement group to CurrentRenderCtx()",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "BodyScale/BodyOrigin/BodyHeight + file-global BoneScale -> CurrentRenderCtx(). Repoint setters + ~50 read sites (SkinMesh, Transform, TransformPosition, lit-build, inst gate :1553-1581, shadow). Remove BMD members + file-global. No signature change. A/B.",
       "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzObject.cpp","src/source/Engine/Object/ZzzCharacter.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_placement; [bmd_cov] inst=2300 identical; login scene ok"}
