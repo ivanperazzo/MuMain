@@ -9,6 +9,7 @@
 #include "Core/Jobs/ThreadPool.h"
 
 #include <atomic>
+#include <cassert>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -163,12 +164,38 @@ namespace Render::Models
         static std::mutex s_cacheMtx;
         const bool onWorker = Core::Jobs::ThreadPool::CurrentWorkerIndex() != 0;
 
+        // Etapa 3b 6.9 diagnostic: if a worker ever hits an unbuilt (model,mesh) slot it must
+        // defer (return nullptr) -> the collect drops that mesh this frame -> non-deterministic
+        // [bmd_cov]. Log it LOUD (once) so any such drop is attributable to a specific
+        // (model,mesh). NOTE (6.8b/6.9 investigation): the kJobsWarmupFrames serial warmup
+        // makes this NOT the cause of the remaining parallel [bmd_cov] jitter — in the harness
+        // this never fires yet inst still jitters, which localised the real race to the shared
+        // Models[Type] BMD per-instance render members (BodyAngle/BodyScale/BodyOrigin/Body
+        // Light/CurrentAnimation, written by BMD::Animation/Transform) clobbered by concurrent
+        // workers building two characters of the same Type. See the 6.8b/6.9 report.
+        auto warnWorkerDefer = [&](const char* why) {
+            static bool s_warned = false;
+            if (!s_warned)
+            {
+                s_warned = true;
+                Render::GL::Log("[bmd_gpu] WARN worker-defer (%s): model %p mesh %d UNBUILT on worker %d "
+                                "— GPU cache not pre-built on the GL thread; this mesh is DROPPED this "
+                                "frame (contributes to non-deterministic [bmd_cov]).",
+                                why, static_cast<const void*>(model), meshIndex,
+                                Core::Jobs::ThreadPool::CurrentWorkerIndex());
+                assert(!"[bmd_gpu] worker hit an unbuilt GPU cache slot (warmup gap)");
+            }
+        };
+
         std::unique_lock<std::mutex> lk(s_cacheMtx);
         auto it = s_cache.find(model);
         if (it == s_cache.end())
         {
             if (onWorker)
+            {
+                warnWorkerDefer("model-miss");
                 return nullptr;   // would emplace + build on a worker (GL) -> defer to main thread
+            }
             it = s_cache.emplace(model, std::vector<MeshGpu>(model->NumMeshs)).first;
         }
 
@@ -176,7 +203,10 @@ namespace Render::Models
         if (!slot.built)
         {
             if (onWorker)
+            {
+                warnWorkerDefer("slot-unbuilt");
                 return nullptr;   // unbuilt: building issues GL -> defer to a main-thread frame
+            }
             // Main thread: build under the lock (serial warmup / serial frame), so a
             // concurrent worker either sees built==true or gets nullptr (deferred).
             BuildMesh(model, meshIndex, maxBones, slot);
