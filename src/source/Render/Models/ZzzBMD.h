@@ -336,9 +336,14 @@ private:
 
 extern BMD* Models;
 extern BMD* ModelsDump;
-extern float BoneTransform[MAX_BONES][3][4];
+// Task 3: the file-global `BoneTransform[MAX_BONES][3][4]` scratch was renamed to
+// `g_BoneTransformScratch` (macro -> per-worker Render::Build::WorkerArena::boneScratch).
+// Do NOT confuse with OBJECT::BoneTransform (the per-entity durable palette pointer).
 // VertexTransform/NormalTransform/LightTransform/IntensityTransform/g_chrome moved
-// to the per-worker Render::Build::WorkerArena (Task 2). Include
-// "Render/Build/WorkerArena.h" to access them via the accessor macros.
+// to the per-worker Render::Build::WorkerArena (Task 2). The accessor macros (incl.
+// g_BoneTransformScratch, Task 3) live in WorkerArena.h, pulled in here AFTER MAX_BONES/
+// MAX_MESH/MAX_VERTICES are defined so its drift static_asserts fire. Every TU that uses
+// the renamed bare globals already includes ZzzBMD.h, so this single include covers them.
+#include "Render/Build/WorkerArena.h"
 
 #endif

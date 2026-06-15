@@ -277,13 +277,13 @@ bool MoveMount(OBJECT* o, bool bForceRender)
 
                     if (o->AnimationFrame > 1.f && o->AnimationFrame < 1.2f)
                     {
-                        b->TransformPosition(BoneTransform[22], p, Position);	// R Hand
+                        b->TransformPosition(g_BoneTransformScratch[22], p, Position);	// R Hand
                         Position[0] += 40.f;
                         bWave = true;
                     }
                     else if (o->AnimationFrame > 4.8f && o->AnimationFrame <= 5.0f)
                     {
-                        b->TransformPosition(BoneTransform[44], p, Position);	// R Foot
+                        b->TransformPosition(g_BoneTransformScratch[44], p, Position);	// R Foot
                         Position[0] += 40.f;
                         Position[2] += 700.f;
                         bWave = true;
@@ -351,22 +351,22 @@ bool MoveMount(OBJECT* o, bool bForceRender)
 
                     if (o->AnimationFrame > 1.f && o->AnimationFrame < 1.2f)
                     {
-                        b->TransformPosition(BoneTransform[19], p, Position);
+                        b->TransformPosition(g_BoneTransformScratch[19], p, Position);
                         bWave = true;
                     }
                     else if (o->AnimationFrame > 1.1f && o->AnimationFrame < 1.4f)
                     {
-                        b->TransformPosition(BoneTransform[25], p, Position);
+                        b->TransformPosition(g_BoneTransformScratch[25], p, Position);
                         bWave = true;
                     }
                     else if (o->AnimationFrame > 1.3f && o->AnimationFrame < 1.6f)
                     {
-                        b->TransformPosition(BoneTransform[32], p, Position);
+                        b->TransformPosition(g_BoneTransformScratch[32], p, Position);
                         bWave = true;
                     }
                     else if (o->AnimationFrame > 1.5f && o->AnimationFrame <= 1.8f)
                     {
-                        b->TransformPosition(BoneTransform[38], p, Position);
+                        b->TransformPosition(g_BoneTransformScratch[38], p, Position);
                         bWave = true;
                     }
 
@@ -434,7 +434,7 @@ bool MoveMount(OBJECT* o, bool bForceRender)
                     if (rand_fps_check(3))
                     {
                         vec3_t p = { 50.f, -4.f, 0.f };
-                        b->TransformPosition(BoneTransform[27], p, Position);
+                        b->TransformPosition(g_BoneTransformScratch[27], p, Position);
 
                         if (gMapManager.WorldActive == WD_7ATLANSE || gMapManager.WorldActive == WD_67DOPPLEGANGER3)
                         {
@@ -455,8 +455,8 @@ bool MoveMount(OBJECT* o, bool bForceRender)
                 Vector(60.f, 0.f, 0.f, Pos1);
                 Vector(0.f, 0.f, 0.f, Pos2);
                 Vector(1.f, 1.f, 1.f, Light);
-                b->TransformPosition(BoneTransform[9], Pos1, p);
-                b->TransformPosition(BoneTransform[9], Pos2, p2);
+                b->TransformPosition(g_BoneTransformScratch[9], Pos1, p);
+                b->TransformPosition(g_BoneTransformScratch[9], Pos2, p2);
                 CreateBlur(Hero, p, p2, Light, 0);
             }
 
@@ -1546,7 +1546,7 @@ void RenderBoids(bool bAfterCharacter)
                     if (EnableEvent != 0)
                     {
                         Vector(0.f, -50.f, 0.f, p);
-                        b->TransformPosition(BoneTransform[11], p, Position);
+                        b->TransformPosition(g_BoneTransformScratch[11], p, Position);
                         Vector(1.f, 0.f, 0.f, Light);
                         CreateSprite(BITMAP_LIGHTNING + 1, Position, 1.f, Light, o);
                         Vector(1.f, 1.f, 1.f, Light);
@@ -1571,14 +1571,14 @@ void RenderBoids(bool bAfterCharacter)
 
                 case MODEL_CROW:
                     Vector(-5.f, 0.f, 0.f, p);
-                    b->TransformPosition(BoneTransform[1], p, Position, true);
+                    b->TransformPosition(g_BoneTransformScratch[1], p, Position, true);
 
                     float Luminosity = (float)(rand() % 32 + 128) * 0.01f;
                     Vector(Luminosity * 1.f, Luminosity * 0.2f, 0.f, Light);
                     CreateSprite(BITMAP_LIGHT, Position, 0.1f, Light, o);
 
                     Vector(5.f, 0.f, 0.f, p);
-                    b->TransformPosition(BoneTransform[1], p, Position, true);
+                    b->TransformPosition(g_BoneTransformScratch[1], p, Position, true);
                     CreateSprite(BITMAP_LIGHT, Position, 0.1f, Light, o);
                     break;
                 }

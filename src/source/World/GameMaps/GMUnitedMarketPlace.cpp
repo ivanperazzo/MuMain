@@ -99,11 +99,11 @@ bool GMUnitedMarketPlace::MoveObject(OBJECT* o)
     {
         VectorCopy(o->Position, b->BodyOrigin);
         b->BodyScale = o->Scale;
-        b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
+        b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
 
         vec3_t	vLightPosition, vRelativePos;
         Vector(0.0f, 0.0f, 0.0f, vRelativePos);
-        b->TransformPosition(BoneTransform[1], vRelativePos, vLightPosition, false);
+        b->TransformPosition(g_BoneTransformScratch[1], vRelativePos, vLightPosition, false);
 
         float fLumi = (sinf(WorldTime * 0.002f) + 1.0f) * 0.2f + 0.6f;
         vec3_t vLightFire;
@@ -116,11 +116,11 @@ bool GMUnitedMarketPlace::MoveObject(OBJECT* o)
     {
         VectorCopy(o->Position, b->BodyOrigin);
         b->BodyScale = o->Scale;
-        b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
+        b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
 
         vec3_t	vLightPosition, vRelativePos;
         Vector(0.0f, 0.0f, 0.0f, vRelativePos);
-        b->TransformPosition(BoneTransform[2], vRelativePos, vLightPosition, false);
+        b->TransformPosition(g_BoneTransformScratch[2], vRelativePos, vLightPosition, false);
 
         float fLumi = (sinf(WorldTime * 0.039f) + 1.0f) * 0.2f + 0.6f;
         vec3_t vLightFire;
@@ -252,7 +252,7 @@ bool GMUnitedMarketPlace::RenderObjectVisual(OBJECT* o, BMD* b)
         {
             vec3_t	vLightPosition, vRelativePos;
             Vector(0.0f, 0.0f, 0.0f, vRelativePos);
-            b->TransformPosition(BoneTransform[i], vRelativePos, vLightPosition, false);
+            b->TransformPosition(g_BoneTransformScratch[i], vRelativePos, vLightPosition, false);
 
             float fLumi = (sinf(WorldTime * 0.002f) + 1.0f) * 0.2f + 0.6f;
             vec3_t vLightFire;
@@ -266,7 +266,7 @@ bool GMUnitedMarketPlace::RenderObjectVisual(OBJECT* o, BMD* b)
     {
         vec3_t	vLightPosition, vRelativePos;
         Vector(0.0f, 0.0f, 0.0f, vRelativePos);
-        b->TransformPosition(BoneTransform[2], vRelativePos, vLightPosition, false);
+        b->TransformPosition(g_BoneTransformScratch[2], vRelativePos, vLightPosition, false);
 
         float fLumi = (sinf(WorldTime * 0.039f) + 1.0f) * 0.2f + 0.6f;
         vec3_t vLightFire;

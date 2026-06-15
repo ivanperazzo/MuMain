@@ -34,11 +34,18 @@ short  BoundingVertices[MAX_BONES];
 vec3_t BoundingMin[MAX_BONES];
 vec3_t BoundingMax[MAX_BONES];
 
-float  BoneTransform[MAX_BONES][3][4];
+// Task 3: the file-global BoneTransform scratch was renamed to g_BoneTransformScratch
+// (macro -> per-worker Render::Build::WorkerArena::boneScratch, WorkerArena.h). It was a
+// transient hierarchy-concat buffer, used only when an entity has no per-entity
+// OBJECT::BoneTransform; an object-like macro named BoneTransform is impossible because
+// OBJECT::BoneTransform is a struct member. Per-bone chrome caches go to the arena too.
+#define g_chromeage     (Render::Build::CurrentArena().chromeAge)
+#define g_chromeup      (Render::Build::CurrentArena().chromeUp)
+#define g_chromeright   (Render::Build::CurrentArena().chromeRight)
 
 // VertexTransform/NormalTransform/IntensityTransform/LightTransform/g_chrome moved
 // to the per-worker Render::Build::WorkerArena (Task 2); accessor macros in
-// WorkerArena.h keep every call site unchanged. (BoneTransform stays — Task 3.)
+// WorkerArena.h keep every call site unchanged.
 
 vec3_t RenderArrayVertices[MAX_VERTICES * 3];
 vec4_t RenderArrayColors[MAX_VERTICES * 3];
@@ -178,7 +185,7 @@ float BoneScale = 1.f;
 static float (*s_lastBoneMatrix)[3][4] = nullptr;
 static bool   s_lastTransformTranslate = false;
 static float  s_lastTransformScale     = 0.f;
-// P-bmd-instance: monotonic id bumped per Transform. BoneTransform is a global
+// P-bmd-instance: monotonic id bumped per Transform. g_BoneTransformScratch is a global
 // reused by every model, so pointer identity can't tell two characters apart;
 // the serial does (one palette appended per character-part, shared by its meshes).
 static unsigned s_transformSerial = 0;
@@ -397,7 +404,7 @@ void BMD::TransformByObjectBone(vec3_t vResultPosition, OBJECT* pObject, int iBo
     }
     else
     {
-        TransformMatrix = BoneTransform[iBoneNumber];
+        TransformMatrix = g_BoneTransformScratch[iBoneNumber];
     }
 
     vec3_t vTemp;
@@ -578,20 +585,20 @@ void BMD::AnimationTransformWithAttachHighModel_usingGlobalTM(OBJECT* oHighHiera
 
     for (int i_ = 0; i_ < NumBones; ++i_)
     {
-        R_ConcatTransforms(tmBoneHierarchicalObject, arrBonesTMLocal[i_], BoneTransform[i_]);
-        BoneTransform[i_][0][3] = BoneTransform[i_][0][3] + v3Position[0];
-        BoneTransform[i_][1][3] = BoneTransform[i_][1][3] + v3Position[1];
-        BoneTransform[i_][2][3] = BoneTransform[i_][2][3] + v3Position[2];
+        R_ConcatTransforms(tmBoneHierarchicalObject, arrBonesTMLocal[i_], g_BoneTransformScratch[i_]);
+        g_BoneTransformScratch[i_][0][3] = g_BoneTransformScratch[i_][0][3] + v3Position[0];
+        g_BoneTransformScratch[i_][1][3] = g_BoneTransformScratch[i_][1][3] + v3Position[1];
+        g_BoneTransformScratch[i_][2][3] = g_BoneTransformScratch[i_][2][3] + v3Position[2];
 
-        Vector(BoneTransform[i_][0][3],
-            BoneTransform[i_][1][3],
-            BoneTransform[i_][2][3],
+        Vector(g_BoneTransformScratch[i_][0][3],
+            g_BoneTransformScratch[i_][1][3],
+            g_BoneTransformScratch[i_][2][3],
             arrOutSetfAllBonePositions[i_]);
     }
 
     if (true == bApplyTMtoVertices)
     {
-        Transform(BoneTransform, Temp, Temp, &OBB, false);
+        Transform(g_BoneTransformScratch, Temp, Temp, &OBB, false);
     }
 
     delete[] arrBonesTMLocal;
@@ -740,11 +747,13 @@ void BMD::AnimationTransformOnlySelf(vec3_t* arrOutSetfAllBonePositions,
 }
 
 vec3_t		g_vright;		// needs to be set to viewer's right in order for chrome to work
-int			g_smodels_total = 1;				// cookie
-// g_chrome moved to Render::Build::WorkerArena (Task 2; macro in WorkerArena.h).
-int			g_chromeage[MAX_BONES];	// last time chrome vectors were updated
-vec3_t		g_chromeup[MAX_BONES];		// chrome vector "up" in bone reference frames
-vec3_t		g_chromeright[MAX_BONES];	// chrome vector "right" in bone reference frames
+// Task 3: g_smodels_total is a read-only "frame id" cookie. It is NEVER incremented
+// anywhere in the tree (grep: one def + one read), so it is effectively a constant 1 and
+// the original chrome-cache invalidation it keyed is dead. Kept read-only; the per-entity
+// build path must never write it (Task 6 race-audit relies on this).
+const int	g_smodels_total = 1;				// cookie (read-only; never bumped)
+// g_chrome / g_chromeage / g_chromeup / g_chromeright moved to Render::Build::WorkerArena
+// (Tasks 2-3; macros above + in WorkerArena.h).
 
 void BMD::Chrome(float* pchrome, int bone, vec3_t normal)
 {
@@ -2944,7 +2953,7 @@ void BMD::RenderObjectBoundingBox()
             vec3_t BoundingVertices[8];
             for (int j = 0; j < 8; j++)
             {
-                VectorTransform(b->BoundingVertices[j], BoneTransform[i], BoundingVertices[j]);
+                VectorTransform(b->BoundingVertices[j], g_BoneTransformScratch[i], BoundingVertices[j]);
             }
 
             glBegin(GL_QUADS);

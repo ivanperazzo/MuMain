@@ -280,7 +280,7 @@ void CMonkSystem::MoveBlurEffect(CHARACTER* _pCha, OBJECT* _pObj, BMD* pModel)
 
     for (int i = 0; i < fDelay; i++)
     {
-        b->Animation(BoneTransform, fAnimationFrame, _pObj->PriorAnimationFrame, _pObj->PriorAction, _pObj->Angle, _pObj->HeadAngle);
+        b->Animation(g_BoneTransformScratch, fAnimationFrame, _pObj->PriorAnimationFrame, _pObj->PriorAction, _pObj->Angle, _pObj->HeadAngle);
 
         Vector(1.0f, 1.0f, 1.0f, Light);
         int _LeftHand = 0;
@@ -290,8 +290,8 @@ void CMonkSystem::MoveBlurEffect(CHARACTER* _pCha, OBJECT* _pObj, BMD* pModel)
         Vector(-30.0f, 0.0f, 0.0f, StartLocal);
         Vector(30.0f, 0.0f, 0.0f, EndLocal);
 
-        b->TransformPosition(BoneTransform[_pCha->Weapon[_LeftHand].LinkBone], StartLocal, StartPos, false);
-        b->TransformPosition(BoneTransform[_pCha->Weapon[_LeftHand].LinkBone], EndLocal, EndPos, false);
+        b->TransformPosition(g_BoneTransformScratch[_pCha->Weapon[_LeftHand].LinkBone], StartLocal, StartPos, false);
+        b->TransformPosition(g_BoneTransformScratch[_pCha->Weapon[_LeftHand].LinkBone], EndLocal, EndPos, false);
         CreateBlur(_pCha, StartPos, EndPos, Light, 5, true);
 
         fAnimationFrame += fSpeedPerFrame;

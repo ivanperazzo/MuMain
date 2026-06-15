@@ -283,19 +283,19 @@ void M34CryingWolf2nd::MoveCryingWolf2ndBlurEffect(CHARACTER* pCharacter, OBJECT
             float fSpeedPerFrame = fActionSpeed / 10.f;
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++) {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, 0.f, -90.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                pModel->TransformPosition(BoneTransform[80], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[80], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[80], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[80], EndRelative, EndPos, false);
 
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 3, true, 80);
 
                 Vector(0.f, 0.f, 90.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                pModel->TransformPosition(BoneTransform[82], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[82], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[82], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[82], EndRelative, EndPos, false);
 
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 3, true, 84);
 
@@ -318,12 +318,12 @@ void M34CryingWolf2nd::MoveCryingWolf2ndBlurEffect(CHARACTER* pCharacter, OBJECT
             float fSpeedPerFrame = fActionSpeed / 10.f;
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++) {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, 0.f, 120.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                pModel->TransformPosition(BoneTransform[25], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[25], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[25], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[25], EndRelative, EndPos, false);
 
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 3, true, 25);
 

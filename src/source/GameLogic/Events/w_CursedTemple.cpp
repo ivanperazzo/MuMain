@@ -485,20 +485,20 @@ void CursedTemple::MoveBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[19], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[21], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[19], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[21], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 1);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[25], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[27], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[25], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[27], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 1);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -506,13 +506,13 @@ void CursedTemple::MoveBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
 
             for (int j = 0; j < 10; j++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[25], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[27], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[25], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[27], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 1);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -1220,9 +1220,9 @@ void CursedTemple::ReceiveCursedTempleInfo(const BYTE* ReceiveBuffer)
 
                 float fAnimationFrame = o->AnimationFrame - fActionSpeed;
 
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
-                b->TransformPosition(BoneTransform[20], p, tempPosition, true);
+                b->TransformPosition(g_BoneTransformScratch[20], p, tempPosition, true);
                 CreateEffect(MODEL_CURSEDTEMPLE_HOLYITEM, tempPosition, o->Angle, o->Light, 0, o);
             }
         }

@@ -168,7 +168,7 @@ void CGM_PK_Field::MoveBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < fDelay; i++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
@@ -178,16 +178,16 @@ void CGM_PK_Field::MoveBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
                 case MODEL_SLAUGHTERER:
                 {
                     Vector(0.3f, 0.3f, 0.3f, Light);
-                    b->TransformPosition(BoneTransform[33], StartRelative, StartPos, false);
-                    b->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[33], StartRelative, StartPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 0);
                 }
                 break;
                 case MODEL_GLADIATOR:
                 {
                     Vector(0.0f, 0.3f, 0.2f, Light);
-                    b->TransformPosition(BoneTransform[39], StartRelative, StartPos, false);
-                    b->TransformPosition(BoneTransform[40], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[39], StartRelative, StartPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[40], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 0);
                 }
                 break;
@@ -202,19 +202,19 @@ void CGM_PK_Field::MoveBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
                     {
                         Vector(0.2f, 0.9f, 0.1f, Light);
                     }
-                    b->TransformPosition(BoneTransform[40], StartRelative, StartPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[40], StartRelative, StartPos, false);
 
-                    b->TransformByBoneMatrix(EndPos, BoneTransform[40]);
+                    b->TransformByBoneMatrix(EndPos, g_BoneTransformScratch[40]);
                     CreateBlur(c, StartPos, EndPos, Light, 5, false, 0);
 
-                    b->TransformPosition(BoneTransform[40], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[40], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 5, false, 1);
-                    b->TransformPosition(BoneTransform[53], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[53], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 5, false, 2);
-                    b->TransformPosition(BoneTransform[14], StartRelative, StartPos, false);
-                    b->TransformPosition(BoneTransform[14], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[14], StartRelative, StartPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[14], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 5, false, 3);
-                    b->TransformPosition(BoneTransform[27], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[27], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 5, false, 4);
                 }
                 break;
@@ -424,11 +424,11 @@ bool CGM_PK_Field::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         Vector(1.0f, 0.0f, 0.0f, vLightFire);
         Vector(0.0f, 0.0f, 0.0f, vPos);
 
-        b->TransformPosition(BoneTransform[6], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, o->Scale * 5.0f, vLightFire, o);
 
         Vector(0.0f, 0.0f, -350.0f, vPos);
-        b->TransformPosition(BoneTransform[6], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, o->Scale * 5.0f, vLightFire, o);
 
         if (o->AnimationFrame >= 35 && o->AnimationFrame <= 37)
@@ -454,7 +454,7 @@ bool CGM_PK_Field::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         Vector(0.4f, 0.1f, 0.1f, Light);
         //Vector(Random::RangeFloat(-30, -11), Random::RangeFloat(-30, -11), 0.0f, p);
         Vector(-150.0f, 0.0f, 0.0f, p);
-        b->TransformPosition(BoneTransform[4], p, Pos, false);
+        b->TransformPosition(g_BoneTransformScratch[4], p, Pos, false);
         if (o->AnimationFrame >= 35.0f && o->AnimationFrame < 50.0f)
             CreateParticleFpsChecked(BITMAP_SMOKE, Pos, o->Angle, Light, 63, o->Scale * 1.5f);
 
@@ -476,18 +476,18 @@ bool CGM_PK_Field::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         Vector(1.0f, 0.0f, 0.0f, vLightFire);
         Vector(0.0f, 0.0f, 0.0f, vPos);
 
-        b->TransformPosition(BoneTransform[6], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, o->Scale * 5.0f, vLightFire, o);
 
         Vector(0.0f, 0.0f, -350.0f, vPos);
-        b->TransformPosition(BoneTransform[6], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, o->Scale * 5.0f, vLightFire, o);
 
         vec3_t p, Pos, Light;
         //Vector(0.08f, 0.08f, 0.08f, Light);
         Vector(0.3f, 0.1f, 0.1f, Light);
         Vector(Random::RangeFloat(-30, -11), Random::RangeFloat(-30, -11), 0.0f, p);
-        b->TransformPosition(BoneTransform[4], p, Pos, false);
+        b->TransformPosition(g_BoneTransformScratch[4], p, Pos, false);
         if (o->AnimationFrame >= 7.0f && o->AnimationFrame < 13.0f)
             CreateParticleFpsChecked(BITMAP_SMOKE, Pos, o->Angle, Light, 18, o->Scale * 1.5f);
 

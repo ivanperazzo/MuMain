@@ -324,12 +324,12 @@ void CGMDoppelGanger1::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BM
         float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
         for (int i = 0; i < 10; i++)
         {
-            pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+            pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
             Vector(0.f, 0.f, 0.f, StartRelative);
             Vector(0.f, 0.f, 0.f, EndRelative);
-            pModel->TransformPosition(BoneTransform[33], StartRelative, StartPos, false);
-            pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[33], StartRelative, StartPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
             CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 0);
 
             fAnimationFrame += fSpeedPerFrame;

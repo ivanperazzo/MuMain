@@ -13,12 +13,16 @@ namespace Render::Build
     // Single source of truth stays ZzzBMD.h; the static_asserts below catch drift.
     inline constexpr int kArenaMaxMesh     = 50;
     inline constexpr int kArenaMaxVertices = 15000;
+    inline constexpr int kArenaMaxBones    = 200;
 
 #ifdef MAX_MESH
     static_assert(kArenaMaxMesh == MAX_MESH, "WorkerArena MAX_MESH drifted from ZzzBMD.h");
 #endif
 #ifdef MAX_VERTICES
     static_assert(kArenaMaxVertices == MAX_VERTICES, "WorkerArena MAX_VERTICES drifted from ZzzBMD.h");
+#endif
+#ifdef MAX_BONES
+    static_assert(kArenaMaxBones == MAX_BONES, "WorkerArena MAX_BONES drifted from ZzzBMD.h");
 #endif
 
     // Per-worker transient skin scratch. One instance per job worker + the main
@@ -34,6 +38,17 @@ namespace Render::Build
         float intensityTransform[kArenaMaxMesh][kArenaMaxVertices];
         float lightTransform[kArenaMaxMesh][kArenaMaxVertices][3];
         float chrome[kArenaMaxVertices][2];
+
+        // Task 3: transient bone-build scratch + per-bone chrome caches. boneScratch is
+        // the hierarchy-concat workspace used when an entity does NOT own a per-entity
+        // OBJECT::BoneTransform (effects / map props / pet fallback); the durable
+        // per-entity palette lives on OBJECT::BoneTransform, not here. chromeAge/Up/Right
+        // are BMD::Chrome's per-bone cache, transient per build. float[][3] mirrors
+        // vec3_t for binary-compatible call sites (same convention as above).
+        float boneScratch[kArenaMaxBones][3][4];
+        int   chromeAge[kArenaMaxBones];
+        float chromeUp[kArenaMaxBones][3];
+        float chromeRight[kArenaMaxBones][3];
     };
 
     // Thread-safe across distinct workers ONLY after InitArenas(>=WorkerCount()); ArenaAt's grow path is startup-only and must not run during ParallelFor.
@@ -55,3 +70,12 @@ namespace Render::Build
 #define IntensityTransform  (Render::Build::CurrentArena().intensityTransform)
 #define LightTransform      (Render::Build::CurrentArena().lightTransform)
 #define g_chrome            (Render::Build::CurrentArena().chrome)
+
+// Task 3: transient bone-build scratch. The OLD file-global `BoneTransform[MAX_BONES]`
+// was renamed to `g_BoneTransformScratch` at all ~789 bare call sites — an object-like
+// macro named `BoneTransform` is IMPOSSIBLE because OBJECT::BoneTransform is a struct
+// member (`pObject->BoneTransform`, 32 files). g_BoneTransformScratch is the per-worker
+// hierarchy-concat workspace for entities WITHOUT a per-entity OBJECT::BoneTransform
+// (effects / map props / pet fallback). The durable per-entity palette stays on
+// OBJECT::BoneTransform and is NOT touched by this macro.
+#define g_BoneTransformScratch  (Render::Build::CurrentArena().boneScratch)

@@ -634,21 +634,21 @@ void GMSwampOfQuiet::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BMD*
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                pModel->TransformPosition(BoneTransform[42], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[42], StartRelative, StartPos, false);
 
-                pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 0);
-                pModel->TransformPosition(BoneTransform[35], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[35], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 1);
-                pModel->TransformPosition(BoneTransform[38], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[38], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 2);
-                pModel->TransformPosition(BoneTransform[39], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[39], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 3);
-                pModel->TransformPosition(BoneTransform[43], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[43], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 4);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -674,21 +674,21 @@ void GMSwampOfQuiet::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BMD*
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                pModel->TransformPosition(BoneTransform[42], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[42], StartRelative, StartPos, false);
 
-                pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 0);
-                pModel->TransformPosition(BoneTransform[35], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[35], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 1);
-                pModel->TransformPosition(BoneTransform[38], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[38], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 2);
-                pModel->TransformPosition(BoneTransform[39], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[39], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 3);
-                pModel->TransformPosition(BoneTransform[43], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[43], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 4);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -714,36 +714,36 @@ void GMSwampOfQuiet::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BMD*
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
                 // 왼손
-                pModel->TransformPosition(BoneTransform[42], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[42], StartRelative, StartPos, false);
 
-                pModel->TransformByBoneMatrix(EndPos, BoneTransform[34]);
-                //					pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+                pModel->TransformByBoneMatrix(EndPos, g_BoneTransformScratch[34]);
+                //					pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 0);
-                pModel->TransformPosition(BoneTransform[35], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[35], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 1);
-                pModel->TransformPosition(BoneTransform[38], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[38], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 2);
-                pModel->TransformPosition(BoneTransform[39], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[39], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 3);
-                pModel->TransformPosition(BoneTransform[43], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[43], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 4);
 
-                pModel->TransformPosition(BoneTransform[75], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[75], StartRelative, StartPos, false);
 
-                pModel->TransformPosition(BoneTransform[76], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[76], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 5);
-                pModel->TransformPosition(BoneTransform[79], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[79], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 6);
-                pModel->TransformPosition(BoneTransform[80], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[80], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 7);
-                pModel->TransformPosition(BoneTransform[83], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[83], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 8);
-                pModel->TransformPosition(BoneTransform[84], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[84], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 9);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -772,21 +772,21 @@ void GMSwampOfQuiet::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BMD*
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                pModel->TransformPosition(BoneTransform[42], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[42], StartRelative, StartPos, false);
 
-                pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 0);
-                pModel->TransformPosition(BoneTransform[35], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[35], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 1);
-                pModel->TransformPosition(BoneTransform[38], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[38], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 2);
-                pModel->TransformPosition(BoneTransform[39], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[39], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 3);
-                pModel->TransformPosition(BoneTransform[43], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[43], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 4);
 
                 fAnimationFrame += fSpeedPerFrame;

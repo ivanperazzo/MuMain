@@ -341,7 +341,7 @@ bool M38Kanturu2nd::Render_Kanturu2nd_ObjectVisual(OBJECT* o, BMD* b)
         float fLumi = (sinf(WorldTime * 0.002f) + 2.0f) * 0.5f;
         Vector(fLumi * 0.3f, fLumi * 0.5f, fLumi * 1.0f, Light);
         Vector(-1.0f, 0.0f, 0.0f, vPos);
-        b->TransformPosition(BoneTransform[1], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[1], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, fLumi / 3.2, Light, o);
         CreateSprite(BITMAP_KANTURU_2ND_EFFECT1, Position, fLumi / 3.2, Light, o);
         CreateSprite(BITMAP_KANTURU_2ND_EFFECT1, Position, fLumi / 3.2, Light, o);
@@ -353,7 +353,7 @@ bool M38Kanturu2nd::Render_Kanturu2nd_ObjectVisual(OBJECT* o, BMD* b)
         vec3_t vPos;
         Vector(0.0f, 0.0f, 0.0f, vPos);
         Vector(fLumi, fLumi, fLumi, Light);
-        b->TransformPosition(BoneTransform[4], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[4], vPos, Position, false);
         CreateParticleFpsChecked(BITMAP_ENERGY, Position, o->Angle, Light, 0, 1.5f);
         CreateSprite(BITMAP_SPARK + 1, Position, 10.0f, Light, o);
         vec3_t StartPos, EndPos;
@@ -666,7 +666,7 @@ void M38Kanturu2nd::Render_Kanturu2nd_AfterObjectMesh(OBJECT* o, BMD* b)
         for (int i = 0; i < 10; ++i)
         {
             Vector(0.0f, 0.0f, 0.0f, p);
-            b->TransformPosition(BoneTransform[i], p, Position, false);
+            b->TransformPosition(g_BoneTransformScratch[i], p, Position, false);
             Vector(0.1f, 0.1f, 0.3f, Light);
             CreateSprite(BITMAP_SPARK + 1, Position, 7.5f, Light, o);
         }
@@ -1262,13 +1262,13 @@ void M38Kanturu2nd::Move_Kanturu2nd_BlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(-150.f, 50.f, 0.f, StartRelative);
                 Vector(150.f, -200.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[58], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[59], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[58], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[59], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 1);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -1328,13 +1328,13 @@ void M38Kanturu2nd::Move_Kanturu2nd_BlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(100.f, 120.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[33], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[33], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[33], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[33], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 4);
 
                 fAnimationFrame += fSpeedPerFrame;

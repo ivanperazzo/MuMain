@@ -483,19 +483,19 @@ bool GMEmpireGuardian4::MoveMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
 
                 for (int i = 0; i < 14; i++)
                 {
-                    b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                    b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                     Vector(0.0f, 0.0f, 0.0f, vPosBlurRelative01);
                     Vector(0.0f, 0.0f, 0.0f, vPosBlurRelative02);
 
-                    b->TransformPosition(BoneTransform[61], vPosBlurRelative01, vPosBlur01, false);
-                    b->TransformPosition(BoneTransform[51], vPosBlurRelative02, vPosBlur02, false);
+                    b->TransformPosition(g_BoneTransformScratch[61], vPosBlurRelative01, vPosBlur01, false);
+                    b->TransformPosition(g_BoneTransformScratch[51], vPosBlurRelative02, vPosBlur02, false);
 
                     CreateObjectBlur(o, vPosBlur01, vPosBlur02, Light, iSwordForceType, true, 1, 30);
                     CreateObjectBlur(o, vPosBlur01, vPosBlur02, Light, iSwordForceType, true, 2, 30);
 
-                    b->TransformPosition(BoneTransform[52], vPosBlurRelative01, vPosBlur01, false);
-                    b->TransformPosition(BoneTransform[60], vPosBlurRelative02, vPosBlur02, false);
+                    b->TransformPosition(g_BoneTransformScratch[52], vPosBlurRelative01, vPosBlur01, false);
+                    b->TransformPosition(g_BoneTransformScratch[60], vPosBlurRelative02, vPosBlur02, false);
 
                     CreateObjectBlur(o, vPosBlur01, vPosBlur02, Light, iSwordForceType, true, 11, 30);
                     CreateObjectBlur(o, vPosBlur01, vPosBlur02, Light, iSwordForceType, true, 12, 30);
@@ -533,9 +533,9 @@ bool GMEmpireGuardian4::MoveMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
                     float	fRandDistance = (float)(rand() % 100) + 100;
                     Vector(0.0f, fRandDistance, 0.0f, vRandomDir);
 
-                    b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                    b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
-                    b->TransformPosition(BoneTransform[61], vRelative, vPosition, false);
+                    b->TransformPosition(g_BoneTransformScratch[61], vRelative, vPosition, false);
                     CreateParticleFpsChecked(BITMAP_FIRE, vPosition, o->Angle, o->Light, 0);
 
                     Vector((float)(rand() % 360), 0.f, (float)(rand() % 360), vAngle);
@@ -562,13 +562,13 @@ bool GMEmpireGuardian4::MoveMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
 
                 for (int i = 0; i < 40; i++)
                 {
-                    b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                    b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                     Vector(0.0f, 0.0f, 0.0f, vPosBlurRelative01);
                     Vector(0.0f, 0.0f, 0.0f, vPosBlurRelative02);
 
-                    b->TransformPosition(BoneTransform[61], vPosBlurRelative01, vPosBlur01, false);
-                    b->TransformPosition(BoneTransform[51], vPosBlurRelative02, vPosBlur02, false);
+                    b->TransformPosition(g_BoneTransformScratch[61], vPosBlurRelative01, vPosBlur01, false);
+                    b->TransformPosition(g_BoneTransformScratch[51], vPosBlurRelative02, vPosBlur02, false);
 
                     CreateBlur(c, vPosBlur01, vPosBlur02, Light, 2);
 
@@ -602,13 +602,13 @@ bool GMEmpireGuardian4::MoveMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
                 float fAnimationFrame = o->AnimationFrame - fActionSpeed;
                 for (int i = 0; i < 10; i++)
                 {
-                    b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                    b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                     Vector(0.0f, 0.0f, 0.0f, vPosBlurRelative03);
                     Vector(0.0f, 0.0f, 0.0f, vPosBlurRelative04);
 
-                    b->TransformPosition(BoneTransform[52], vPosBlurRelative04, vPosBlur04, false);
-                    b->TransformPosition(BoneTransform[58], vPosBlurRelative04, vPosBlur03, false);
+                    b->TransformPosition(g_BoneTransformScratch[52], vPosBlurRelative04, vPosBlur04, false);
+                    b->TransformPosition(g_BoneTransformScratch[58], vPosBlurRelative04, vPosBlur03, false);
 
                     CreateObjectBlur(o, vPosBlur03, vPosBlur04, Light, 10, false, 0);
                     CreateObjectBlur(o, vPosBlur03, vPosBlur04, Light, 10, false, 1);
@@ -784,19 +784,19 @@ bool GMEmpireGuardian4::RenderObjectVisual(OBJECT* o, BMD* b)
         Vector(8.f, -3.f, -3.f, vRelativePos);
         Vector(flumi, flumi, flumi, vLight1);
         Vector(0.9f, 0.1f, 0.1f, vLight2);
-        b->TransformPosition(BoneTransform[2], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[2], vRelativePos, vPos);
 #ifdef LDS_FIX_ACCESS_INDEXNUMBER_ALREADY_LOADTEXTURE
         CreateSprite(BITMAP_SHINY + 6, vPos, 0.5f, vLight2, o);
         CreateSprite(BITMAP_SHINY + 6, vPos, fScale, vLight1, o);
         Vector(3.f, -3.f, -3.5f, vRelativePos);
-        b->TransformPosition(BoneTransform[3], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[3], vRelativePos, vPos);
         CreateSprite(BITMAP_SHINY + 6, vPos, 0.5f, vLight2, o);
         CreateSprite(BITMAP_SHINY + 6, vPos, fScale, vLight1, o);
 #else // LDS_FIX_ACCESS_INDEXNUMBER_ALREADY_LOADTEXTURE
         CreateSprite(BITMAP_SHINY + 5, vPos, 0.5f, vLight2, o);
         CreateSprite(BITMAP_SHINY + 5, vPos, fScale, vLight1, o);
         Vector(3.f, -3.f, -3.5f, vRelativePos);
-        b->TransformPosition(BoneTransform[3], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[3], vRelativePos, vPos);
         CreateSprite(BITMAP_SHINY + 5, vPos, 0.5f, vLight2, o);
         CreateSprite(BITMAP_SHINY + 5, vPos, fScale, vLight1, o);
 #endif // LDS_FIX_ACCESS_INDEXNUMBER_ALREADY_LOADTEXTURE
@@ -831,7 +831,7 @@ bool GMEmpireGuardian4::RenderObjectVisual(OBJECT* o, BMD* b)
     case 37:
     {
         Vector(0.f, 0.f, 0.f, p);
-        b->TransformPosition(BoneTransform[1], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[1], p, Position);
 
         float fLumi;
         fLumi = (sinf(WorldTime * 0.039f) + 1.0f) * 0.2f + 0.6f;
@@ -852,7 +852,7 @@ bool GMEmpireGuardian4::RenderObjectVisual(OBJECT* o, BMD* b)
 
         for (int i = 2; i <= 7; i++)
         {
-            b->TransformPosition(BoneTransform[i], vRelativePos, vPos);
+            b->TransformPosition(g_BoneTransformScratch[i], vRelativePos, vPos);
             CreateParticleFpsChecked(BITMAP_FIRE_HIK3_MONO, vPos, vAngle, vLight1, 4, o->Scale * 0.6f);
             CreateParticleFpsChecked(BITMAP_FIRE_HIK3_MONO, vPos, vAngle, vLight2, 4, o->Scale * 0.3f);
         }
@@ -1036,7 +1036,7 @@ bool GMEmpireGuardian4::RenderObjectVisual(OBJECT* o, BMD* b)
             for (int i = 0; i < 3; ++i)
             {
                 int iCurBoneIdx = arriCandleFire[i];
-                b->TransformPosition(BoneTransform[iCurBoneIdx], vRelativePos, vPos);
+                b->TransformPosition(g_BoneTransformScratch[iCurBoneIdx], vRelativePos, vPos);
 
                 for (int j = 0; j < 5; ++j)
                 {
@@ -1053,7 +1053,7 @@ bool GMEmpireGuardian4::RenderObjectVisual(OBJECT* o, BMD* b)
             for (int i = 0; i < 3; i++)
             {
                 int iCurBoneIdx = arriCandleSmoke[i];
-                b->TransformPosition(BoneTransform[iCurBoneIdx], vRelativePos, vPos);
+                b->TransformPosition(g_BoneTransformScratch[iCurBoneIdx], vRelativePos, vPos);
 
                 for (int j = 0; j < 4; ++j)
                 {

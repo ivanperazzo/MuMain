@@ -185,8 +185,8 @@ OBJECT* CollisionDetectObjects(OBJECT* PickObject)
                             b->BodyScale = o->Scale;
                             b->CurrentAction = o->CurrentAction;
                             VectorCopy(o->Position, b->BodyOrigin);
-                            b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
-                            b->Transform(BoneTransform, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, true);
+                            b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
+                            b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, true);
                             if (CollisionDetectLineToOBB(MousePosition, MouseTarget, o->OBB))
                             {
                                 if (b->CollisionDetectLineToMesh(MousePosition, MouseTarget))
@@ -290,7 +290,7 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     }
     else
     {
-        b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
+        b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
     }
 
     BoneScale = 1.f;
@@ -366,7 +366,7 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     }
     else
     {
-        b->Transform(BoneTransform, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, Translate);
+        b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, Translate);
     }
 
     return true;
@@ -395,7 +395,7 @@ bool Calc_ObjectAnimation(OBJECT* o, bool Translate, int Select)
     }
     else
     {
-        b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
+        b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
     }
     return true;
 }
@@ -683,18 +683,18 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                     Vector(6.f, 5.f, 2.f, vRelativePos);
                     Vector(1.f, 1.f, 1.f, vLight);
                     float fLumi = sinf(WorldTime * 0.001f) * 0.5f + 0.5f;
-                    b->TransformPosition(BoneTransform[22], vRelativePos, vPos);
+                    b->TransformPosition(g_BoneTransformScratch[22], vRelativePos, vPos);
                     Vector(1.f, 0.5f, 0.5f, vLight);
                     CreateSprite(BITMAP_SHINY + 1, vPos, 1.5f + fLumi / 2.f, vLight, NULL);
                     Vector(6.f, -5.f, 2.f, vRelativePos);
-                    b->TransformPosition(BoneTransform[23], vRelativePos, vPos);
+                    b->TransformPosition(g_BoneTransformScratch[23], vRelativePos, vPos);
                     Vector(1.f, 0.5f, 0.5f, vLight);
                     CreateSprite(BITMAP_SHINY + 1, vPos, 1.5f + fLumi / 2.f, vLight, NULL);
 
                     if (rand_fps_check(5))
                     {
                         Vector(0.f, 0.f, 0.f, vRelativePos);
-                        b->TransformPosition(BoneTransform[20], vRelativePos, vPos);
+                        b->TransformPosition(g_BoneTransformScratch[20], vRelativePos, vPos);
                         Vector(1.f, 1.f, 1.f, vLight);
                         CreateParticleFpsChecked(BITMAP_SMOKE, vPos, o->Angle, vLight);
                     }
@@ -817,7 +817,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                     {
                         Vector(1.0f, 0.0f, 0.0f, vLight);
                         Vector((float)(rand() % 10 - 10) * 0.5f, 0.f, (float)(rand() % 40 - 20) * 0.5f, vPos);
-                        b->TransformPosition(BoneTransform[14], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[14], vPos, vPosition, false);
                         CreateParticleFpsChecked(BITMAP_SPARK + 1, vPosition, o->Angle, vLight, 15, 0.7f + (fLuminosity * 0.05f));
                     }
 
@@ -843,7 +843,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
 
                         Vector(1.0f, 0.0f, 0.0f, vLight);
                         Vector((float)(rand() % 10 - 10) * 0.5f, 0.f, (float)(rand() % 40 - 20) * 0.5f, vPos);
-                        b->TransformPosition(BoneTransform[14], vPos, vPosition, false);	// 턱
+                        b->TransformPosition(g_BoneTransformScratch[14], vPos, vPosition, false);	// 턱
                         CreateParticleFpsChecked(BITMAP_SPARK + 1, vPosition, o->Angle, vLight, 15, 0.7f + (fLuminosity * 0.05f));
                     }
                     b->StreamMesh = -1;
@@ -872,17 +872,17 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
 
                 Vector(0.9f + fLuminosity, 0.2f + (fLuminosity * 0.5f), 0.1f + (fLuminosity * 0.5f), vLight);
                 Vector(50.f, 2.f, 11.f, vPos);
-                b->TransformPosition(BoneTransform[11], vPos, vPosition, false);
+                b->TransformPosition(g_BoneTransformScratch[11], vPos, vPosition, false);
                 CreateSprite(BITMAP_LIGHT, vPosition, 0.5f + (fLuminosity * 0.1f), vLight, o);
                 CreateSprite(BITMAP_LIGHT, vPosition, 0.5f + (fLuminosity * 0.1f), vLight, o);
                 Vector(50.f, 2.f, -11.f, vPos);
-                b->TransformPosition(BoneTransform[11], vPos, vPosition, false);
+                b->TransformPosition(g_BoneTransformScratch[11], vPos, vPosition, false);
                 CreateSprite(BITMAP_LIGHT, vPosition, 0.5f + (fLuminosity * 0.1f), vLight, o);
                 CreateSprite(BITMAP_LIGHT, vPosition, 0.5f + (fLuminosity * 0.1f), vLight, o);
 
                 Vector(1.0f, 0.3f, 0.2f, vLight);
                 Vector(40.f, 15.f, 0.f, vPos);
-                b->TransformPosition(BoneTransform[13], vPos, vPosition, false);
+                b->TransformPosition(g_BoneTransformScratch[13], vPos, vPosition, false);
                 CreateSprite(BITMAP_LIGHT, vPosition, 1.5f, vLight, o);
                 CreateSprite(BITMAP_LIGHT, vPosition, 1.0f, vLight, o);
 
@@ -916,16 +916,16 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                     if (o->AnimationFrame >= 0.0f && o->AnimationFrame <= 1.5f)
                     {
                         Vector(0.0f, 0.0f, 0.0f, vPos);
-                        b->TransformPosition(BoneTransform[22], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[22], vPos, vPosition, false);
                         CreateEffect(MODEL_FENRIR_FOOT_THUNDER, vPosition, o->Angle, vLight, iSubType, o);
                         Vector(0.0f, 0.0f, 0.0f, vPos);
-                        b->TransformPosition(BoneTransform[28], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[28], vPos, vPosition, false);
                         CreateEffect(MODEL_FENRIR_FOOT_THUNDER, vPosition, o->Angle, vLight, iSubType, o);
                         Vector(0.0f, 0.0f, 0.0f, vPos);
-                        b->TransformPosition(BoneTransform[36], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[36], vPos, vPosition, false);
                         CreateEffect(MODEL_FENRIR_FOOT_THUNDER, vPosition, o->Angle, vLight, iSubType, o);
                         Vector(0.0f, 0.0f, 0.0f, vPos);
-                        b->TransformPosition(BoneTransform[44], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[44], vPos, vPosition, false);
                         CreateEffect(MODEL_FENRIR_FOOT_THUNDER, vPosition, o->Angle, vLight, iSubType, o);
                     }
                 }
@@ -934,19 +934,19 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                     if (o->AnimationFrame > 1.f && o->AnimationFrame <= 1.4f)
                     {
                         Vector(0.0f, 0.0f, 0.0f, vPos);
-                        b->TransformPosition(BoneTransform[22], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[22], vPos, vPosition, false);
                         CreateEffect(MODEL_FENRIR_FOOT_THUNDER, vPosition, o->Angle, vLight, iSubType, o);
                         Vector(0.0f, 0.0f, 0.0f, vPos);
-                        b->TransformPosition(BoneTransform[28], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[28], vPos, vPosition, false);
                         CreateEffect(MODEL_FENRIR_FOOT_THUNDER, vPosition, o->Angle, vLight, iSubType, o);
                     }
                     else if (o->AnimationFrame > 4.8f && o->AnimationFrame <= 5.2f)
                     {
                         Vector(0.0f, 0.0f, 0.0f, vPos);
-                        b->TransformPosition(BoneTransform[36], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[36], vPos, vPosition, false);
                         CreateEffect(MODEL_FENRIR_FOOT_THUNDER, vPosition, o->Angle, vLight, iSubType, o);
                         Vector(0.0f, 0.0f, 0.0f, vPos);
-                        b->TransformPosition(BoneTransform[44], vPos, vPosition, false);
+                        b->TransformPosition(g_BoneTransformScratch[44], vPos, vPosition, false);
                         CreateEffect(MODEL_FENRIR_FOOT_THUNDER, vPosition, o->Angle, vLight, iSubType, o);
                     }
                 }
@@ -1555,8 +1555,8 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                                                         vec3_t Light, p;
 
                                                         Vector(0.f, 0.f, 0.f, p);
-                                                        b->TransformPosition(BoneTransform[2], p, o->EyeLeft, false);
-                                                        b->TransformPosition(BoneTransform[3], p, o->EyeRight, false);
+                                                        b->TransformPosition(g_BoneTransformScratch[2], p, o->EyeLeft, false);
+                                                        b->TransformPosition(g_BoneTransformScratch[3], p, o->EyeRight, false);
 
                                                         Vector(1.f, 0.f, 0.f, Light);
                                                         CreateSprite(BITMAP_LIGHT, o->EyeLeft, 1.f, Light, o);
@@ -1614,9 +1614,9 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
 
                                                         if (o->LifeTime > 15)
                                                         {
-                                                            b->TransformPosition(BoneTransform[1], p1, p2);
+                                                            b->TransformPosition(g_BoneTransformScratch[1], p1, p2);
                                                             CreateParticleFpsChecked(BITMAP_LIGHT + 1, p2, o->Angle, Light, 5, 0.6f);
-                                                            b->TransformPosition(BoneTransform[3], p1, p2);
+                                                            b->TransformPosition(g_BoneTransformScratch[3], p1, p2);
                                                             CreateParticleFpsChecked(BITMAP_LIGHT + 1, p2, o->Angle, Light, 5, 0.8f);
                                                         }
                                                     }
@@ -1628,7 +1628,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                                                         for (int idx = 1; idx <= 9; ++idx)
                                                         {
                                                             if (idx == 5) continue;
-                                                            b->TransformPosition(BoneTransform[idx], p1, p2);
+                                                            b->TransformPosition(g_BoneTransformScratch[idx], p1, p2);
                                                             CreateJointFpsChecked(BITMAP_FLARE + 1, p2, o->Position, o->Angle, 16, o, 20.f);
                                                         }
                                                     }
@@ -1665,7 +1665,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                                                         vec3_t vPos, vRelativePos, vLight;
                                                         Vector(1.f, 1.f, 1.f, vLight);
                                                         Vector(18.f, 0.f, 6.f, vRelativePos);
-                                                        b->TransformPosition(BoneTransform[0], vRelativePos, vPos, true);
+                                                        b->TransformPosition(g_BoneTransformScratch[0], vRelativePos, vPos, true);
                                                         float fLumi = (sinf(WorldTime * 0.004f) + 1.0f) * 0.05f;
                                                         Vector(0.8f + fLumi, 0.8f + fLumi, 0.3f + fLumi, o->Light);
                                                         CreateSprite(BITMAP_LIGHT, vPos, 0.4f, o->Light, o, 0.5f);
@@ -1674,7 +1674,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                                                             CreateParticle(BITMAP_SHINY, vPos, o->Angle, vLight, 5, 0.5f);
                                                         }
                                                         Vector(-18.f, 0.f, 6.f, vRelativePos);
-                                                        b->TransformPosition(BoneTransform[0], vRelativePos, vPos, true);
+                                                        b->TransformPosition(g_BoneTransformScratch[0], vRelativePos, vPos, true);
                                                         CreateSprite(BITMAP_LIGHT, vPos, 0.4f, o->Light, o, 0.5f);
                                                         if (rand_fps_check(15))
                                                         {
@@ -1745,7 +1745,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                                                         Vector(1.0f, 0.0f, 0.0f, vLight);
                                                         for (int i = 51; i <= 59; ++i)
                                                         {
-                                                            b->TransformPosition(BoneTransform[i], vRelative, vPos, false);
+                                                            b->TransformPosition(g_BoneTransformScratch[i], vRelative, vPos, false);
                                                             CreateSprite(BITMAP_LIGHT, vPos, 1.0f, vLight, o);
                                                         }
 
@@ -1764,13 +1764,13 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                                                             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
                                                             for (int i = 0; i < 10; i++)
                                                             {
-                                                                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                                                                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                                                                 Vector(0.f, 0.f, 0.f, StartRelative);
                                                                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                                                                b->TransformPosition(BoneTransform[51], StartRelative, StartPos, false);
-                                                                b->TransformPosition(BoneTransform[59], EndRelative, EndPos, false);
+                                                                b->TransformPosition(g_BoneTransformScratch[51], StartRelative, StartPos, false);
+                                                                b->TransformPosition(g_BoneTransformScratch[59], EndRelative, EndPos, false);
                                                                 CreateObjectBlur(o, StartPos, EndPos, Light, 2);
 
                                                                 fAnimationFrame += fSpeedPerFrame;
@@ -2632,7 +2632,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
 
                     Vector(1.f, 0.6f, 0.4f, Light);
                     Vector(0.f, 0.f, 0.f, p);
-                    b->TransformPosition(BoneTransform[1], p, Position);
+                    b->TransformPosition(g_BoneTransformScratch[1], p, Position);
                     CreateSprite(BITMAP_SHINY + 1, Position, (float)(sinf(WorldTime * 0.002f) * 0.3f + 1.3f), Light, o, (float)(rand() % 360));
                     CreateSprite(BITMAP_LIGHT, Position, 1.5f, Light, o, 90.f);
                     CreateSprite(BITMAP_SHINY + 1, Position, (float)(sinf(WorldTime * 0.002f) * 0.3f + 1.3f), Light, o, (float)(rand() % 360));
@@ -2651,7 +2651,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
 
                     Vector(1.0f, 1.0f, 1.0f, o->Light);
                     Vector(0.0f, 1.5f, 0.0f, p1);
-                    b->TransformPosition(BoneTransform[2], p1, p2);
+                    b->TransformPosition(g_BoneTransformScratch[2], p1, p2);
                     CreateParticleFpsChecked(BITMAP_FIRE + 1, o->Position, o->Angle, o->Light, 8, o->Scale - 0.4f, o);
                     CreateParticleFpsChecked(BITMAP_FIRE + 1, o->Position, o->Angle, o->Light, 8, o->Scale - 0.4f, o);
                     CreateParticleFpsChecked(BITMAP_SMOKE, o->Position, o->Angle, o->Light, 38, o->Scale, o);
@@ -2662,7 +2662,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                     {
                         Vector(1.0f - (i * 0.1f), 0.4f - (i * 0.04f), 0.0f, o->Light);
                         Vector(15.0f * i, 1.5f, 0.0f, p1);
-                        b->TransformPosition(BoneTransform[1], p1, p2);
+                        b->TransformPosition(g_BoneTransformScratch[1], p1, p2);
                         CreateSprite(BITMAP_SPARK + 1, p2, 3.0f + (i * 0.9f), o->Light, o);
                     }
                 }
@@ -2779,23 +2779,23 @@ void RenderObjectVisual(OBJECT* o)
             if (rand_fps_check(2))
             {
                 Vector((float)(rand() % 32 - 16), -20.f, (float)(rand() % 32 - 16), p);
-                b->TransformPosition(BoneTransform[1], p, Position);
+                b->TransformPosition(g_BoneTransformScratch[1], p, Position);
                 CreateParticle(BITMAP_SMOKE, Position, o->Angle, o->Light);
                 Vector((float)(rand() % 32 - 16), -80.f, (float)(rand() % 32 - 16), p);
-                b->TransformPosition(BoneTransform[4], p, Position);
+                b->TransformPosition(g_BoneTransformScratch[4], p, Position);
                 CreateParticle(BITMAP_SMOKE, Position, o->Angle, o->Light);
             }
             break;
         case MODEL_MERCHANT_ANIMAL01:
             Scale = Luminosity * 5.f;
             Vector(Luminosity * 0.6f, Luminosity * 0.3f, Luminosity * 0.1f, Light);
-            b->TransformPosition(BoneTransform[48], Position, p);
+            b->TransformPosition(g_BoneTransformScratch[48], Position, p);
             CreateSprite(BITMAP_LIGHT, p, Scale, Light, o);
-            b->TransformPosition(BoneTransform[57], Position, p);
+            b->TransformPosition(g_BoneTransformScratch[57], Position, p);
             CreateSprite(BITMAP_LIGHT, p, Scale, Light, o);
-            /*b->TransformPosition(BoneTransform[51],Position,p);
+            /*b->TransformPosition(g_BoneTransformScratch[51],Position,p);
             CreateSprite(BITMAP_LIGHT,p,Scale,Light,o);
-            b->TransformPosition(BoneTransform[54],Position,p);
+            b->TransformPosition(g_BoneTransformScratch[54],Position,p);
             CreateSprite(BITMAP_LIGHT,p,Scale,Light,o);*/
             break;
         }
@@ -2807,7 +2807,7 @@ void RenderObjectVisual(OBJECT* o)
             Vector(Luminosity * 1.f, Luminosity * 1.f, Luminosity * 1.f, Light);
             Rotation = (float)((int)(WorldTime * 0.1f) % 360);
             Vector(0.f, 0.f, 150.f, p);
-            b->TransformPosition(BoneTransform[0], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[0], p, Position);
             CreateSprite(BITMAP_LIGHTNING + 1, Position, 2.5f, Light, o, Rotation);
             CreateSprite(BITMAP_LIGHTNING + 1, Position, 2.5f, Light, o, -Rotation);
             break;
@@ -2850,38 +2850,38 @@ void RenderObjectVisual(OBJECT* o)
         {
         case 9:
             Vector(Luminosity * 0.4f, Luminosity * 0.7f, Luminosity * 1.f, Light);
-            b->TransformPosition(BoneTransform[1], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[1], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 1.5f, Light, o);
             break;
         case 35:
             Vector(Luminosity * 0.4f, Luminosity * 0.7f, Luminosity * 1.f, Light);
-            b->TransformPosition(BoneTransform[3], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[3], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 1.5f, Light, o);
             break;
         case 1:
             Vector(Luminosity * 0.4f, Luminosity * 0.7f, Luminosity * 1.f, Light);
-            b->TransformPosition(BoneTransform[2], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[2], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 0.5f, Light, o);
-            b->TransformPosition(BoneTransform[4], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[4], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 0.5f, Light, o);
-            b->TransformPosition(BoneTransform[6], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[6], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 0.5f, Light, o);
             break;
         case 17:
             Vector(Luminosity * 0.4f, Luminosity * 0.7f, Luminosity * 1.f, Light);
-            b->TransformPosition(BoneTransform[4], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[4], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 1.f, Light, o);
-            b->TransformPosition(BoneTransform[7], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[7], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 1.f, Light, o);
-            b->TransformPosition(BoneTransform[10], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[10], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 1.f, Light, o);
-            b->TransformPosition(BoneTransform[13], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[13], p, Position);
             CreateSprite(BITMAP_LIGHT, Position, 1.f, Light, o);
             break;
         case 39:
             Vector(Luminosity * 0.4f, Luminosity * 0.8f, Luminosity * 1.f, Light);
             Rotation = (float)((int)(WorldTime * 0.1f) % 360);
-            b->TransformPosition(BoneTransform[57], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[57], p, Position);
             CreateSprite(BITMAP_LIGHTNING + 1, Position, 1.f, Light, o, Rotation);
             CreateSprite(BITMAP_LIGHTNING + 1, Position, 1.f, Light, o, -Rotation);
 
@@ -2889,7 +2889,7 @@ void RenderObjectVisual(OBJECT* o)
 
             for (int i = 61; i <= 65; i++)
             {
-                b->TransformPosition(BoneTransform[i], p, Position);
+                b->TransformPosition(g_BoneTransformScratch[i], p, Position);
                 CreateSprite(BITMAP_LIGHT, Position, 1.f, Light, o);
                 if (rand_fps_check(32))
                 {
@@ -2897,7 +2897,7 @@ void RenderObjectVisual(OBJECT* o)
                     CreateParticle(BITMAP_SHINY, Position, o->Angle, Light, 1);
                 }
             }
-            b->TransformPosition(BoneTransform[58], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[58], p, Position);
             if (rand_fps_check(8))
             {
                 vec3_t Angle;
@@ -2928,13 +2928,13 @@ void RenderObjectVisual(OBJECT* o)
                 Vector(Luminosity * 0.4f, Luminosity * 0.8f, Luminosity * 1.f, Light);
             }
             Rotation = (float)((int)(WorldTime * 0.1f) % 360);
-            b->TransformPosition(BoneTransform[15], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[15], p, Position);
             CreateSprite(Bitmap, Position, 0.3f, Light, o, Rotation);
             CreateSprite(Bitmap, Position, 0.3f, Light, o, -Rotation);
-            b->TransformPosition(BoneTransform[19], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[19], p, Position);
             CreateSprite(Bitmap, Position, 0.3f, Light, o, Rotation);
             CreateSprite(Bitmap, Position, 0.3f, Light, o, -Rotation);
-            b->TransformPosition(BoneTransform[21], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[21], p, Position);
             CreateSprite(Bitmap, Position, 1.5f, Light, o, Rotation);
             CreateSprite(Bitmap, Position, 1.5f, Light, o, -Rotation);
             break;
@@ -2970,7 +2970,7 @@ void RenderObjectVisual(OBJECT* o)
         case 9:
             Scale = Luminosity * 5.f;
             Vector(Luminosity * 0.6f, Luminosity * 0.3f, Luminosity * 0.1f, Light);
-            b->TransformPosition(BoneTransform[1], Position, p);
+            b->TransformPosition(g_BoneTransformScratch[1], Position, p);
             CreateSprite(BITMAP_LIGHT, p, Scale, Light, o);
             break;
         }
@@ -2994,7 +2994,7 @@ void RenderObjectVisual(OBJECT* o)
 
             Scale = Luminosity * 1.5f;
             Vector(Luminosity / 1.7f, Luminosity, Luminosity, Light);
-            b->TransformPosition(BoneTransform[2], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[2], p, Position);
             CreateSprite(BITMAP_IMPACT, Position, Scale, Light, o);
             break;
 
@@ -3003,7 +3003,7 @@ void RenderObjectVisual(OBJECT* o)
 
             Scale = Luminosity * 1.5f;
             Vector(Luminosity, Luminosity * 0.32f, Luminosity * 0.32f, Light);
-            b->TransformPosition(BoneTransform[2], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[2], p, Position);
             CreateSprite(BITMAP_IMPACT, Position, Scale, Light, o);
             break;
 
@@ -3057,16 +3057,16 @@ void RenderObjectVisual(OBJECT* o)
             Vector(-15.f, 0.f, 0.f, p);
             if (rand_fps_check(4))
             {
-                b->TransformPosition(BoneTransform[23], p, Position);
+                b->TransformPosition(g_BoneTransformScratch[23], p, Position);
                 CreateParticle(BITMAP_RAIN_CIRCLE + 1, Position, o->Angle, Light);
             }
             if (rand_fps_check(4))
             {
-                b->TransformPosition(BoneTransform[31], p, Position);
+                b->TransformPosition(g_BoneTransformScratch[31], p, Position);
                 CreateParticle(BITMAP_RAIN_CIRCLE + 1, Position, o->Angle, Light);
             }
             Vector(-15.f, 0.f, 0.f, p);
-            b->TransformPosition(BoneTransform[23], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[23], p, Position);
             CreateParticleFpsChecked(BITMAP_RAIN_CIRCLE + 1, Position, o->Angle, Light);
             break;
         }
@@ -3155,7 +3155,7 @@ void RenderObjectVisual(OBJECT* o)
         case    10:
         {
             Vector(0.f, 0.f, 0.f, p);
-            b->TransformPosition(BoneTransform[3], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[3], p, Position);
 
             Vector(1.f, 1.f, 1.f, Light);
             CreateParticleFpsChecked(BITMAP_LIGHT, Position, o->Angle, Light, 0, 1.f);
@@ -3196,7 +3196,7 @@ void RenderObjectVisual(OBJECT* o)
             for (int i = 0; i < 7; ++i)
             {
                 Vector(0.f, 0.f, 2.f, p);
-                b->TransformPosition(BoneTransform[indexLight[i]], p, Position);
+                b->TransformPosition(g_BoneTransformScratch[indexLight[i]], p, Position);
                 CreateSprite(BITMAP_LIGHT, Position, 0.5f, Light, o);
             }
         }
@@ -3205,7 +3205,7 @@ void RenderObjectVisual(OBJECT* o)
             Luminosity = sinf(WorldTime * 0.001f) * 0.3f + 0.7f;
             Vector(Luminosity, Luminosity, Luminosity, Light);
             Vector(0.f, 0.f, 0.f, p);
-            b->TransformPosition(BoneTransform[3], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[3], p, Position);
             CreateSprite(BITMAP_FLARE, Position, Luminosity + 0.5f, Light, o);
             break;
         case 37:
@@ -4005,7 +4005,7 @@ void MoveObject(OBJECT* o)
             break;
         case 23:
             o->BlendMesh = 1;
-            //b->TransformPosition(BoneTransform[1],p,Position);
+            //b->TransformPosition(g_BoneTransformScratch[1],p,Position);
             //CreateSprite(BITMAP_LIGHT,Position,2.f,Light,o);
             break;
         case 24:
@@ -6402,7 +6402,7 @@ void RenderZen(int itemIndex, ITEM_t* item, vec3_t light)
 
         VectorAdd(tempPosition, randomPosition, o->Position);
         VectorCopy(o->Position, b->BodyOrigin);
-        b->Transform(BoneTransform, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, true);
+        b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, true);
 
         target_vertex_index = b->AddToCoinHeap(i, target_vertex_index);
     }
@@ -6455,7 +6455,7 @@ void RenderItems()
                 b->CurrentAction = o->CurrentAction;
                 VectorCopy(o->Position, b->BodyOrigin);
                 ItemHeight(o->Type, b);
-                b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
+                b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
 
                 if (o->Type >= MODEL_HELM && o->Type < MODEL_BOOTS + MAX_ITEM_INDEX)
                     Type = o->Type;
@@ -7057,13 +7057,13 @@ void RenderPartObjectBody(BMD* b, OBJECT* o, int Type, float Alpha, int RenderTy
 
         vec3_t vPos, vRelativePos;
         Vector(0.f, 0.f, 0.f, vRelativePos);
-        b->TransformPosition(BoneTransform[8], vRelativePos, vPos, true);
+        b->TransformPosition(g_BoneTransformScratch[8], vRelativePos, vPos, true);
         float fLumi = (sinf(WorldTime * 0.004f) + 1.0f) * 0.05f;
         Vector(0.8f + fLumi, 0.8f + fLumi, 0.3f + fLumi, o->Light);
         CreateSprite(BITMAP_LIGHT, vPos, 1.5f, o->Light, o, 0.5f);
-        b->TransformPosition(BoneTransform[10], vRelativePos, vPos, true);
+        b->TransformPosition(g_BoneTransformScratch[10], vRelativePos, vPos, true);
         CreateSprite(BITMAP_LIGHT, vPos, 0.5f, o->Light, o, 0.5f);
-        b->TransformPosition(BoneTransform[11], vRelativePos, vPos, true);
+        b->TransformPosition(g_BoneTransformScratch[11], vRelativePos, vPos, true);
         CreateSprite(BITMAP_LIGHT, vPos, 0.5f, o->Light, o, 0.5f);
     }
     else if (o->Type >= MODEL_CHAIN_LIGHTNING_PARCHMENT && o->Type <= MODEL_INNOVATION_PARCHMENT)
@@ -7270,7 +7270,7 @@ void RenderPartObjectBody(BMD* b, OBJECT* o, int Type, float Alpha, int RenderTy
         Vector(0.f, 0.f, 0.f, vRelativePos);
         Vector(1.f, 0.f, 0.0f, Light);
 
-        b->TransformPosition(BoneTransform[1], vRelativePos, vWorldPos, true);
+        b->TransformPosition(g_BoneTransformScratch[1], vRelativePos, vWorldPos, true);
         CreateSprite(BITMAP_LIGHT, vWorldPos, 3.f, Light, o, 0.f);
     }
     else if (o->Type == MODEL_FLAME_OF_CONDOR)
@@ -9427,7 +9427,7 @@ void NextGradeObjectRender(CHARACTER* c)
                 w->LinkBone = bornIndex[m];
                 RenderLinkObject(0.f, 0.f, 0.f, c, w, gradeType[m], 0, 0, true, true);
 
-                b->TransformByBoneMatrix(vPos, BoneTransform[0], o->Position);
+                b->TransformByBoneMatrix(vPos, g_BoneTransformScratch[0], o->Position);
 
                 fLight2 = absf(sinf(WorldTime * 0.01f));
                 Vector(0.2f * fLight2, 0.4f * fLight2, 1.0f * fLight2, vLight);
@@ -9828,7 +9828,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         float Scale = Luminosity * 0.8f + 2.f;
         Vector(Luminosity * 0.32f, Luminosity * 0.32f, Luminosity * 2.f, EffLight);
 
-        b->TransformPosition(BoneTransform[0], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[0], p, Position);
         VectorAdd(Position, o->Position, Position);
 
         CreateSprite(BITMAP_SPARK + 1, Position, Scale, EffLight, o);
@@ -9852,7 +9852,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         b->StreamMesh = 0;
         o->BlendMeshTexCoordV = (int)-WorldTime % 4000 * 0.00025f;
 
-        b->TransformPosition(BoneTransform[0], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[0], p, Position);
         VectorAdd(Position, o->Position, Position);
 
         CreateSprite(BITMAP_SPARK + 1, Position, Scale, EffLight, o);
@@ -9878,11 +9878,11 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         float Scale = Luminosity * 0.8f;
         Vector(Luminosity * 2, Luminosity * 0.32f, Luminosity * 0.32f, EffLight);
 
-        b->TransformPosition(BoneTransform[1], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[1], p, Position);
         VectorAdd(Position, o->Position, Position);
         CreateSprite(BITMAP_SPARK + 1, Position, Scale, EffLight, o);
 
-        b->TransformPosition(BoneTransform[2], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[2], p, Position);
         VectorAdd(Position, o->Position, Position);
         CreateSprite(BITMAP_SPARK + 1, Position, Scale, EffLight, o);
     }
@@ -9895,11 +9895,11 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         float Scale = Luminosity * 0.8f;
         Vector(Luminosity * 2, Luminosity * 0.32f, Luminosity * 0.32f, EffLight);
 
-        b->TransformPosition(BoneTransform[9], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[9], p, Position);
         VectorAdd(Position, o->Position, Position);
         CreateSprite(BITMAP_SPARK + 1, Position, Scale, EffLight, o);
 
-        b->TransformPosition(BoneTransform[10], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[10], p, Position);
         VectorAdd(Position, o->Position, Position);
         CreateSprite(BITMAP_SPARK + 1, Position, Scale, EffLight, o);
     }
@@ -9968,8 +9968,8 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 0; i < 5; ++i)
         {
-            b->TransformPosition(BoneTransform[22 - i], p, posCenter, true);
-            b->TransformPosition(BoneTransform[30 - i], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[22 - i], p, posCenter, true);
+            b->TransformPosition(g_BoneTransformScratch[30 - i], p, Position, true);
             if (rand_fps_check(1))
             {
                 CreateJoint(BITMAP_JOINT_THUNDER, Position, posCenter, o->Angle, 14, o, Scale);
@@ -9981,8 +9981,8 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 0; i < 5; ++i)
         {
-            b->TransformPosition(BoneTransform[7 - i], p, posCenter, true);
-            b->TransformPosition(BoneTransform[11 + i], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[7 - i], p, posCenter, true);
+            b->TransformPosition(g_BoneTransformScratch[11 + i], p, Position, true);
             if (rand_fps_check(1))
             {
                 CreateJoint(BITMAP_JOINT_THUNDER, Position, posCenter, o->Angle, 14, o, Scale);
@@ -10010,7 +10010,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 0; i < 25; ++i)
         {
-            b->TransformPosition(BoneTransform[iBone[i]], vRelativePos, vPos, true);
+            b->TransformPosition(g_BoneTransformScratch[iBone[i]], vRelativePos, vPos, true);
             fScale = 0.5f;// (rand()%10) * 0.05f + 0.3f;
             CreateSprite(BITMAP_CLUD64, vPos, fScale, vLight, o, WorldTime * 0.01f, 1);
         }
@@ -10020,7 +10020,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         {
             for (int i = 0; i < 6; ++i)
             {
-                b->TransformPosition(BoneTransform[iBoneThunder[i]], vRelativePos, vPos, true);
+                b->TransformPosition(g_BoneTransformScratch[iBoneThunder[i]], vRelativePos, vPos, true);
                 if (rand_fps_check(20))
                 {
                     Vector(0.6f, 0.6f, 0.9f, vLight);
@@ -10039,7 +10039,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 0; i < 22; ++i)
         {
-            b->TransformPosition(BoneTransform[iBoneLight[i]], vRelativePos, vPos, true);
+            b->TransformPosition(g_BoneTransformScratch[iBoneLight[i]], vRelativePos, vPos, true);
             if (iBoneLight[i] == 12 || iBoneLight[i] == 64 || iBoneLight[i] == 98 || iBoneLight[i] == 52)
             {
                 Vector(0.9f, 0.0f, 0.0f, vLight);
@@ -10064,7 +10064,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         int iRedFlarePos[] = { 24, 31, 15, 8, 53, 35 };
         for (int i = 0; i < 6; ++i)
         {
-            b->TransformPosition(BoneTransform[iRedFlarePos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iRedFlarePos[i]], p, Position, true);
             CreateSprite(BITMAP_LIGHT, Position, Scale + 1.3f, Light, o);
         }
 
@@ -10074,14 +10074,14 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 0; i < 18; ++i)
         {
-            b->TransformPosition(BoneTransform[iGreenFlarePos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iGreenFlarePos[i]], p, Position, true);
             CreateSprite(BITMAP_LIGHT, Position, Scale + 1.5f, Light, o);
         }
         int iGreenFlarePos2[] = { 56, 38, 51, 45 };
 
         for (int i = 0; i < 4; ++i)
         {
-            b->TransformPosition(BoneTransform[iGreenFlarePos2[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iGreenFlarePos2[i]], p, Position, true);
             CreateSprite(BITMAP_LIGHT, Position, Scale + 0.5f, Light, o);
         }
     }
@@ -10096,7 +10096,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         int iRedFlarePos[] = { 5, 6, 7, 8, 18, 19, 23, 24, 25, 27, 37, 38 };
         for (int i = 0; i < 12; ++i)
         {
-            b->TransformPosition(BoneTransform[iRedFlarePos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iRedFlarePos[i]], p, Position, true);
             CreateSprite(BITMAP_FLARE, Position, Scale + 0.6f, Light, o);
         }
 
@@ -10105,7 +10105,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 0; i < 8; ++i)
         {
-            b->TransformPosition(BoneTransform[iGreenFlarePos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iGreenFlarePos[i]], p, Position, true);
             CreateSprite(BITMAP_LIGHT, Position, 1.3f, Light, o);
         }
 
@@ -10115,9 +10115,9 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         CreateSprite(BITMAP_LIGHT, Position, 0.4f, Light, o, 0.5f);
         if (rand_fps_check(2))
         {
-            b->TransformPosition(BoneTransform[13], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[13], p, Position, true);
             CreateParticle(BITMAP_SHINY, Position, o->Angle, Light, 5, 0.5f);
-            b->TransformPosition(BoneTransform[31], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[31], p, Position, true);
             CreateParticle(BITMAP_SHINY, Position, o->Angle, Light, 5, 0.5f);
         }
     }
@@ -10132,7 +10132,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         int iRedFlarePos[] = { 6, 15, 24, 56, 47, 38 };
         for (int i = 0; i < 6; ++i)
         {
-            b->TransformPosition(BoneTransform[iRedFlarePos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iRedFlarePos[i]], p, Position, true);
             CreateSprite(BITMAP_LIGHT, Position, Scale + 1.5f, Light, o);
         }
 
@@ -10148,7 +10148,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 0; i < 6; ++i)
         {
-            b->TransformPosition(BoneTransform[iSparkPos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iSparkPos[i]], p, Position, true);
             for (int j = 0; j < iNumParticle; ++j)
                 if (rand_fps_check(1))
                     CreateParticle(BITMAP_CHROME_ENERGY2, Position, o->Angle, Light, 0, 0.1f);
@@ -10156,7 +10156,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 6; i < 18; ++i)
         {
-            b->TransformPosition(BoneTransform[iSparkPos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iSparkPos[i]], p, Position, true);
             for (int j = 0; j < iNumParticle; ++j)
                 if (rand_fps_check(1))
                     CreateParticle(BITMAP_CHROME_ENERGY2, Position, o->Angle, Light, 0, 0.3f);
@@ -10164,7 +10164,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 18; i < 30; ++i)
         {
-            b->TransformPosition(BoneTransform[iSparkPos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iSparkPos[i]], p, Position, true);
             for (int j = 0; j < iNumParticle; ++j)
                 if (rand_fps_check(1))
                     CreateParticle(BITMAP_CHROME_ENERGY2, Position, o->Angle, Light, 0, 0.5f);
@@ -10172,7 +10172,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 30; i < 38; ++i)
         {
-            b->TransformPosition(BoneTransform[iSparkPos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iSparkPos[i]], p, Position, true);
             for (int j = 0; j < iNumParticle; ++j)
                 if (rand_fps_check(1))
                     CreateParticle(BITMAP_CHROME_ENERGY2, Position, o->Angle, Light, 0, 0.7f);
@@ -10191,13 +10191,13 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
         int icnt;
         for (icnt = 0; icnt < 2; ++icnt)
         {
-            b->TransformPosition(BoneTransform[iFlarePos0[icnt]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iFlarePos0[icnt]], p, Position, true);
             CreateSprite(BITMAP_FLARE, Position, Scale + 2.0f, Light, o);
         }
         Vector((1.0f + Luminosity) / 4.f, (0.7f + Luminosity) / 4.f, (0.2f + Luminosity) / 4.f, Light);
         for (; icnt < 6; ++icnt)
         {
-            b->TransformPosition(BoneTransform[iFlarePos0[icnt]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iFlarePos0[icnt]], p, Position, true);
             CreateSprite(BITMAP_FLARE, Position, Scale + 0.5f, Light, o);
         }
 
@@ -10206,7 +10206,7 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
 
         for (int i = 0; i < 6; ++i)
         {
-            b->TransformPosition(BoneTransform[iGreenFlarePos[i]], p, Position, true);
+            b->TransformPosition(g_BoneTransformScratch[iGreenFlarePos[i]], p, Position, true);
             CreateSprite(BITMAP_FLARE, Position, Scale + 2.0f, Light, o);
         }
     }
@@ -10539,7 +10539,7 @@ void RenderPartObjectEdge(BMD* b, OBJECT* o, int Flag, bool Translate, float Sca
     }
     else
     {
-        b->Transform(BoneTransform, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB);
+        b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB);
     }
 
     if (o->Type == MODEL_WARCRAFT)
@@ -10590,7 +10590,7 @@ void RenderPartObjectEdge2(BMD* b, OBJECT* o, int Flag, bool Translate, float Sc
     b->LightEnable = false;
 
     BoneScale = Scale;
-    b->Transform(BoneTransform, tmp, tmp, OBB, Translate);
+    b->Transform(g_BoneTransformScratch, tmp, tmp, OBB, Translate);
     b->RenderBody(Flag, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
 
     BoneScale = 1.f;
@@ -10682,7 +10682,7 @@ void RenderPartObject(OBJECT* o, int Type, void* p2, vec3_t Light, float Alpha, 
 
     if (GlobalTransform)
     {
-        b->Transform(BoneTransform, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, Translate);
+        b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, Translate);
     }
     else
     {

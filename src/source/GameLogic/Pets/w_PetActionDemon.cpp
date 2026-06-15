@@ -88,7 +88,7 @@ bool PetActionDemon::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, double
 
     for (int i = 0; i < 9; i++)
     {
-        b->TransformPosition(BoneTransform[itemp[i]], vRelativePos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[itemp[i]], vRelativePos, Position, false);
 
         switch (i)
         {

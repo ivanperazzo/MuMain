@@ -1941,8 +1941,8 @@ namespace battleCastle
                 Vector(0.f, 0.f, 0.f, p);
                 b->TransformPosition(o->BoneTransform[12], p, Position, true);
                 VectorCopy(Position, linkBmd->BodyOrigin);
-                linkBmd->Animation(BoneTransform, 0.f, 0.f, 0, o->Angle, o->Angle, true);
-                linkBmd->Transform(BoneTransform, Temp, Temp, &OBB, true);
+                linkBmd->Animation(g_BoneTransformScratch, 0.f, 0.f, 0, o->Angle, o->Angle, true);
+                linkBmd->Transform(g_BoneTransformScratch, Temp, Temp, &OBB, true);
                 linkBmd->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
             }
 
@@ -1951,8 +1951,8 @@ namespace battleCastle
                 Vector(0.f, 0.f, 0.f, p);
                 b->TransformPosition(o->BoneTransform[44], p, Position, true);
                 VectorCopy(Position, linkBmd->BodyOrigin);
-                linkBmd->Animation(BoneTransform, 0.f, 0.f, 0, o->Angle, o->Angle, true);
-                linkBmd->Transform(BoneTransform, Temp, Temp, &OBB, true);
+                linkBmd->Animation(g_BoneTransformScratch, 0.f, 0.f, 0, o->Angle, o->Angle, true);
+                linkBmd->Transform(g_BoneTransformScratch, Temp, Temp, &OBB, true);
                 linkBmd->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
             }
         }

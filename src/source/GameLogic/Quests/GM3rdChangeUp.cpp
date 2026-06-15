@@ -604,12 +604,12 @@ void SEASON3A::CGM3rdChangeUp::MoveBalgasBarrackBlurEffect(CHARACTER* c, OBJECT*
 
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 250.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                b->TransformPosition(BoneTransform[27], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[27], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[27], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[27], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 80);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -651,10 +651,10 @@ void SEASON3A::CGM3rdChangeUp::MoveBalgasBarrackBlurEffect(CHARACTER* c, OBJECT*
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; ++i)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 100.f, -150.f, EndRelative);
-                b->TransformPosition(BoneTransform[16], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[16], EndRelative, EndPos, false);
 
                 if (o->AnimationFrame > 5.0f && o->AnimationFrame < 7.0f && rand_fps_check(1))
                 {
@@ -695,12 +695,12 @@ void SEASON3A::CGM3rdChangeUp::MoveBalgasBarrackBlurEffect(CHARACTER* c, OBJECT*
 
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, -60.f, StartRelative);
                 Vector(0.f, 0.f, -150.f, EndRelative);
-                b->TransformPosition(BoneTransform[c->Weapon[0].LinkBone], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[c->Weapon[0].LinkBone], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[c->Weapon[0].LinkBone], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[c->Weapon[0].LinkBone], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 80);
 
                 fAnimationFrame += fSpeedPerFrame;

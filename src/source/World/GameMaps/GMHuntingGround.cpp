@@ -138,7 +138,7 @@ bool M31HuntingGround::RenderHuntingGroundObjectVisual(OBJECT* pObject, BMD* pMo
     {
         vec3_t Relative, Position;
         Vector(0.f, -10.f, 0.f, Relative);
-        pModel->TransformPosition(BoneTransform[3], Relative, Position, false);
+        pModel->TransformPosition(g_BoneTransformScratch[3], Relative, Position, false);
 
         Vector(1.f, 0.f, 0.f, Light);
         float Luminosity = (float)sinf((WorldTime) * 0.002f) * 0.35f + 0.65f;
@@ -333,19 +333,19 @@ void M31HuntingGround::MoveHuntingGroundBlurEffect(CHARACTER* pCharacter, OBJECT
             float fSpeedPerFrame = fActionSpeed / 10.f;
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++) {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, -10.f, -80.f, StartRelative);
                 Vector(30.f, -30.f, -230.f, EndRelative);
-                pModel->TransformPosition(BoneTransform[23], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[23], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[23], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[23], EndRelative, EndPos, false);
 
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 3, true, 23);
 
                 Vector(30.f, 10.f, 80.f, StartRelative);
                 Vector(30.f, -65.f, 230, EndRelative);
-                pModel->TransformPosition(BoneTransform[34], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[34], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
 
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 3, true, 34);
 

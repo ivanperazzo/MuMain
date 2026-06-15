@@ -10040,7 +10040,7 @@ void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancient
         }
     }
 
-    b->Animation(BoneTransform, ObjectSelect.AnimationFrame, ObjectSelect.PriorAnimationFrame, ObjectSelect.PriorAction, ObjectSelect.Angle, ObjectSelect.HeadAngle, false, false);
+    b->Animation(g_BoneTransformScratch, ObjectSelect.AnimationFrame, ObjectSelect.PriorAnimationFrame, ObjectSelect.PriorAction, ObjectSelect.Angle, ObjectSelect.HeadAngle, false, false);
 
     CHARACTER Armor;
     OBJECT* o = &Armor.Object;

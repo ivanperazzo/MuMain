@@ -11,6 +11,9 @@ TEST_CASE("distinct workers get distinct arenas (injective), same index stable")
 {
     using Core::Jobs::ThreadPool;
     ThreadPool& pool = ThreadPool::Instance();
+    // Pre-allocate before parallel CurrentArena(): the hardened ArenaAt grow path is
+    // startup-only and CurrentArena() asserts InitArenas(>=WorkerCount()) has run.
+    Render::Build::InitArenas(pool.WorkerCount());
     std::map<int, const void*> byIdx;
     std::mutex m;
     bool stable = true;

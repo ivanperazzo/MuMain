@@ -231,7 +231,7 @@ bool M39Kanturu3rd::RenderKanturu3rdObjectVisual(OBJECT* o, BMD* b)
         {
             Vector(0.08f, 0.08f, 0.08f, Light);
             Vector(rand() % 20 - 30.0f, rand() % 20 - 30.0f, 0.0f, p);
-            b->TransformPosition(BoneTransform[34], p, Pos, false);
+            b->TransformPosition(g_BoneTransformScratch[34], p, Pos, false);
             if (o->AnimationFrame >= 5.0f && o->AnimationFrame < 12.5f)
                 CreateParticleFpsChecked(BITMAP_SMOKE, Pos, o->Angle, Light, 43, 1.5f);
         }
@@ -265,7 +265,7 @@ bool M39Kanturu3rd::RenderKanturu3rdObjectVisual(OBJECT* o, BMD* b)
         Vector(fLumi * 0.3f, fLumi * 0.5f, fLumi * 1.0f, Light);
         vec3_t vPos;
         Vector(-1.0f, 0.0f, 0.0f, vPos);
-        b->TransformPosition(BoneTransform[1], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[1], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, fLumi / 2.4, Light, o);
         CreateSprite(BITMAP_SHINY + 1, Position, fLumi / 2.4, Light, o, (float)((int)(WorldTime / 2) % 360));
         CreateSprite(BITMAP_SHINY + 1, Position, fLumi / 2.4, Light, o, (float)((int)(WorldTime / 4) % 360));
@@ -973,15 +973,15 @@ void M39Kanturu3rd::MoveKanturu3rdBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 fAnimationFrame += fSpeedPerFrame;
 
                 Vector(10.f, 0.f, 0.f, StartRelative);
                 Vector(10.f, -10.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[32], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[38], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[32], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[38], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 80);
             }
         }
@@ -1525,7 +1525,7 @@ void M39Kanturu3rd::MayaAction(OBJECT* o, BMD* b)
         VectorRotate(Direction, Matrix, Position);
 
         Vector(0.2f, 0.2f, 0.4f, Light);
-        b->TransformPosition(BoneTransform[34], Position, Pos, false);
+        b->TransformPosition(g_BoneTransformScratch[34], Position, Pos, false);
         CreateEffect(MODEL_STORM3, Pos, o->Angle, Light);
 
         for (int i = 0; i < 100; i++)
@@ -1586,7 +1586,7 @@ void M39Kanturu3rd::MayaAction(OBJECT* o, BMD* b)
                         Vector(rand() % 20 - 10.0f, rand() % 20 - 10.0f, rand() % 20 - 10.0f, Position);
                         Vector(0.0f, 0.0f, 0.0f, Position);
                         Vector(1.0f, 1.0f, 1.0f, Light);
-                        b->TransformPosition(BoneTransform[33 + rand() % 42], Position, Pos, false);
+                        b->TransformPosition(g_BoneTransformScratch[33 + rand() % 42], Position, Pos, false);
                         CreateParticle(BITMAP_EXPLOTION, Pos, o->Angle, Light, 1, (1.5f + rand() % 10 / 20.0f));
                     }
                 }
@@ -1600,15 +1600,15 @@ void M39Kanturu3rd::MayaAction(OBJECT* o, BMD* b)
             {
                 Vector(0.0f, -100.0f, 0.0f, Position);
                 Vector(1.0f, 1.0f, 1.0f, Light);
-                b->TransformPosition(BoneTransform[11], Position, Pos, false);
+                b->TransformPosition(g_BoneTransformScratch[11], Position, Pos, false);
                 CreateEffect(MODEL_MAYASTAR, Pos, o->Angle, Light);
 
                 Vector(0.0f, -0.0f, 0.0f, Position);
-                b->TransformPosition(BoneTransform[21], Position, Pos, false);
+                b->TransformPosition(g_BoneTransformScratch[21], Position, Pos, false);
                 CreateEffect(MODEL_MAYASTAR, Pos, o->Angle, Light);
 
                 Vector(0.0f, -0.0f, 0.0f, Position);
-                b->TransformPosition(BoneTransform[24], Position, Pos, false);
+                b->TransformPosition(g_BoneTransformScratch[24], Position, Pos, false);
                 CreateEffect(MODEL_MAYASTAR, Pos, o->Angle, Light);
 
                 iMayaDie_Counter++;
@@ -1625,12 +1625,12 @@ void M39Kanturu3rd::MayaAction(OBJECT* o, BMD* b)
                 {
                     Vector(1.0f, 1.0f, 1.0f, Light);
                     Vector(rand() % 100 - 50.0f, rand() % 100 - 50.0f, rand() % 100 - 50.0f, Position);
-                    b->TransformPosition(BoneTransform[Index[rand() % 11]], Position, Pos, false);
+                    b->TransformPosition(g_BoneTransformScratch[Index[rand() % 11]], Position, Pos, false);
                     CreateParticle(BITMAP_EXPLOTION, Pos, o->Angle, Light, 1, 1.0f + (i * 1.5f) + rand() % 10 / 10.0f);
 
                     Vector(1.0f, 0.5f, 0.3f, Light);
                     Vector(rand() % 200 - 100.0f, rand() % 200 - 100.0f, rand() % 200 - 100.0f, Position);
-                    b->TransformPosition(BoneTransform[Index[rand() % 11]], Position, Pos, false);
+                    b->TransformPosition(g_BoneTransformScratch[Index[rand() % 11]], Position, Pos, false);
                     CreateParticle(BITMAP_SMOKE, Pos, o->Angle, Light, 47, 1.5f + rand() % 4);
                 }
 

@@ -441,7 +441,7 @@ bool RenderHellasVisual(OBJECT* o, BMD* b)
 
         Vector(0.6f, 0.6f, 1.f, Light);
         Vector(0.f, 0.f, 0.f, p);
-        b->TransformPosition(BoneTransform[5], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[5], p, Position);
         CreateSprite(BITMAP_LIGHT, Position, Luminosity + 0.2f, Light, o);
         break;
     case 15:
@@ -455,7 +455,7 @@ bool RenderHellasVisual(OBJECT* o, BMD* b)
 
         Vector(0.6f, 0.6f, 1.f, Light);
         Vector(0.f, 0.f, 0.f, p);
-        b->TransformPosition(BoneTransform[5], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[5], p, Position);
         CreateSprite(BITMAP_LIGHT, Position, Luminosity + 0.2f, Light, o);
         o->Position[2] = GetWaterTerrain(o->Position[0], o->Position[1]) + 180;
         break;
@@ -536,13 +536,13 @@ bool RenderHellasObjectMesh(OBJECT* o, BMD* b)
         vec3_t p, Light, Position;
         Vector(0, 0, 0, p);
         Vector(Luminosity * 1.0f, Luminosity * 0.2f, Luminosity * 0.1f, Light);
-        b->TransformPosition(BoneTransform[3], p, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[3], p, Position, false);
         CreateSprite(BITMAP_ENERGY, Position, 0.2f, Light, o, 0.f);
         Vector(Luminosity * 1.0f, Luminosity * 0.2f, Luminosity * 0.1f, Light);
         CreateSprite(BITMAP_SHINY + 1, Position, 0.5f, Light, o, 0.f);
 
         Vector(Luminosity * 1.0f, Luminosity * 0.2f, Luminosity * 0.1f, Light);
-        b->TransformPosition(BoneTransform[4], p, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[4], p, Position, false);
         CreateSprite(BITMAP_ENERGY, Position, 0.2f, Light, o, 0.f);
         Vector(Luminosity * 1.0f, Luminosity * 0.2f, Luminosity * 0.1f, Light);
         CreateSprite(BITMAP_SHINY + 1, Position, 0.5f, Light, o, 0.f);
@@ -564,20 +564,20 @@ bool RenderHellasObjectMesh(OBJECT* o, BMD* b)
 
         Vector(0, 0, 0, p);
         Vector(Luminosity * 1.0f, Luminosity * 0.2f, Luminosity * 0.1f, Light);
-        b->TransformPosition(BoneTransform[8], p, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[8], p, Position, false);
         CreateSprite(BITMAP_ENERGY, Position, 0.2f, Light, o, 0.f);
         Vector(Luminosity * 1.0f, Luminosity * 0.2f, Luminosity * 0.1f, Light);
         CreateSprite(BITMAP_SHINY + 1, Position, 0.5f, Light, o, 0.f);
 
         Vector(Luminosity * 1.0f, Luminosity * 0.2f, Luminosity * 0.1f, Light);
-        b->TransformPosition(BoneTransform[9], p, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[9], p, Position, false);
         CreateSprite(BITMAP_ENERGY, Position, 0.2f, Light, o, 0.f);
         Vector(Luminosity * 1.0f, Luminosity * 0.2f, Luminosity * 0.1f, Light);
         CreateSprite(BITMAP_SHINY + 1, Position, 0.5f, Light, o, 0.f);
 
         {
             Vector(2.f, 10.f, 0.f, p);
-            b->TransformPosition(BoneTransform[6], p, Position, false);
+            b->TransformPosition(g_BoneTransformScratch[6], p, Position, false);
             Vector(1.0f, 0.2f, 0.0f, Light);
             CreateParticleFpsChecked(BITMAP_SMOKE, Position, o->Angle, Light, 17, 3.0f);
         }
