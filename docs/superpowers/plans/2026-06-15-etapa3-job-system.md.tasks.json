@@ -84,7 +84,7 @@
     {
       "id": 13,
       "subject": "Task 6.6: Per-Transform statics -> per-worker",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [12],
       "description": "Move s_lastBoneMatrix/s_lastTransformTranslate/s_lastTransformScale/s_transformSerial/s_lastLightPosition/s_lastLightEnable/s_skinnedSerial/s_meshSkinned[] into per-worker home (ctx or arena) so the 'Transform then RenderMesh same object' correlation holds per-worker. Confirm-dead-and-drop s_skinScratchMin/Max. A/B.",
       "metadata": {"files": ["src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Build/BmdRenderContext.h","src/source/Render/Build/WorkerArena.h"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_statics; [bmd_cov] identical; skin-skip path intact"}
