@@ -552,13 +552,13 @@ bool M34CryWolf1st::RenderCryWolf1stObjectMesh(OBJECT* o, BMD* b, int ExtraMon)
             Render::Build::CurrentRenderCtx().bodyLight[1] = m_StatueHP / 25.0f - 1.0f;
             Render::Build::CurrentRenderCtx().bodyLight[2] = m_StatueHP / 20.0f - 0.5f;
 
-            b->StreamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
             b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
 
-            b->StreamMesh = 1;
+            Render::Build::CurrentRenderCtx().streamMesh = 1;
             b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME2, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
         }
     }
     return true;
@@ -1458,7 +1458,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
                 o->BlendMesh = -2;
                 b->EndRender();
                 b->BeginRender(o->Alpha);
-                Models[o->Type].StreamMesh = i;
+                Render::Build::CurrentRenderCtx().streamMesh = i;
             }
             else
                 o->BlendMesh = -1;

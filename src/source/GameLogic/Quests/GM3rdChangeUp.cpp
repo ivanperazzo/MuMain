@@ -262,9 +262,9 @@ bool SEASON3A::CGM3rdChangeUp::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon
         switch (o->Type)
         {
         case 79:
-            b->StreamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 10000 * 0.0001f);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
             return true;
         case 81:
         {
@@ -307,18 +307,18 @@ void SEASON3A::CGM3rdChangeUp::RenderAfterObjectMesh(OBJECT* o, BMD* b)
         Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
         Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
 
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(
             0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh,
             o->BlendMeshLight, -(int)WorldTime % 100000 * 0.00001f,
             o->BlendMeshTexCoordV);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 84:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         float fLumi = (sinf(WorldTime * 0.001f) + 1.f) * 0.5f;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, 0, fLumi, (int)WorldTime % 10000 * 0.0001f, o->BlendMeshTexCoordV, o->HiddenMesh);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     }
@@ -751,7 +751,7 @@ bool SEASON3A::CGM3rdChangeUp::RenderMonsterObjectMesh(OBJECT* o, BMD* b, int Ex
                 o->BlendMesh = -2;
                 b->EndRender();
                 b->BeginRender(o->Alpha);
-                Models[o->Type].StreamMesh = i;
+                Render::Build::CurrentRenderCtx().streamMesh = i;
             }
             else
                 o->BlendMesh = -1;

@@ -18019,7 +18019,7 @@ void RenderWheelWeapon(OBJECT* o)
     int Type = o->Owner->Weapon + MODEL_SWORD;
     BMD* b = &Models[Type];
     Render::Build::CurrentRenderCtx().currentAction = 0;
-    b->Skin = gCharacterManager.GetBaseClass(Hero->Class);
+    Render::Build::CurrentRenderCtx().skin = gCharacterManager.GetBaseClass(Hero->Class);
     Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
     VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
@@ -18049,7 +18049,7 @@ void RenderFuryStrike(OBJECT* o)
         int Type = o->Owner->Weapon + MODEL_SWORD;
         BMD* b = &Models[Type];
         Render::Build::CurrentRenderCtx().currentAction = 0;
-        b->Skin = gCharacterManager.GetBaseClass(Hero->Class);
+        Render::Build::CurrentRenderCtx().skin = gCharacterManager.GetBaseClass(Hero->Class);
         Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
         VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 

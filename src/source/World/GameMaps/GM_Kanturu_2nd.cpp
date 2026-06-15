@@ -554,9 +554,9 @@ bool M38Kanturu2nd::Render_Kanturu2nd_ObjectMesh(OBJECT* o, BMD* b, bool ExtraMo
         case 12:
         {
             o->HiddenMesh = 0;
-            b->StreamMesh = 1;
+            Render::Build::CurrentRenderCtx().streamMesh = 1;
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 2000 * 0.0005f, o->HiddenMesh);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
             b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, 0, o->BlendMeshLight, (int)WorldTime % 2000 * 0.0005f, (int)WorldTime % 2000 * 0.0005f);
             b->RenderMesh(0, RENDER_CHROME | RENDER_DARK, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_CHROME);
 
@@ -565,18 +565,18 @@ bool M38Kanturu2nd::Render_Kanturu2nd_ObjectMesh(OBJECT* o, BMD* b, bool ExtraMo
         break;
         case 13:
         {
-            b->StreamMesh = 1;
+            Render::Build::CurrentRenderCtx().streamMesh = 1;
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 2000 * 0.0005f, o->HiddenMesh);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
 
             return true;
         }
         break;
         case 14:
         {
-            b->StreamMesh = 1;
+            Render::Build::CurrentRenderCtx().streamMesh = 1;
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 2000 * 0.0005f, o->HiddenMesh);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
 
             return true;
         }
@@ -584,9 +584,9 @@ bool M38Kanturu2nd::Render_Kanturu2nd_ObjectMesh(OBJECT* o, BMD* b, bool ExtraMo
         case 15:
         case 16:
         {
-            b->StreamMesh = 3;
+            Render::Build::CurrentRenderCtx().streamMesh = 3;
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 2000 * 0.0005f, o->HiddenMesh);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
 
             return true;
         }
@@ -594,9 +594,9 @@ bool M38Kanturu2nd::Render_Kanturu2nd_ObjectMesh(OBJECT* o, BMD* b, bool ExtraMo
         case 27:
         {
             o->HiddenMesh = 2;
-            b->StreamMesh = 4;
+            Render::Build::CurrentRenderCtx().streamMesh = 4;
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 2000 * 0.0005f, o->HiddenMesh);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
             b->RenderMesh(2, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
             return true;

@@ -98,6 +98,23 @@ static_assert(sizeof(vec4_t) == sizeof(float[4]), "BoneQuaternion arena layout d
 #define CurrentAnimation      (Render::Build::CurrentRenderCtx().currentAnimation)
 #define CurrentAnimationFrame (Render::Build::CurrentRenderCtx().currentAnimationFrame)
 
+// Etapa 3b 6.5: the mesh-selection state (StreamMesh / Skin / HideSkin) and the bounding-size
+// output (fTransformedSize) were per-render mutable state living on the shared Models[type] BMD;
+// they now live in the per-worker Render::Build::BmdRenderContext (CurrentRenderCtx()). Bare
+// references inside BMD methods here (and the b->/pModel->/Models[].  setters in other TUs) are
+// repointed onto the ctx slot; signatures are unchanged. The set->use sequence is contiguous
+// within a worker, so the per-worker single slot reproduces the old shared-member semantics.
+// Macro safety: each of these is a WHOLE TOKEN the preprocessor rewrites exactly. SkinMesh /
+// EnsureMeshSkinned / MarkMeshSkinned / s_meshSkinned / IsSkin / BITMAP_SKIN / getStreamMesh are
+// DISTINCT tokens (the macros never touch them). There is no `x->StreamMesh`/`x.Skin`/etc. and no
+// local/param named StreamMesh/Skin/HideSkin/fTransformedSize in this file (the `this->StreamMesh`
+// site was rewritten to bare `StreamMesh`; the loop locals are lowercase `streamMesh`), so the
+// object-like macros are safe.
+#define StreamMesh       (Render::Build::CurrentRenderCtx().streamMesh)
+#define Skin             (Render::Build::CurrentRenderCtx().skin)
+#define HideSkin         (Render::Build::CurrentRenderCtx().hideSkin)
+#define fTransformedSize (Render::Build::CurrentRenderCtx().fTransformedSize)
+
 vec3_t RenderArrayVertices[MAX_VERTICES * 3];
 vec4_t RenderArrayColors[MAX_VERTICES * 3];
 vec2_t RenderArrayTexCoords[MAX_VERTICES * 3];
@@ -1279,7 +1296,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     }
 
     bool EnableWave = false;
-    int streamMesh = static_cast<u_char>(this->StreamMesh);
+    int streamMesh = static_cast<u_char>(StreamMesh);
     if (m->m_csTScript != nullptr)
     {
         if (m->m_csTScript->getStreamMesh())

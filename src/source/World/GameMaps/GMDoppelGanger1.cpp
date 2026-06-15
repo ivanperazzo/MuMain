@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.5: mesh-selection state -> per-worker ctx
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
 #include "Engine/AI/ZzzAI.h"
@@ -363,9 +364,9 @@ bool CGMDoppelGanger1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         return true;
     case 102:
         b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 4000 * 0.00025f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         return true;
     case MODEL_ICE_WALKER:
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_DOPPELGANGER_ICEWALKER0);
@@ -557,9 +558,9 @@ void CGMDoppelGanger1::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 33:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 98:
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);

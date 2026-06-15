@@ -1191,17 +1191,17 @@ namespace battleCastle
         }
         else if (o->Type == 17)
         {
-            b->StreamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
             Vector(0.45f, 0.45f, 0.45f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0002f, o->HiddenMesh);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
             return true;
         }
         else if (o->Type == 51)
         {
-            b->StreamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
             b->RenderBody(RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, -(int)WorldTime % 10000 * 0.0002f, o->BlendMeshTexCoordV, o->HiddenMesh);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
             return true;
         }
         else if (o->Type == 66)

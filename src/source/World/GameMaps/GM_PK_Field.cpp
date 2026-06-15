@@ -404,17 +404,17 @@ bool CGM_PK_Field::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     }
     else if (o->Type == 15)
     {
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
         return true;
     }
     else if (o->Type == 67)
     {
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         vec3_t light;
         Vector(1.0f, 0.0f, 0.0f, light);
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
@@ -463,9 +463,9 @@ bool CGM_PK_Field::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     }
     else if (o->Type == 68)
     {
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
         vec3_t light;
         Vector(1.0f, 0.0f, 0.0f, light);

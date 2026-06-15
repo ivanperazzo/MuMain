@@ -250,9 +250,9 @@ bool CGMDoppelGanger2::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         return true;
     case 15:
     {
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         return true;
     }
     case 16:
@@ -263,9 +263,9 @@ bool CGMDoppelGanger2::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     }
     case 67:
     {
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         vec3_t light;
         Vector(1.0f, 0.0f, 0.0f, light);
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
@@ -313,9 +313,9 @@ bool CGMDoppelGanger2::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     }
     case 68:
     {
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
         vec3_t light;
         Vector(1.0f, 0.0f, 0.0f, light);
@@ -622,9 +622,9 @@ void CGMDoppelGanger2::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 33:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     default:
         break;

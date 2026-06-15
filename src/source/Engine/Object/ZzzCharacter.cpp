@@ -62,7 +62,7 @@ namespace
 
 void BuildCharacterScenePickOBB(const OBJECT* o, OBB_t& outOBB)
 {
-    float charHeight = Models[o->Type].fTransformedSize * 2.0f;
+    float charHeight = Render::Build::CurrentRenderCtx().fTransformedSize * 2.0f;
     if (charHeight < CHARSCENE_PICK_MIN_HEIGHT)
         charHeight = CHARSCENE_PICK_MIN_HEIGHT;
 
@@ -9536,11 +9536,11 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
                     
                     if (CLASS_RAGEFIGHTER == gCharacterManager.GetBaseClass(c->Class))
                     {
-                        b->Skin = gCharacterManager.GetBaseClass(c->Class) * 2 + gCharacterManager.IsThirdClass(c->Class);
+                        Render::Build::CurrentRenderCtx().skin = gCharacterManager.GetBaseClass(c->Class) * 2 + gCharacterManager.IsThirdClass(c->Class);
                     }
                     else
                     {
-                        b->Skin = gCharacterManager.GetBaseClass(c->Class) * 2 + gCharacterManager.IsSecondClass(c->Class);
+                        Render::Build::CurrentRenderCtx().skin = gCharacterManager.GetBaseClass(c->Class) * 2 + gCharacterManager.IsSecondClass(c->Class);
                     }
 
                     if (gCharacterManager.GetBaseClass(c->Class) == CLASS_DARK_LORD && i == BODYPART_HELM)
@@ -9552,7 +9552,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
                             if (index == 0 || index == 5 || index == 6 || index == 8 || index == 9)
                             {
                                 Type = MODEL_MASK_HELM + index;
-                                Models[Type].Skin = b->Skin;
+                                Render::Build::CurrentRenderCtx().skin = Render::Build::CurrentRenderCtx().skin;
                             }
                         }
                     }
@@ -13684,7 +13684,7 @@ CHARACTER* CreateMonster(EMonsterType Type, int PositionX, int PositionY, int Ke
         }
         c->Object.BlendMesh = 1;
         c->Object.BlendMeshLight = 1.f;
-        //Models[MODEL_MONSTER01+52].StreamMesh = 1;
+        //Render::Build::CurrentRenderCtx().streamMesh = 1;
         break;
 
     case MONSTER_PHANTOM_KNIGHT:
@@ -13721,7 +13721,7 @@ CHARACTER* CreateMonster(EMonsterType Type, int PositionX, int PositionY, int Ke
         c = CreateCharacter(Key, MODEL_DARK_PHEONIX_SHIELD, PositionX, PositionY);
         c->NotRotateOnMagicHit = true;
         c->Object.Scale = 1.0f;
-        Models[MODEL_DARK_PHEONIX_SHIELD].StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
     }
     break;
     case MONSTER_ORC_ARCHER:

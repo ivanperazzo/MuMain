@@ -427,9 +427,9 @@ void CGMDoppelGanger3::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 33:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 38:
     {

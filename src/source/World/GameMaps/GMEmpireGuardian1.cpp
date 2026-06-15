@@ -1400,13 +1400,13 @@ bool GMEmpireGuardian1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderMesh(2, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
         o->BlendMeshTexCoordV = (int)WorldTime % 25000 * 0.0004f;
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
         o->BlendMeshTexCoordV = (int)WorldTime % 25000 * -0.0004f;
-        b->StreamMesh = 3;
+        Render::Build::CurrentRenderCtx().streamMesh = 3;
         b->RenderMesh(3, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
         vec3_t vRelativePos, vWorldPos, Light, Angle;
         Vector(0, 0, 0, vRelativePos);
@@ -1439,13 +1439,13 @@ bool GMEmpireGuardian1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderMesh(3, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
         o->BlendMeshTexCoordV = (int)WorldTime % 25000 * 0.0004f;
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
         o->BlendMeshTexCoordV = (int)WorldTime % 25000 * -0.0004f;
-        b->StreamMesh = 4;
+        Render::Build::CurrentRenderCtx().streamMesh = 4;
         b->RenderMesh(4, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
         vec3_t vRelativePos, vWorldPos, Light, Angle;
         Vector(0, 0, 0, vRelativePos);

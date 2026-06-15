@@ -199,10 +199,10 @@ public:
     vec3_t        BodyOrigin;      // reserved (layout) -> ctx.bodyOrigin
     vec3_t        BodyAngle;       // reserved (layout) -> ctx.bodyAngle  (Etapa 3b 6.4)
     float         BodyHeight;      // reserved (layout) -> ctx.bodyHeight
-    char          StreamMesh;
+    char          StreamMesh;      // reserved (layout) -> ctx.streamMesh (Etapa 3b 6.5)
     vec3_t        ShadowAngle;     // reserved (layout) -> ctx.shadowAngle
-    char          Skin;
-    bool          HideSkin;
+    char          Skin;            // reserved (layout) -> ctx.skin       (Etapa 3b 6.5)
+    bool          HideSkin;        // reserved (layout) -> ctx.hideSkin   (Etapa 3b 6.5)
     float         Velocity;
     unsigned short CurrentAction;          // reserved (layout) -> ctx.currentAction          (Etapa 3b 6.4)
     unsigned short PriorAction;            // reserved (layout) -> ctx.priorAction (param shadow: NOT macro'd) (Etapa 3b 6.4)
@@ -210,7 +210,7 @@ public:
     short         CurrentAnimationFrame;   // reserved (layout) -> ctx.currentAnimationFrame   (Etapa 3b 6.4)
     short         Sounds[MAX_MONSTER_SOUND];
     int           renderCount;
-    float		  fTransformedSize;
+    float		  fTransformedSize;   // reserved (layout) -> ctx.fTransformedSize (Etapa 3b 6.5)
 
     unsigned int		m_iBMDSeqID;
     bool				bLightMap;

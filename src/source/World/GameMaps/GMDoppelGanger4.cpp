@@ -461,14 +461,14 @@ bool CGMDoppelGanger4::RenderObjectVisual(OBJECT* o, BMD* b)
     }
     return true;
     case 96:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         glAlphaFunc(GL_GREATER, 0.0f);
         b->RenderMesh(
             0, RENDER_TEXTURE, 1.0f, o->BlendMesh,
             o->BlendMeshLight, o->BlendMeshTexCoordU,
             -(int)WorldTime % 20000 * 0.00005f);
         glAlphaFunc(GL_GREATER, 0.25f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         return true;
     case 98:
     {
@@ -624,21 +624,21 @@ void CGMDoppelGanger4::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 33:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 76:
     {
         Render::Build::CurrentRenderCtx().bodyLight[0] = 0.52f;
         Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
         Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(
             0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh,
             o->BlendMeshLight, -(int)WorldTime % 100000 * 0.00001f,
             o->BlendMeshTexCoordV);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
     }
     break;
     case 95:

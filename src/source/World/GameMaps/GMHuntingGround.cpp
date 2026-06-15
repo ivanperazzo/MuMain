@@ -700,10 +700,10 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         Render::Build::CurrentRenderCtx().bodyLight[1] *= Luminosity;
         Render::Build::CurrentRenderCtx().bodyLight[2] *= Luminosity;
 
-        pModel->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, (int)WorldTime % 10000 * 0.0002f, (int)WorldTime % 10000 * 0.0002f);
         pModel->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
-        pModel->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
         VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
 
@@ -751,7 +751,7 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         Render::Build::CurrentRenderCtx().bodyLight[1] *= Luminosity;
         Render::Build::CurrentRenderCtx().bodyLight[2] *= (Luminosity * 0.1f);
 
-        pModel->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         pModel->RenderMesh(1, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, (int)WorldTime % 10000 * 0.0002f, (int)WorldTime % 10000 * 0.0002f);
 
         if (ExtraMon)
@@ -761,7 +761,7 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         else
             pModel->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
 
-        pModel->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
         VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
 
@@ -770,14 +770,14 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         {
             pModel->RenderMesh(0, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_CHROME);
         }
-        pModel->StreamMesh = 2;
+        Render::Build::CurrentRenderCtx().streamMesh = 2;
         pModel->RenderMesh(2, RENDER_TEXTURE, pObject->Alpha, 2, 0.5f, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         if (ExtraMon)
         {
             pModel->RenderMesh(2, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_CHROME);
             pObject->Scale = Render::Build::CurrentRenderCtx().bodyScale;
         }
-        pModel->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         pModel->EndRender();
         return true;
     }

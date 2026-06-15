@@ -225,14 +225,14 @@ bool M37Kanturu1st::RenderKanturu1stObjectVisual(OBJECT* pObject, BMD* pModel)
     }
     break;
     case 96:
-        pModel->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         glAlphaFunc(GL_GREATER, 0.0f);
         pModel->RenderMesh(
             0, RENDER_TEXTURE, 1.0f, pObject->BlendMesh,
             pObject->BlendMeshLight, pObject->BlendMeshTexCoordU,
             -(int)WorldTime % 20000 * 0.00005f);
         glAlphaFunc(GL_GREATER, 0.25f);
-        pModel->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 98:
         if (rand_fps_check(3))
@@ -350,12 +350,12 @@ void M37Kanturu1st::RenderKanturu1stAfterObjectMesh(OBJECT* o, BMD* b)
         Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
         Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
 
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(
             0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh,
             o->BlendMeshLight, -(int)WorldTime % 100000 * 0.00001f,
             o->BlendMeshTexCoordV);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
 
     case 95:
@@ -1001,7 +1001,7 @@ bool M37Kanturu1st::RenderKanturu1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
         VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, Light);
         b->BeginRender(1.f);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, 1.f, 0, o->BlendMeshLight, o->BlendMeshTexCoordU, WorldTime * 0.0005f);
         b->RenderMesh(3, RENDER_CHROME | RENDER_BRIGHT, 1.f, 0, o->BlendMeshLight, o->BlendMeshTexCoordU, WorldTime * 0.001f, BITMAP_CHROME);
 
