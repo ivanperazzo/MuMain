@@ -19,6 +19,10 @@ namespace Render::Models
     // InstAdd() -> InstFlush(lightPos).
 
     // One per-instance record (must match the instanced VBO layout / shader attribs).
+    // The trailing scalars (uvScroll / light / wave / chrome params) are NOT in the
+    // per-instance VBO: they are frame-global per (model, mesh, mode, blend) and ride
+    // into the bucket once at InstAdd (sub-task 6.7 — formerly the shared s_inst*/s_chrome*
+    // frame globals; per-bucket so a parallel collect never races on them).
     struct InstanceRec
     {
         float paletteBase;     // base bone index in the TBO
@@ -27,6 +31,12 @@ namespace Render::Models
         float color[4];        // rgb base colour, a = alpha
         float lit;             // 1 = per-normal lighting, 0 = flat
         float uvScroll[2] = { 0.f, 0.f };  // textured UV offset (wave); per-bucket, NOT in the per-instance VBO
+        // Per-bucket frame-global shader inputs (sub-task 6.7), set by the collect:
+        float instLight[3] = { 0.f, 0.f, 0.f };   // lit light dir (lit instances; uLightPos)
+        float instWave     = 0.f;                  // chrome reflection scroll (uWave)
+        float chromeWave2  = 0.f;                  // CHROME2/6 scroll
+        float chromeL[3]   = { 0.f, 0.f, 1.f };    // CHROME4 light vec
+        float chromeLightVec[3] = { 0.f, 0.f, 1.f }; // CHROME3 LightVector
     };
 
     void InstBegin();
@@ -36,10 +46,6 @@ namespace Render::Models
     //        no depth write, order-independent). Each (mode, blend) is a separate bucket so
     //        FLUSH draws opaque first then additive, switching uChromeMode/uWave per bucket.
     void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec, int mode = 0, int blend = 0);
-    void InstSetLight(const float lightPos[3]);   // global lit dir for lit instances
-    void InstSetWave(float wave);                 // global chrome reflection scroll
-    // CHROME2/3/4/6 extra frame-global inputs (Wave2 scroll, CHROME4 L, CHROME3 LightVector).
-    void InstSetChromeParams(float wave2, const float L[3], const float lightVec[3]);
     void InstFlush();
 
     // ---- Per-worker bucket collection + order-independent merge (Etapa 3, Task 4) ----
@@ -66,6 +72,14 @@ namespace Render::Models
         int        mode = 0;           // 0 = textured, 1 = chrome (sphere-map)
         int        blend = 0;          // 0 = opaque (alpha-test), 1 = additive (GL_ONE/ONE)
         float      uvScroll[2] = { 0.f, 0.f };  // textured UV offset (wave), frame-global per (model, mesh)
+        // Per-bucket frame-global shader inputs (sub-task 6.7): formerly shared s_inst*/
+        // s_chrome* globals, now carried per-bucket from InstAdd. Frame-constant across all
+        // instances/workers of a key, so MergeBuckets takes them from first-sight (no race).
+        float      instLight[3] = { 0.f, 0.f, 0.f };     // lit light dir (uLightPos)
+        float      instWave     = 0.f;                    // chrome reflection scroll (uWave)
+        float      chromeWave2  = 0.f;                     // CHROME2/6 scroll
+        float      chromeL[3]   = { 0.f, 0.f, 1.f };       // CHROME4 light vec
+        float      chromeLightVec[3] = { 0.f, 0.f, 1.f };  // CHROME3 LightVector
         std::vector<float> recs;       // flattened InstanceRec (kInstFloats each)
     };
 

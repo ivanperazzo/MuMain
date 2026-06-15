@@ -30,11 +30,17 @@ namespace Render::Models
                 InstBucketData& dst = res.first->second;
                 if (res.second)
                 {
-                    // First worker contributing this key: copy metadata (uvScroll is
-                    // frame-global per (model, mesh), identical across workers/instances).
+                    // First worker contributing this key: copy metadata (uvScroll + the
+                    // 6.7 light/wave/chrome params are all frame-global per (model, mesh, mode,
+                    // blend), identical across workers/instances, so first-sight is correct).
                     dst.model = src.model; dst.meshIndex = src.meshIndex; dst.texId = src.texId;
                     dst.mode = src.mode; dst.blend = src.blend;
                     dst.uvScroll[0] = src.uvScroll[0]; dst.uvScroll[1] = src.uvScroll[1];
+                    dst.instLight[0] = src.instLight[0]; dst.instLight[1] = src.instLight[1]; dst.instLight[2] = src.instLight[2];
+                    dst.instWave = src.instWave;
+                    dst.chromeWave2 = src.chromeWave2;
+                    dst.chromeL[0] = src.chromeL[0]; dst.chromeL[1] = src.chromeL[1]; dst.chromeL[2] = src.chromeL[2];
+                    dst.chromeLightVec[0] = src.chromeLightVec[0]; dst.chromeLightVec[1] = src.chromeLightVec[1]; dst.chromeLightVec[2] = src.chromeLightVec[2];
                     dst.recs.reserve(src.recs.size());
                 }
                 dst.recs.insert(dst.recs.end(), src.recs.begin(), src.recs.end());

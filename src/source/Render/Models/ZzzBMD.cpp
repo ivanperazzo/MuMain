@@ -1195,6 +1195,10 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
     else
     {
         float cur[4] = { 1.f, 1.f, 1.f, 1.f };
+        // sub-task 6.7: GL read kept HERE only. RenderMeshGpu is the per-mesh GPU path that
+        // issues GL immediately and is GL-thread-only (Phase B keeps per-mesh-GPU + legacy
+        // draws serial; only the instanced-collect path at RenderMesh runs on workers). NOT
+        // migrated; the instanced flat branch's glGetFloatv was the one moved to ctx.flatColor.
         glGetFloatv(GL_CURRENT_COLOR, cur);   // the flat colour the caller set
         baseColor[0] = cur[0]; baseColor[1] = cur[1]; baseColor[2] = cur[2];
         baseAlpha = cur[3];
@@ -1329,6 +1333,13 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     if (meshIndex == StreamMesh)
     {
         glColor3fv(BodyLight);
+        // sub-task 6.7: mirror the flat colour into ctx.flatColor so the instanced flat
+        // branch reads it (per-worker) instead of glGetFloatv(GL_CURRENT_COLOR). StreamMesh
+        // forces flat here (enableLight=false), so this is one of the flat-branch sources.
+        Render::Build::CurrentRenderCtx().flatColor[0] = BodyLight[0];
+        Render::Build::CurrentRenderCtx().flatColor[1] = BodyLight[1];
+        Render::Build::CurrentRenderCtx().flatColor[2] = BodyLight[2];
+        Render::Build::CurrentRenderCtx().flatColor[3] = 1.f;
         enableLight = false;
     }
     // The per-normal LightTransform[] = BodyLight * IntensityTransform[] build is
@@ -1671,7 +1682,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                     instMode  = 1;
                     instBlend = chromeAdditive ? 1 : 0;
                     instTex   = BITMAP_CHROME;
-                    Render::Models::InstSetWave(wave);
+                    rec.instWave = wave;   // per-bucket chrome reflection scroll (6.7)
                 }
                 else if (chromeVarOk)
                 {
@@ -1686,11 +1697,14 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                     instMode  = chromeVarMode;
                     instBlend = chromeVarAdditive ? 1 : 0;
                     instTex   = chromeVarTex;
-                    Render::Models::InstSetWave(wave);
+                    rec.instWave = wave;   // per-bucket chrome reflection scroll (6.7)
                     const float Wave2 = (int)WorldTime % 5000 * 0.00024f - 0.4f;
                     const float L[3] = { (float)(cos(WorldTime * 0.001f)),
                                          (float)(sin(WorldTime * 0.002f)), 1.f };
-                    Render::Models::InstSetChromeParams(Wave2, L, LightVector);
+                    // CHROME2/3/4/6 extra inputs, now carried per-bucket (6.7).
+                    rec.chromeWave2 = Wave2;
+                    rec.chromeL[0] = L[0]; rec.chromeL[1] = L[1]; rec.chromeL[2] = L[2];
+                    rec.chromeLightVec[0] = LightVector[0]; rec.chromeLightVec[1] = LightVector[1]; rec.chromeLightVec[2] = LightVector[2];
                 }
                 else if (waveAdditive)
                 {
@@ -1707,7 +1721,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                     if (enableLight)
                     {
                         vec3_t lp; ComputeInstLitLight(lp);
-                        Render::Models::InstSetLight(lp);
+                        rec.instLight[0] = lp[0]; rec.instLight[1] = lp[1]; rec.instLight[2] = lp[2];   // per-bucket lit dir (6.7)
                     }
                 }
                 else if (enableLight)
@@ -1717,13 +1731,16 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                     rec.color[3] = alpha;
                     rec.lit = 1.f;
                     vec3_t lp; ComputeInstLitLight(lp);
-                    Render::Models::InstSetLight(lp);
+                    rec.instLight[0] = lp[0]; rec.instLight[1] = lp[1]; rec.instLight[2] = lp[2];   // per-bucket lit dir (6.7)
                 }
                 else
                 {
-                    // Flat: single colour the caller set, no per-vertex lighting.
-                    float cur[4] = { 1.f, 1.f, 1.f, 1.f };
-                    glGetFloatv(GL_CURRENT_COLOR, cur);
+                    // Flat: single colour the caller set, no per-vertex lighting. sub-task 6.7:
+                    // read the precomputed ctx.flatColor (mirrored at the glColor*(BodyLight)
+                    // set sites in RenderMesh/RenderBody/RenderBodyTranslate) instead of
+                    // glGetFloatv(GL_CURRENT_COLOR) — the latter is a GL read, illegal on the
+                    // parallel build (worker) thread that has no GL context.
+                    const float* cur = Render::Build::CurrentRenderCtx().flatColor;
                     rec.color[0] = cur[0]; rec.color[1] = cur[1]; rec.color[2] = cur[2]; rec.color[3] = cur[3];
                     rec.lit = 0.f;
                 }
@@ -2451,6 +2468,12 @@ void BMD::RenderBody(int Flag, float Alpha, int BlendMesh, float BlendMeshLight,
             glColor3fv(BodyLight);
         else
             glColor4f(BodyLight[0], BodyLight[1], BodyLight[2], Alpha);
+        // sub-task 6.7: mirror the flat body colour into ctx.flatColor so the instanced flat
+        // branch reads it (per-worker) instead of glGetFloatv(GL_CURRENT_COLOR).
+        Render::Build::CurrentRenderCtx().flatColor[0] = BodyLight[0];
+        Render::Build::CurrentRenderCtx().flatColor[1] = BodyLight[1];
+        Render::Build::CurrentRenderCtx().flatColor[2] = BodyLight[2];
+        Render::Build::CurrentRenderCtx().flatColor[3] = (Alpha >= 0.99f) ? 1.f : Alpha;
     }
     for (int i = 0; i < NumMeshs; i++)
     {

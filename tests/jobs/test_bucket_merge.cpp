@@ -22,6 +22,9 @@ namespace
     }
 
     // Synthesize one record into the worker map under a key, setting metadata on first sight.
+    // The per-bucket frame-global shader inputs (instLight/instWave/chrome*, sub-task 6.7) are
+    // derived deterministically from `mode` so distinct keys carry distinct values, exercising
+    // the first-sight carry in MergeBuckets.
     void Feed(InstBucketMap& wm, uint64_t key, int seed,
               const void* model, int mesh, int tex, int mode, int blend,
               float uv0, float uv1)
@@ -30,6 +33,11 @@ namespace
         b.model = reinterpret_cast<const BMD*>(model);
         b.meshIndex = mesh; b.texId = tex; b.mode = mode; b.blend = blend;
         b.uvScroll[0] = uv0; b.uvScroll[1] = uv1;
+        b.instLight[0] = (float)mode + 0.1f; b.instLight[1] = (float)mode + 0.2f; b.instLight[2] = (float)mode + 0.3f;
+        b.instWave = (float)mode * 0.5f;
+        b.chromeWave2 = (float)mode * 0.25f;
+        b.chromeL[0] = (float)mode + 1.f; b.chromeL[1] = (float)mode + 2.f; b.chromeL[2] = (float)mode + 3.f;
+        b.chromeLightVec[0] = (float)mode + 4.f; b.chromeLightVec[1] = (float)mode + 5.f; b.chromeLightVec[2] = (float)mode + 6.f;
         PushRec(b, seed);
     }
 }
@@ -86,6 +94,19 @@ TEST_CASE("MergeBuckets: round-robin across W workers == all on worker 0")
         CHECK(a.blend == b.blend);
         CHECK(a.uvScroll[0] == b.uvScroll[0]);
         CHECK(a.uvScroll[1] == b.uvScroll[1]);
+
+        // Per-bucket frame-global shader inputs (sub-task 6.7) carried from first-sight.
+        CHECK(a.instWave == b.instWave);
+        CHECK(a.chromeWave2 == b.chromeWave2);
+        for (int k = 0; k < 3; ++k)
+        {
+            CHECK(a.instLight[k] == b.instLight[k]);
+            CHECK(a.chromeL[k] == b.chromeL[k]);
+            CHECK(a.chromeLightVec[k] == b.chromeLightVec[k]);
+        }
+        // And they match the metadata the key was fed with (mode-derived above).
+        CHECK(a.instWave == (float)a.mode * 0.5f);
+        CHECK(a.chromeWave2 == (float)a.mode * 0.25f);
 
         // Same instance count.
         CHECK(a.recs.size() == b.recs.size());

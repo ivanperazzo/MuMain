@@ -49,11 +49,10 @@ namespace Render::Models
         std::unordered_map<uint64_t, Bucket> s_drawBuckets;
         int s_drawCount = 0;
         int s_instCount = 0;
-        float s_instLight[3] = { 0.f, 0.f, 0.f };   // global lit light dir (lit instances)
-        float s_instWave = 0.f;                     // global chrome reflection scroll
-        float s_chromeWave2 = 0.f;                  // CHROME2/6 scroll (frame-global)
-        float s_chromeL[3] = { 0.f, 0.f, 1.f };     // CHROME4 light vec
-        float s_chromeLightVec[3] = { 0.f, 0.f, 1.f }; // CHROME3 LightVector
+        // sub-task 6.7: the chrome/wave/light shader inputs that used to be shared frame
+        // globals (s_instLight/s_instWave/s_chromeWave2/s_chromeL/s_chromeLightVec) now ride
+        // per-bucket (InstBucketData::instLight/instWave/chrome*), set at InstAdd and applied
+        // per-bucket at flush. Per-worker buckets => a parallel collect never races them.
 
         // mode/blend in the top nibble (bits 60-63): on the x86 build a 32-bit model
         // pointer <<24 reaches bit 56 at most, so chrome/additive variants never collide
@@ -90,33 +89,11 @@ namespace Render::Models
         Render::GL::GetBonePaletteTBO().Begin();
         s_drawCount = 0;
         s_instCount = 0;
-        s_instLight[0] = s_instLight[1] = s_instLight[2] = 0.f;
-        s_instWave = 0.f;
-        s_chromeWave2 = 0.f;
-        s_chromeL[0] = s_chromeL[1] = 0.f; s_chromeL[2] = 1.f;
-        s_chromeLightVec[0] = s_chromeLightVec[1] = 0.f; s_chromeLightVec[2] = 1.f;
     }
 
     int InstAppendPalette(const float (*boneMatrix)[3][4], int boneCount)
     {
         return Render::GL::GetBonePaletteTBO().AppendPalette(boneMatrix, boneCount);
-    }
-
-    void InstSetLight(const float lightPos[3])
-    {
-        s_instLight[0] = lightPos[0]; s_instLight[1] = lightPos[1]; s_instLight[2] = lightPos[2];
-    }
-
-    void InstSetWave(float wave)
-    {
-        s_instWave = wave;
-    }
-
-    void InstSetChromeParams(float wave2, const float L[3], const float lightVec[3])
-    {
-        s_chromeWave2 = wave2;
-        s_chromeL[0] = L[0]; s_chromeL[1] = L[1]; s_chromeL[2] = L[2];
-        s_chromeLightVec[0] = lightVec[0]; s_chromeLightVec[1] = lightVec[1]; s_chromeLightVec[2] = lightVec[2];
     }
 
     void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec, int mode, int blend)
@@ -128,6 +105,14 @@ namespace Render::Models
         InstBucketData& b = wm[Key(model, meshIndex, texId, mode, blend)];
         b.model = model; b.meshIndex = meshIndex; b.texId = texId; b.mode = mode; b.blend = blend;
         b.uvScroll[0] = rec.uvScroll[0]; b.uvScroll[1] = rec.uvScroll[1];   // per-bucket UV offset (wave); identical across instances of this model+mesh
+        // Per-bucket frame-global shader inputs (sub-task 6.7), formerly the shared s_inst*/
+        // s_chrome* globals. Frame-constant across this bucket's instances; the last writer
+        // (== identical value) wins, mirroring the old global-set semantics exactly.
+        b.instLight[0] = rec.instLight[0]; b.instLight[1] = rec.instLight[1]; b.instLight[2] = rec.instLight[2];
+        b.instWave = rec.instWave;
+        b.chromeWave2 = rec.chromeWave2;
+        b.chromeL[0] = rec.chromeL[0]; b.chromeL[1] = rec.chromeL[1]; b.chromeL[2] = rec.chromeL[2];
+        b.chromeLightVec[0] = rec.chromeLightVec[0]; b.chromeLightVec[1] = rec.chromeLightVec[1]; b.chromeLightVec[2] = rec.chromeLightVec[2];
         b.recs.push_back(rec.paletteBase);
         b.recs.push_back(rec.bodyScale);
         b.recs.push_back(rec.bodyOrigin[0]);
@@ -172,8 +157,8 @@ namespace Render::Models
         tbo.Bind(1);
         sh.SetPaletteUnit(1);
         sh.SetTextureUnit(0);
-        sh.SetLight(s_instLight);   // global lit dir set during collect (lit instances)
-        sh.SetChromeParams(s_chromeWave2, s_chromeL, s_chromeLightVec);   // chrome variants
+        // sub-task 6.7: SetLight/SetWave/SetChromeParams are now applied PER-BUCKET inside
+        // drawBucket (the values ride in InstBucketData), not once for the whole flush.
         ActiveTexture(GL_TEXTURE0);
 
         const GLint aPos = sh.AttrPos(), aVB = sh.AttrVBone(), aN = sh.AttrNormal(),
@@ -213,7 +198,12 @@ namespace Render::Models
             if (iLit   >= 0) { EnableVertexAttribArray(iLit);   VertexAttribPointer(iLit,   1, GL_FLOAT, GL_FALSE, kInstStride, (const GLvoid*)(size_t)kOffLit);    VertexAttribDivisor(iLit, 1); }
 
             sh.SetChromeMode(b.mode);   // 0 textured / 1 chrome sphere-map
-            sh.SetWave(s_instWave);
+            // Per-bucket frame-global shader inputs (sub-task 6.7): formerly set once for the
+            // whole flush from the shared s_inst*/s_chrome* globals. Frame-constant per bucket,
+            // so setting them per-bucket yields byte-identical uniforms to the old path.
+            sh.SetLight(b.instLight);
+            sh.SetWave(b.instWave);
+            sh.SetChromeParams(b.chromeWave2, b.chromeL, b.chromeLightVec);
             sh.SetUvScroll(b.uvScroll); // textured UV offset (wave); 0 for non-wave buckets
             BindTexture(b.texId);
             DrawArraysInstanced(GL_TRIANGLES, 0, g->vertexCount, instances);
