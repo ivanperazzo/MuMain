@@ -48,7 +48,31 @@ namespace Render::Build
         float fTransformedSize = 0.f;
         // flat color precomputed for the instanced flat branch (replaces glGetFloatv) -- sub-task 6.7
         float flatColor[4] = {1.f, 1.f, 1.f, 1.f};
+
+        // Etapa 3b 6.6: per-Transform correlation context. These encode the
+        // "Transform precedes RenderMesh/InstAdd for the SAME object, no intervening
+        // Transform" invariant (the P-bmd-skinskip / P-bmd-gpu / instanced-palette-base
+        // feature). Previously file-statics in ZzzBMD.cpp, now per-worker so the
+        // correlation holds per-worker under parallel Phase B. Initial values mirror the
+        // originals exactly (sentinels 0xFFFFFFFF, others 0/false/nullptr).
+        float (*lastBoneMatrix)[3][4] = nullptr;   // == ZzzBMD's float(*)[3][4]
+        bool  lastTransformTranslate = false;
+        float lastTransformScale     = 0.f;
+        unsigned transformSerial     = 0;
+        float lastLightPosition[3]   = {0.f, 0.f, 0.f};   // == vec3_t
+        bool  lastLightEnable        = false;
+        unsigned skinnedSerial       = 0xFFFFFFFFu;
+        bool  meshSkinned[50]        = {};                // == bool[MAX_MESH]
+        // InstPaletteBaseForCurrentPart's function-local statics (instanced palette base
+        // cache for the current Transform). Per-worker so parallel workers don't return
+        // each other's palette base.
+        unsigned instPaletteLastSerial = 0xFFFFFFFFu;
+        int      instPaletteLastBase   = 0;
     };
+
+#ifdef MAX_MESH
+    static_assert(50 == MAX_MESH, "BmdRenderContext meshSkinned size drifted from MAX_MESH");
+#endif
 
     // Thread-safe across distinct workers ONLY after InitRenderCtxs(>=WorkerCount());
     // the grow path in CtxAt is startup-only and must not run during ParallelFor.

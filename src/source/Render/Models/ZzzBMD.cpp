@@ -249,29 +249,36 @@ bool HighLight = true;
 // Etapa 3b 6.2: the file-global BoneScale moved to Render::Build::BmdRenderContext::boneScale
 // (per-worker). Bare references below are macro-mapped to CurrentRenderCtx().boneScale.
 
-// P-bmd-gpu: context of the last BMD::Transform call, consumed by the next
-// RenderMesh's GPU path. File-scope statics (NOT BMD members) so the feature does
-// not grow sizeof(BMD) -- the Models[] array layout must stay byte-identical.
-// Safe because rendering is single-threaded and Transform precedes RenderMesh for
-// the same object (RenderObject = Calc(Transform) -> Draw(RenderMesh)).
-static float (*s_lastBoneMatrix)[3][4] = nullptr;
-static bool   s_lastTransformTranslate = false;
-static float  s_lastTransformScale     = 0.f;
-// P-bmd-instance: monotonic id bumped per Transform. g_BoneTransformScratch is a global
-// reused by every model, so pointer identity can't tell two characters apart;
-// the serial does (one palette appended per character-part, shared by its meshes).
-static unsigned s_transformSerial = 0;
-
-// P-bmd-skinskip: context recorded by Transform so a deferred mesh can be skinned
-// on demand later (EnsureMeshSkinned) with the exact same inputs. Valid because the
-// model's RenderMesh/shadow/effect reads happen right after its Transform with no
-// intervening Transform (same invariant the instanced palette base relies on).
-static vec3_t   s_lastLightPosition = { 0.f, 0.f, 0.f };
-static bool     s_lastLightEnable   = false;
-// "skinned this mesh for this serial" set; reset when the serial changes.
-static unsigned s_skinnedSerial = 0xFFFFFFFFu;
-static bool     s_meshSkinned[MAX_MESH] = {};
-static vec3_t   s_skinScratchMin, s_skinScratchMax;   // bounding sink for lazy skin (unused in gameplay)
+// Etapa 3b 6.6: the per-Transform correlation context (P-bmd-gpu / P-bmd-skinskip /
+// P-bmd-instance) used to be file-scope statics here. They encode the "Transform precedes
+// RenderMesh/InstAdd for the SAME object, no intervening Transform" invariant; under
+// parallel Phase B two workers would race on them. They now live in the per-worker
+// Render::Build::BmdRenderContext (CurrentRenderCtx()), so the set->use correlation holds
+// per-worker. These are FILE-STATICS, NOT BMD members, so there is NO sizeof(BMD) concern
+// and NO reserved padding (pure static->per-worker relocation, like Tasks 2-3).
+//
+// File-local object-like macros keep every call site unchanged. The s_*-prefixed tokens
+// below are distinct whole tokens with no conflicting local/param/member in this TU, so the
+// preprocessor rewrites them exactly. Initial values match the originals (skinnedSerial /
+// instPaletteLastSerial = 0xFFFFFFFF via the struct default-member-init; others 0/false/null).
+//
+//   P-bmd-gpu: context of the last BMD::Transform call, consumed by the next RenderMesh's GPU path.
+#define s_lastBoneMatrix         (Render::Build::CurrentRenderCtx().lastBoneMatrix)
+#define s_lastTransformTranslate (Render::Build::CurrentRenderCtx().lastTransformTranslate)
+#define s_lastTransformScale     (Render::Build::CurrentRenderCtx().lastTransformScale)
+//   P-bmd-instance: monotonic id bumped per Transform (one palette appended per character-part).
+#define s_transformSerial        (Render::Build::CurrentRenderCtx().transformSerial)
+//   P-bmd-skinskip: context recorded by Transform so a deferred mesh can be skinned on demand later.
+#define s_lastLightPosition      (Render::Build::CurrentRenderCtx().lastLightPosition)
+#define s_lastLightEnable        (Render::Build::CurrentRenderCtx().lastLightEnable)
+//   "skinned this mesh for this serial" set; reset when the serial changes.
+#define s_skinnedSerial          (Render::Build::CurrentRenderCtx().skinnedSerial)
+#define s_meshSkinned            (Render::Build::CurrentRenderCtx().meshSkinned)
+// DEAD-AND-DROPPED: s_skinScratchMin/s_skinScratchMax were a "bounding sink for lazy skin
+// (unused in gameplay)" — SkinMesh only WRITES them (under EditFlag==2) and nothing reads
+// the result downstream. They are now a per-worker throwaway scratch on EnsureMeshSkinned's
+// call to SkinMesh (see below), not a shared static. (No sizeof concern, just removing dead
+// shared mutable state for an exhaustive race audit.)
 
 void BMD::SkinMesh(int meshIndex, float(*BoneMatrix)[3][4], bool Translate, float _Scale,
                    const float* LightPosition, float* BoundingMin, float* BoundingMax) const
@@ -347,8 +354,11 @@ void BMD::EnsureMeshSkinned(int meshIndex) const
     if (s_meshSkinned[meshIndex] || s_lastBoneMatrix == nullptr)
         return;
     s_meshSkinned[meshIndex] = true;
+    // s_skinScratchMin/Max dropped (dead output): SkinMesh's bounding write under EditFlag==2
+    // is discarded downstream, so feed a local throwaway sink instead of a shared static.
+    vec3_t skinScratchMin, skinScratchMax;
     SkinMesh(meshIndex, s_lastBoneMatrix, s_lastTransformTranslate, s_lastTransformScale,
-             s_lastLightEnable ? s_lastLightPosition : nullptr, s_skinScratchMin, s_skinScratchMax);
+             s_lastLightEnable ? s_lastLightPosition : nullptr, skinScratchMin, skinScratchMax);
 }
 
 void BMD::MarkMeshSkinned(int meshIndex) const
@@ -1230,17 +1240,21 @@ bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float
 // Transform serial). Returns the palette base index for InstanceRec.
 static int InstPaletteBaseForCurrentPart(int numBones)
 {
-    static unsigned s_lastSerial = 0xFFFFFFFFu;
-    static int      s_lastBase   = 0;
-    if (s_transformSerial != s_lastSerial)
+    // Etapa 3b 6.6: these per-Transform palette-base cache statics moved to the per-worker
+    // BmdRenderContext (instPaletteLastSerial / instPaletteLastBase). As shared function-local
+    // statics, parallel workers would return each other's palette base; per-worker preserves
+    // the "one palette per character-part, reused by its meshes" correlation per worker.
+    // Initial values match the originals (lastSerial = 0xFFFFFFFF, lastBase = 0).
+    auto& ctx = Render::Build::CurrentRenderCtx();
+    if (s_transformSerial != ctx.instPaletteLastSerial)
     {
         int bc = numBones;
         if (bc < 1) bc = 1;
         if (bc > Render::GL::BmdShader::kMaxBones) bc = Render::GL::BmdShader::kMaxBones;
-        s_lastBase   = Render::Models::InstAppendPalette(s_lastBoneMatrix, bc);
-        s_lastSerial = s_transformSerial;
+        ctx.instPaletteLastBase   = Render::Models::InstAppendPalette(s_lastBoneMatrix, bc);
+        ctx.instPaletteLastSerial = s_transformSerial;
     }
-    return s_lastBase;
+    return ctx.instPaletteLastBase;
 }
 
 // P-bmd-instance: global light direction for LIT instanced meshes. HighLight is a
