@@ -1235,6 +1235,13 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     // pure waste for collected meshes, and on the legacy path it must read freshly
     // skinned IntensityTransform under deferred skinning.
 
+    // True ALPHA-BLEND (translucent) meshes -- e.g. the "blend mesh" branch below that
+    // calls EnableAlphaBlend (wing membranes like Wings of Spirits). These must NOT be
+    // collected into the instanced batch: that flush is alpha-test/opaque only, so an
+    // instanced blend mesh renders flat/opaque (lost translucency). Flag it here and skip
+    // the whole GPU/instancing block so it falls through to the legacy alpha-blended draw.
+    bool meshAlphaBlended = false;
+
     int finalRenderFlags = renderFlags;
     if ((renderFlags & RENDER_COLOR) == RENDER_COLOR)
     {
@@ -1371,6 +1378,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     else if (blendMeshIndex <= -2 || m->Texture == blendMeshIndex)
     {
         finalRenderFlags = RENDER_TEXTURE;
+        meshAlphaBlended = true;   // translucent blend mesh -> keep off the instanced (opaque) batch
         BindTexture(textureIndex);
         if ((renderFlags & RENDER_DARK) == RENDER_DARK)
             EnableAlphaBlendMinus();
@@ -1498,6 +1506,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
         && Render::GL::IsLoaded()
         && (finalRenderFlags == RENDER_TEXTURE || plainChrome || chromeVarOk) && !EnableWave
+        && !meshAlphaBlended   // translucent blend mesh: legacy alpha-blended path only
         && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
         && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
     {
