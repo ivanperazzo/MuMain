@@ -57,10 +57,43 @@ sub-profiling más fino no hay una sola palanca clara.
 3. **Sub-profiling**: separar per-char (RenderCharactersClient body) vs mesh-walk vs
    los 200 legacy, para saber dónde está realmente el 8.5 ms antes de tocar nada.
 
+## Sub-profiling del collect-walk (8.5 ms) — `[rm_prof]` (instrumentación temporal, ya removida)
+
+Split del walk (harness 100ch):
+
+| parte | meshes | tiempo |
+|---|---|---|
+| **legacy tail** (CPU-skin + draw inmediato) | ~200 (2/char) | **~3.9 ms** ← mayor |
+| collect instanced (InstAdd) | ~2100 | ~2.5 ms |
+| per-char setup (RenderCharactersClient − mesh-walk) | 100 ch | ~3.5 ms |
+
+Los ~200 legacy NO eran "ineligible geometry": son **blend meshes translúcidos**
+(`meshAlphaBlended`: glows de ítem excellent / membranas de ala) que el fix de alas
+(`d26ec0e3`) excluía de TODO el bloque GPU → caían a legacy CPU-skin + immediate.
+1 mesh distinto (`mesh#1`, glow) compartido por todos los chars → ~1/char.
+
+## Fix implementado — blend meshes por per-mesh GPU (flag `MU_GPUBLENDMESH`)
+
+`RenderMeshGpu` honra el blend state actual + color plano y resetea program/buffer al
+salir, así que un blend mesh puede dibujarse **GPU-skinned, alpha-blended, en orden**
+(per-mesh, antes del InstFlush, igual que el legacy) — solo el skinning se va a la GPU.
+Cambios (`ZzzBMD.cpp`): el bloque GPU acepta `meshAlphaBlended` cuando el flag está ON;
+se excluye del `InstAdd` (batch opaco) → cae a `RenderMeshGpu`. Wave meshes siguen
+legacy (`!EnableWave` gate), así que los glows con scroll de textura no cambian.
+
+**A/B (harness 100ch):** geom legacy 93→**0**, permeshGPU 2→**191**, GPU 91%→98%,
+per-mesh RenderMesh **2.72→2.07 µs (−24 %)**, legacy 91 ms→17 ms por ventana de
+138k calls. Screenshots `shot_blend_off/on.jpg`: glows azul/cyan + naranja **idénticos**,
+translucidez preservada, sin crash. Win ~1–1.5 ms del char pass (a 100ch).
+
+**Estado:** flag default OFF (regla multi-mapa CLAUDE.md; blend meshes son sensibles —
+ver `d26ec0e3`). Activado en `run-temporal-rel.bat` para validación in-game multi-mapa
+(Lorencia/Devias/Atlans/especiales + alas/ítems excellent). Flip default ON tras validar.
+
 ## Veredicto
 
-1.3 como estaba especificado (skip GL-state) **no procede**. El char pass ya está
-bastante optimizado (instancing 91%, skin diferido, palette/cache baratos). Exprimir
-los 8.5 ms restantes es un proyecto de sub-profiling + refactor del hot-path con
-payoff incierto — **decisión estratégica del usuario** (vs threading Etapa 3, vs
+1.3 como estaba especificado (skip GL-state) **no procede** (estado ya cacheado). El
+win real fue mover los blend meshes translúcidos a GPU (~1–1.5 ms, flag-gated). Lo que
+queda (per-char setup ~3.5 ms difuso, collect instanced ~2.5 ms ya eficiente) tiene
+payoff decreciente — **decisión estratégica del usuario** (vs threading Etapa 3, vs
 volver a server-authority que es la prioridad real del proyecto, CLAUDE.md).

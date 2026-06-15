@@ -10,8 +10,9 @@ set "MU_GPUBMD=1"
 set "MU_GPUINST=1"
 set "MU_GPUSHADOW=1"
 set "MU_GPUSKIN=1"
+set "MU_GPUBLENDMESH=1"
 set "MU_NOVSYNC=1"
 set "MU_FPS=1"
-echo [temporal-rel] GPUINST/BMD/SHADOW/SKIN/NOVSYNC=1 FPS=1 launching client connect /u127.0.0.1 /p44406
+echo [temporal-rel] GPUINST/BMD/SHADOW/SKIN/BLENDMESH/NOVSYNC=1 FPS=1 launching client connect /u127.0.0.1 /p44406
 "%REL%\Main.exe" connect /u127.0.0.1 /p44406
 endlocal
