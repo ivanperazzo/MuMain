@@ -100,6 +100,22 @@ so Task 6's race-audit pass can tick them off:
   exhaustive. *(Out of Task 3 scope.)*
 - `g_vright` (`BMD::Chrome`) — was a file-global; **resolved in this task** (demoted to a
   function-local, see the enumeration table above). No longer shared state.
+- **`s_instLight`, `s_instWave`, `s_chromeWave2`, `s_chromeL[3]`, `s_chromeLightVec[3]`
+  (`BmdInstanceBatch.cpp:52-56`)** — NEW find during the **Task 4 review**. These instanced
+  collect globals are written **per-mesh** from inside the per-entity build via
+  `InstSetLight` (`ZzzBMD.cpp:1633,1643`), `InstSetWave` (`:1597,1612`), and
+  `InstSetChromeParams` (`:1616`), and read once at `InstFlush`. The design treats them as
+  "frame-global" but they are set per mesh and only converge because the build is serial.
+  Under Task 6 parallelism multiple workers race-write them and the flush reads a
+  non-deterministic last-writer → breaks serial-identical chrome/wave/lit visuals.
+  **Flagged for Task 6:** move them into the per-instance `InstanceRec` / per-bucket data
+  (exactly like `uvScroll` already was), OR hoist their computation to a true frame-global
+  outside the parallel region. *(Out of Task 4 scope — Task 4 keeps the build serial.)*
+- **`glGetFloatv(GL_CURRENT_COLOR, cur)` (`ZzzBMD.cpp:1649`, flat-color instanced branch)** —
+  a **GL read on the build path**, illegal off the GL thread. Under Task 6 the build runs on
+  worker threads with no GL context → this call is invalid. **Flagged for Task 6:** precompute
+  the flat color into the per-entity visible-entry (Task 5) / `InstanceRec` so no GL state is
+  read during the parallel build. *(Pre-existing; surfaced by the Task 4 review.)*
 
 ## Acceptance grep
 
