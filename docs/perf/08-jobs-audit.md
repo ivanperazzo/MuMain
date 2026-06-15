@@ -116,6 +116,17 @@ so Task 6's race-audit pass can tick them off:
   worker threads with no GL context → this call is invalid. **Flagged for Task 6:** precompute
   the flat color into the per-entity visible-entry (Task 5) / `InstanceRec` so no GL state is
   read during the parallel build. *(Pre-existing; surfaced by the Task 4 review.)*
+- **Phase-B non-render side-effects inside `BuildVisibleChar` (Task 5 review finds):**
+  - **`CreateBattleCastleCharacter_Visual(c,o)` → `CreateGuardStoneHealingVisual`
+    (`GMBattleCastle.cpp:1734-1766`)** — LIVE (non-editor) shared-mutable write on the Phase-B
+    path: reads/writes globals `LastHealingParticle` + `WorldTime` and calls `CreateParticle`
+    (mutates the global particle pool). Under parallelism workers race on these. **Flagged for
+    Task 6:** move this per-entity side-effect to Phase G (serial), or run it in a serial
+    post-pass after the parallel build. Higher priority — it is not editor-gated.
+  - **`RenderCharacterPickBoxDebug(o)` (`ZzzCharacter.cpp:91`, `_EDITOR` only)** — issues GL
+    directly; illegal off the GL thread. Editor-only, so a Release `MU_JOBS` build is unaffected,
+    but documented for completeness. **Flagged for Task 6:** keep editor pickbox draws on the
+    GL thread (Phase F / serial).
 
 ## Acceptance grep
 
