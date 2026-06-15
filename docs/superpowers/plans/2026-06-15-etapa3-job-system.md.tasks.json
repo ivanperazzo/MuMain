@@ -76,7 +76,7 @@
     {
       "id": 12,
       "subject": "Task 6.5: Migrate mesh-selection group to CurrentRenderCtx()",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [11],
       "description": "StreamMesh, Skin, HideSkin, fTransformedSize -> CurrentRenderCtx(). Repoint setters + RenderMesh gates + cross-TU HideSkin reads in ZzzObject.cpp:7661-8859. RETAIN BMD members as reserved layout padding (do NOT delete — sizeof(BMD) must stay byte-identical, crash-login). A/B + login crowd harness (crash is silent in bmd_cov).",
       "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzObject.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_mesh; [bmd_cov] identical"}
