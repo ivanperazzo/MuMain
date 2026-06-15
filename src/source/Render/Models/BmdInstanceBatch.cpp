@@ -12,8 +12,10 @@
 #include "Render/GL/GLLog.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
+#include "Core/Jobs/ThreadPool.h"
 
 #include <gl/glew.h>
+#include <algorithm>
 #include <cstdint>
 #include <unordered_map>
 #include <vector>
@@ -32,19 +34,19 @@ namespace Render::Models
         constexpr GLsizei kOffColor   = 5 * (GLsizei)sizeof(float);
         constexpr GLsizei kOffLit     = 9 * (GLsizei)sizeof(float);
 
-        struct Bucket
+        // GL-backed draw bucket: the GL-free payload (model/mesh/tex/mode/blend/uvScroll +
+        // recs, defined in the header for the unit-testable merge) plus a per-bucket VBO.
+        struct Bucket : InstBucketData
         {
-            const BMD* model = nullptr;
-            int        meshIndex = 0;
-            int        texId = 0;
-            int        mode = 0;           // 0 = textured, 1 = chrome (sphere-map)
-            int        blend = 0;          // 0 = opaque (alpha-test), 1 = additive (GL_ONE/ONE)
-            float      uvScroll[2] = { 0.f, 0.f };  // textured UV offset (wave), frame-global per (model, mesh)
-            std::vector<float>     recs;   // flattened InstanceRec (10 floats each)
             Render::GL::GpuBuffer  instVbo;
         };
 
-        std::unordered_map<uint64_t, Bucket> s_buckets;
+        // Per-worker collection: each worker appends into its OWN map (s_workerBuckets[w]),
+        // so the (eventually parallel) build never mutates shared state. Sized to the pool's
+        // worker count; the serial path uses only worker 0 -> byte-identical output.
+        // s_drawBuckets is the merged draw set built at flush.
+        std::vector<InstBucketMap>           s_workerBuckets;
+        std::unordered_map<uint64_t, Bucket> s_drawBuckets;
         int s_drawCount = 0;
         int s_instCount = 0;
         float s_instLight[3] = { 0.f, 0.f, 0.f };   // global lit light dir (lit instances)
@@ -66,10 +68,25 @@ namespace Render::Models
         }
     }
 
+    namespace
+    {
+        int WorkerBucketCount()
+        {
+            const int n = Core::Jobs::ThreadPool::Instance().WorkerCount();
+            return n < 1 ? 1 : n;
+        }
+    }
+
     void InstBegin()
     {
-        for (auto& kv : s_buckets)
-            kv.second.recs.clear();
+        // Size the per-worker collection once; clear each worker's records (retain map
+        // capacity so warm frames don't reallocate the buckets).
+        const int workers = WorkerBucketCount();
+        if ((int)s_workerBuckets.size() < workers)
+            s_workerBuckets.resize(workers);
+        for (auto& wm : s_workerBuckets)
+            for (auto& kv : wm)
+                kv.second.recs.clear();
         Render::GL::GetBonePaletteTBO().Begin();
         s_drawCount = 0;
         s_instCount = 0;
@@ -104,7 +121,11 @@ namespace Render::Models
 
     void InstAdd(const BMD* model, int meshIndex, int texId, const InstanceRec& rec, int mode, int blend)
     {
-        Bucket& b = s_buckets[Key(model, meshIndex, texId, mode, blend)];
+        // Append to the CALLING worker's bucket map (no shared mutation). On the serial path
+        // CurrentWorkerIndex() == 0, so this is the single-map behaviour of pre-Task-4.
+        const int w = Core::Jobs::ThreadPool::CurrentWorkerIndex();
+        InstBucketMap& wm = s_workerBuckets[(w >= 0 && w < (int)s_workerBuckets.size()) ? w : 0];
+        InstBucketData& b = wm[Key(model, meshIndex, texId, mode, blend)];
         b.model = model; b.meshIndex = meshIndex; b.texId = texId; b.mode = mode; b.blend = blend;
         b.uvScroll[0] = rec.uvScroll[0]; b.uvScroll[1] = rec.uvScroll[1];   // per-bucket UV offset (wave); identical across instances of this model+mesh
         b.recs.push_back(rec.paletteBase);
@@ -126,6 +147,20 @@ namespace Render::Models
         BonePaletteTBO&     tbo = GetBonePaletteTBO();
         if (!sh.Ensure() || !tbo.Ensure())
             return;
+
+        // Merge the per-worker collections into the draw set (order-independent). Retain
+        // s_drawBuckets's GpuBuffers across frames (keyed VBOs reused); clear only records.
+        for (auto& kv : s_drawBuckets)
+            kv.second.recs.clear();
+        {
+            InstBucketMap merged;
+            MergeBuckets(s_workerBuckets.data(), (int)s_workerBuckets.size(), merged);
+            for (auto& kv : merged)
+            {
+                Bucket& dst = s_drawBuckets[kv.first];   // reuses existing instVbo if present
+                static_cast<InstBucketData&>(dst) = std::move(kv.second);
+            }
+        }
 
         tbo.Upload();
 
@@ -190,14 +225,14 @@ namespace Render::Models
 
         // Pass 1: opaque meshes (textured bodies + opaque chrome) — alpha-test, depth write.
         EnableAlphaTest();
-        for (auto& kv : s_buckets)
+        for (auto& kv : s_drawBuckets)
             if (kv.second.blend == 0) drawBucket(kv.second);
 
         // Pass 2: additive chrome (RENDER_BRIGHT -> GL_ONE/GL_ONE; EnableAlphaBlend turns OFF
         // depth writes). Additive is order-independent, so no per-instance sort is needed; the
         // depth test still rejects chrome behind the opaque geometry drawn in pass 1.
         EnableAlphaBlend();
-        for (auto& kv : s_buckets)
+        for (auto& kv : s_drawBuckets)
             if (kv.second.blend == 1) drawBucket(kv.second);
 
         // Restore the opaque alpha-test end-state (depth write on) the textured-only flush
@@ -225,16 +260,31 @@ namespace Render::Models
     int  InstDrawCount()     { return s_drawCount; }
     int  InstInstanceCount() { return s_instCount; }
 
-    void DropInstanceBuffers() { s_buckets.clear(); }
+    void DropInstanceBuffers()
+    {
+        s_drawBuckets.clear();   // frees each Bucket's instVbo
+        for (auto& wm : s_workerBuckets)
+            wm.clear();
+    }
 
     void DropInstanceBucketsFor(const BMD* model)
     {
-        for (auto it = s_buckets.begin(); it != s_buckets.end(); )
+        for (auto it = s_drawBuckets.begin(); it != s_drawBuckets.end(); )
         {
             if (it->second.model == model)
-                it = s_buckets.erase(it);   // Bucket dtor frees its instVbo
+                it = s_drawBuckets.erase(it);   // Bucket dtor frees its instVbo
             else
                 ++it;
+        }
+        for (auto& wm : s_workerBuckets)
+        {
+            for (auto it = wm.begin(); it != wm.end(); )
+            {
+                if (it->second.model == model)
+                    it = wm.erase(it);
+                else
+                    ++it;
+            }
         }
     }
 

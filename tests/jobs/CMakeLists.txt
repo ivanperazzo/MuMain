@@ -12,3 +12,10 @@ mu_add_test(
         ${CMAKE_SOURCE_DIR}/src/source/Render/Build/WorkerArena.cpp
         ${CMAKE_SOURCE_DIR}/src/source/Core/Jobs/ThreadPool.cpp
 )
+
+mu_add_test(
+    NAME test_bucket_merge
+    SOURCES
+        test_bucket_merge.cpp
+        ${CMAKE_SOURCE_DIR}/src/source/Render/Models/BmdInstanceBatchMerge.cpp
+)
