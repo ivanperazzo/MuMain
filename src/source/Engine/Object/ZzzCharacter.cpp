@@ -11,11 +11,13 @@
 #ifdef _WIN32
 #include <eh.h>
 #endif
+#include <vector>
 #include "UI/Legacy/UIManager.h"
 #include "Guild/GuildCache.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Models/BmdGpuCache.h"
+#include "Render/Build/VisibleList.h"
 #include "Render/Interpolation.h"
 #include "Render/AnimTiming.h"
 #include "Render/AnimInterp.h"
@@ -11399,106 +11401,168 @@ static bool ClearCloakedTarget(CHARACTER* c)
     return false;
 }
 
-void RenderCharactersClient()
+// Etapa 3, Task 5 — explicit G/B/F phases for the character pass.
+//
+// Phase G (GatherVisibleChars): iterate every client character, run the
+// cross-entity cull/decision work (cloaked-target clear, Hero-OBB special case,
+// Live/Visible cull) and COMPUTE the per-entity interpolation (remote position +
+// animation pose), storing the results into a flat VisibleChar list. Does NOT
+// mutate o->Position / anim fields — they are stored in the entry. NoteVisibleChar
+// is called here, once per visible entry in iteration order.
+//
+// Phase B (BuildVisibleChar): per-entity only. Applies the precomputed
+// interpolation onto the (per-entity-owned) OBJECT, calls RenderCharacter, then
+// restores the originals. Because each entity appears exactly once in the list,
+// this mutate-restore is per-entity-safe (matters when Phase B goes parallel in
+// Task 6). Reads only the entry — no shared decision state.
+//
+// Phase F is unchanged: InstFlush stays in the scene code.
+//
+// CRITICAL: this is a pure structural change. The interpolation math, the order
+// of characters, the save/restore semantics, the Hero-vs-remote distinction, the
+// selected flag, the cloaking skips and the Hero-OBB special case all reproduce
+// exactly the previous inline loop. The only change is WHERE the interpolation is
+// computed (Phase G, into the entry) vs applied (Phase B).
+static void GatherVisibleChars(std::vector<Render::Build::VisibleChar>& out)
 {
 #ifdef _EDITOR
     s_bShowCharacterPickBoxes = DevEditor_ShouldShowCharacterPickBoxes();
 #endif
+
+    out.clear();
 
     for (int i = 0; i < MAX_CHARACTERS_CLIENT; ++i)
     {
         CHARACTER* c = &CharactersClient[i];
         OBJECT* o = &c->Object;
 
-        // Task 3: cross-entity cloaked-target clear extracted to ClearCloakedTarget
-        // (relocatable to Phase G in Task 5). Called serially here -> behavior-neutral.
+        // Cross-entity cloaked-target clear (mutates Hero->TargetCharacter).
+        // Stays in Phase G (serial) — never runs in the parallel Phase B.
         if (ClearCloakedTarget(c))
             continue;
 
+        // Hero-OBB special case: mutates the Hero OBB then skips rendering.
+        // Cross-entity-ish (touches Hero state) -> Phase G.
         if (c == Hero && (0x04 & Hero->CtlCode) && SceneFlag == MAIN_SCENE)
         {
             o->OBB.StartPos[0] = 1000.0f;
             o->OBB.XAxis[0] = o->OBB.YAxis[1] = o->OBB.ZAxis[2] = 1.0f;
             continue;
         }
-        if (o->Live)
+
+        if (!o->Live)
+            continue;
+        if (!o->Visible)
+            continue;
+
+        Render::Build::VisibleChar e{};
+        e.c = c;
+        e.o = o;
+        e.index = i;
+        e.selected = (i == SelectedCharacter || i == SelectedNpc);
+
+        // Stage 3: compute the interpolated render position for remote entities
+        // (mobs / other players). The Hero is skipped here — its position is
+        // already interpolated for the whole draw (camera + model) in RenderScene.
+        e.applyRenderPos = (c != Hero && SceneFlag == MAIN_SCENE);
+        if (e.applyRenderPos)
         {
-            if (o->Visible)
-            {
-                // Stage 3: render remote entities (mobs / other players) at the
-                // interpolated position so they are smooth at high FPS. The Hero
-                // is skipped here — its position is already interpolated for the
-                // whole draw (camera + model) in RenderScene.
-                float remoteSaved[3];
-                const bool remoteInterp = (c != Hero && SceneFlag == MAIN_SCENE);
-                if (remoteInterp)
-                {
-                    remoteSaved[0] = o->Position[0];
-                    remoteSaved[1] = o->Position[1];
-                    remoteSaved[2] = o->Position[2];
-                    float rp[3];
-                    Render::Interpolation::RemoteRenderPos(i, remoteSaved, rp);
-                    o->Position[0] = rp[0];
-                    o->Position[1] = rp[1];
-                    o->Position[2] = rp[2];
-                }
+            float remoteSaved[3] = { o->Position[0], o->Position[1], o->Position[2] };
+            Render::Interpolation::RemoteRenderPos(i, remoteSaved, e.renderPos);
+        }
 
-                // Stage 4b: interpolate the body animation frame between sim ticks
-                // so the pose (limbs) is smooth at high FPS instead of stepping at
-                // 25 Hz. Applies to every character incl. the Hero. Overridden for
-                // the whole draw, then restored to the raw sim value.
-                float          animSavedFrame = o->AnimationFrame;
-                float          animSavedPriorFrame = o->PriorAnimationFrame;
-                unsigned short animSavedPriorAction = o->PriorAction;
-                const bool animInterp = (SceneFlag == MAIN_SCENE && Render::Interpolation::PoseEnabled());
-                if (animInterp)
-                {
-                    float          prevFrame = 0.f, prevPriorFrame = 0.f;
-                    unsigned short prevPriorAction = 0;
-                    const bool prevValid = (c == Hero)
-                        ? Render::Interpolation::HeroAnimPrev(prevFrame, prevPriorFrame, prevPriorAction)
-                        : Render::Interpolation::RemoteAnimPrev(i, prevFrame, prevPriorFrame, prevPriorAction);
+        // Stage 4b: compute the interpolated body animation pose between sim ticks
+        // so the limbs are smooth at high FPS instead of stepping at 25 Hz. Applies
+        // to every character incl. the Hero. Computed here, applied in Phase B.
+        e.applyAnim = (SceneFlag == MAIN_SCENE && Render::Interpolation::PoseEnabled());
+        if (e.applyAnim)
+        {
+            float          prevFrame = 0.f, prevPriorFrame = 0.f;
+            unsigned short prevPriorAction = 0;
+            const bool prevValid = (c == Hero)
+                ? Render::Interpolation::HeroAnimPrev(prevFrame, prevPriorFrame, prevPriorAction)
+                : Render::Interpolation::RemoteAnimPrev(i, prevFrame, prevPriorFrame, prevPriorAction);
 
-                    const auto pose = Render::AnimInterp::Interpolate(
-                        prevFrame, prevPriorFrame, prevPriorAction,
-                        animSavedFrame, animSavedPriorFrame, animSavedPriorAction,
-                        Render::Interpolation::FrameAlpha(), Render::Interpolation::Enabled(),
-                        prevValid);
-                    o->AnimationFrame      = pose.frame;
-                    o->PriorAnimationFrame = pose.priorFrame;
-                    o->PriorAction         = pose.priorAction;
-                }
+            const auto pose = Render::AnimInterp::Interpolate(
+                prevFrame, prevPriorFrame, prevPriorAction,
+                o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction,
+                Render::Interpolation::FrameAlpha(), Render::Interpolation::Enabled(),
+                prevValid);
+            e.animFrame       = pose.frame;
+            e.animPriorFrame  = pose.priorFrame;
+            e.animPriorAction = pose.priorAction;
+        }
 
-                Render::Models::NoteVisibleChar();
-                if (i != SelectedCharacter && i != SelectedNpc)
-                    RenderCharacter(c, o);
-                else
-                    RenderCharacter(c, o, true);
+        Render::Models::NoteVisibleChar();
+        out.push_back(e);
+    }
+}
 
-                if (animInterp)
-                {
-                    o->AnimationFrame      = animSavedFrame;
-                    o->PriorAnimationFrame = animSavedPriorFrame;
-                    o->PriorAction         = animSavedPriorAction;
-                }
+static void BuildVisibleChar(const Render::Build::VisibleChar& e)
+{
+    CHARACTER* c = e.c;
+    OBJECT*    o = e.o;
 
-                if (remoteInterp)
-                {
-                    o->Position[0] = remoteSaved[0];
-                    o->Position[1] = remoteSaved[1];
-                    o->Position[2] = remoteSaved[2];
-                }
+    // Apply the precomputed pose, render, then restore the raw sim values.
+    // Save/restore order mirrors the original inline loop exactly.
+    float remoteSaved[3];
+    if (e.applyRenderPos)
+    {
+        remoteSaved[0] = o->Position[0];
+        remoteSaved[1] = o->Position[1];
+        remoteSaved[2] = o->Position[2];
+        o->Position[0] = e.renderPos[0];
+        o->Position[1] = e.renderPos[1];
+        o->Position[2] = e.renderPos[2];
+    }
 
-                if (o->Type == MODEL_PLAYER)
-                    battleCastle::CreateBattleCastleCharacter_Visual(c, o);
+    float          animSavedFrame       = o->AnimationFrame;
+    float          animSavedPriorFrame  = o->PriorAnimationFrame;
+    unsigned short animSavedPriorAction = o->PriorAction;
+    if (e.applyAnim)
+    {
+        o->AnimationFrame      = e.animFrame;
+        o->PriorAnimationFrame = e.animPriorFrame;
+        o->PriorAction         = e.animPriorAction;
+    }
+
+    if (!e.selected)
+        RenderCharacter(c, o);
+    else
+        RenderCharacter(c, o, true);
+
+    if (e.applyAnim)
+    {
+        o->AnimationFrame      = animSavedFrame;
+        o->PriorAnimationFrame = animSavedPriorFrame;
+        o->PriorAction         = animSavedPriorAction;
+    }
+
+    if (e.applyRenderPos)
+    {
+        o->Position[0] = remoteSaved[0];
+        o->Position[1] = remoteSaved[1];
+        o->Position[2] = remoteSaved[2];
+    }
+
+    if (o->Type == MODEL_PLAYER)
+        battleCastle::CreateBattleCastleCharacter_Visual(c, o);
 
 #ifdef _EDITOR
-                if (s_bShowCharacterPickBoxes)
-                    RenderCharacterPickBoxDebug(o);
+    if (s_bShowCharacterPickBoxes)
+        RenderCharacterPickBoxDebug(o);
 #endif
-            }
-        }
-    }
+}
+
+void RenderCharactersClient()
+{
+    // Reused per-frame buffer; cleared (not freed) each frame -> no alloc once warm.
+    static std::vector<Render::Build::VisibleChar> s_vis;
+
+    GatherVisibleChars(s_vis);                       // Phase G (serial)
+    for (auto& e : s_vis)                             // Phase B (serial here; Task 6 parallelizes)
+        BuildVisibleChar(e);
+    // Phase F (InstFlush) stays in the scene code.
 
     if (gMapManager.InBattleCastle() || gMapManager.WorldActive == WD_31HUNTING_GROUND)
     {
