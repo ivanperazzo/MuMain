@@ -68,7 +68,7 @@
     {
       "id": 11,
       "subject": "Task 6.4: Migrate animation group to CurrentRenderCtx()",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [10],
       "description": "BodyAngle, CurrentAction, PriorAction, CurrentAnimation, CurrentAnimationFrame -> CurrentRenderCtx(). Mind PriorAction param-vs-member shadow in Animation. Repoint Animation/PlayAnimation + effect writers (ZzzEffect.cpp:15205-15210). RETAIN BMD members as reserved layout padding (do NOT delete — sizeof(BMD) must stay byte-identical, crash-login). A/B + login crowd harness (crash is silent in bmd_cov).",
       "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzEffect.cpp","src/source/Engine/Object/ZzzObject.cpp","src/source/Engine/Object/ZzzCharacter.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_anim; [bmd_cov] identical; in-game animation identical"}
