@@ -793,6 +793,12 @@ public:
 protected:
     void WriteText(int iOffset, int iWidth, int iHeight);
     void UploadText(int sx, int sy, int Width, int Height);
+
+    // Builds a tightly packed, top-down RGBA buffer (w*h*4) for the region
+    // [0,w)x[0,h) of the GDI font buffer, baking m_dwTextColor exactly like
+    // WriteText. Used by the MU_UITEXTCACHE path to create a per-string GL
+    // texture. Returns false if the region falls outside the rasterized area.
+    bool BuildTextRGBA(int w, int h, std::vector<unsigned char>& out) const;
 };
 
 class CUIRenderText

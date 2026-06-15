@@ -23,7 +23,9 @@
 #include "UIManager.h"
 #include "GameLogic/Items/InventoryUtils.h"
 #include "UI/NewUI/NewUISystem.h"
+#include "UI/Legacy/UITextCache.h"
 #include <vector>
+#include <cstdint>
 
 extern BYTE m_CrywolfState;
 
@@ -2747,6 +2749,53 @@ void CUIRenderTextOriginal::WriteText(int iOffset, int iWidth, int iHeight)
     }
 }
 
+/// \brief Builds a tight RGBA copy of the rasterized string for the text cache.
+/// Mirrors WriteText's pixel logic (solid / anti-aliased / transparent) but for
+/// the full [0,w)x[0,h) region into a packed w*4 stride buffer, top-down.
+bool CUIRenderTextOriginal::BuildTextRGBA(int w, int h, std::vector<unsigned char>& out) const
+{
+    if (m_pFontBuffer == nullptr || w <= 0 || h <= 0)
+        return false;
+
+    SIZE FontDCSize = { (int)(REFERENCE_WIDTH * g_fScreenRate_x), (int)(REFERENCE_HEIGHT * g_fScreenRate_y) };
+    const int iPitch = ((FontDCSize.cx * 24 + 31) & ~31) >> 3;   // GDI 24bpp DIB row stride
+    if (w > FontDCSize.cx || h > FontDCSize.cy)
+        return false;   // outside the rasterized region -> let the caller fall back
+
+    out.resize(static_cast<size_t>(w) * h * 4);
+    unsigned int* dst = reinterpret_cast<unsigned int*>(out.data());
+
+    for (int y = 0; y < h; ++y)
+    {
+        int SrcIndex = y * iPitch;                 // 3 bytes per pixel (BGR)
+        unsigned int* row = dst + static_cast<size_t>(y) * w;
+        for (int x = 0; x < w; ++x)
+        {
+            const BYTE first = m_pFontBuffer[SrcIndex];
+            if (first == 255)                      // solid text pixel
+            {
+                row[x] = m_dwTextColor;
+            }
+            else if (first != 0)                   // anti-aliased edge
+            {
+                DWORD alpha = first;
+                alpha += m_pFontBuffer[SrcIndex + 1];
+                alpha += m_pFontBuffer[SrcIndex + 2];
+                alpha /= 3;
+                alpha <<= 24;
+                alpha |= 0x00FFFFFF;
+                row[x] = m_dwTextColor & alpha;
+            }
+            else                                   // background -> transparent
+            {
+                row[x] = 0;
+            }
+            SrcIndex += 3;
+        }
+    }
+    return true;
+}
+
 /// \brief Binds the previously created texture bitmap to the opengl texture.
 void CUIRenderTextOriginal::UploadText(int sx, int sy, int Width, int Height)
 {
@@ -2825,9 +2874,31 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const wchar_t* ps
     if (pszText == nullptr || (pszText[0] == '\0' && iBoxWidth == 0)) return;
     if (wcslen(pszText) <= 0 && iBoxWidth == 0) return;
 
+    // --- Text cache (MU_UITEXTCACHE) ---------------------------------------
+    // Only real, single-style text is cacheable; empty/newline-leading strings
+    // keep the legacy path verbatim. On a hit we reuse the string's measured
+    // size (skipping the GDI measure) and draw a cached texture below.
+    auto& textCache = UI::Legacy::TextRenderCache::Instance();
+    const bool cacheEligible = (pszText[0] != '\0' && pszText[0] != 0x0a);
+    const bool useCache = cacheEligible && textCache.Enabled();
+
+    std::uintptr_t fontKey = 0;
+    const UI::Legacy::TextCacheEntry* cacheHit = nullptr;
+    if (useCache)
+    {
+        fontKey = reinterpret_cast<std::uintptr_t>(GetCurrentObject(m_hFontDC, OBJ_FONT));
+        textCache.BeginText(g_fScreenRate_x, g_fScreenRate_y);
+        cacheHit = textCache.Find(pszText, m_dwTextColor, fontKey);
+    }
+
     SIZE RealTextSize;
 
-    if (pszText[0] == '\0')
+    if (cacheHit)
+    {
+        RealTextSize.cx = cacheHit->Width;
+        RealTextSize.cy = cacheHit->Height;
+    }
+    else if (pszText[0] == '\0')
         GetTextExtentPoint32(m_hFontDC, L"0", 1, &RealTextSize);
     else
         GetTextExtentPoint32(m_hFontDC, pszText, lstrlen(pszText), &RealTextSize);
@@ -2920,23 +2991,79 @@ void CUIRenderTextOriginal::RenderText(int iPos_x, int iPos_y, const wchar_t* ps
         EndRenderColor();
     }
 
-    if (pszText[0] != 0x0a)
+    bool renderedFromCache = false;
+    if (useCache)
     {
-        ::SetBkColor(m_hFontDC, RGB(0, 0, 0));
-        ::SetTextColor(m_hFontDC, RGB(255, 255, 255));
-        TextOut(m_hFontDC, 0, 0, pszText, lstrlen(pszText));
+        const UI::Legacy::TextCacheEntry* entry = cacheHit;
+        if (entry == nullptr)
+        {
+            // MISS: rasterize the full string once, build its own GL texture and
+            // cache it. Layout/clip is applied at draw time via the quad UVs, so
+            // the texture is independent of the box/alignment of this call.
+            ::SetBkColor(m_hFontDC, RGB(0, 0, 0));
+            ::SetTextColor(m_hFontDC, RGB(255, 255, 255));
+            TextOut(m_hFontDC, 0, 0, pszText, lstrlen(pszText));
+
+            const int texW = RealTextSize.cx;
+            const int texH = RealTextSize.cy;
+            std::vector<unsigned char> rgba;
+            if (texW > 0 && texH > 0 && BuildTextRGBA(texW, texH, rgba))
+            {
+                GLuint tex = 0;
+                glGenTextures(1, &tex);
+                if (tex != 0)
+                {
+                    glBindTexture(GL_TEXTURE_2D, tex);
+                    glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+                    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texW, texH, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.data());
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                    entry = textCache.Insert(pszText, m_dwTextColor, fontKey, tex, texW, texH);
+                }
+            }
+        }
+
+        if (entry != nullptr && entry->Width > 0 && entry->Height > 0)
+        {
+            // Visible region after box clamp, clipped from the left by iClipMove.
+            const int vw = RealRenderingSize.cx;
+            const int vh = RealRenderingSize.cy;
+            const float u0 = (float)iClipMove / (float)entry->Width;
+            const float uW = (float)vw / (float)entry->Width;
+            const float vH = (float)vh / (float)entry->Height;
+            // Negative texture id => BindTexture binds the raw GL texture directly.
+            RenderBitmap(-(int)entry->Texture,
+                RealBoxPos.x + iTab, RealBoxPos.y, (float)vw, (float)vh,
+                u0, 0.f, uW, vH, false, false);
+            renderedFromCache = true;
+        }
+        // If the cache could not produce a texture (e.g. string wider than the
+        // GDI raster buffer), fall through to the legacy path below, which clips
+        // to the box. TextOut above already refreshed m_pFontBuffer for it.
     }
 
-    int iRealRenderWidth = RealRenderingSize.cx;
-    int iNumberOfSections = (RealRenderingSize.cx / LIMIT_WIDTH) + ((iRealRenderWidth % LIMIT_WIDTH >= 0) ? 1 : 0);
-    for (int i = 0; i < iNumberOfSections; i++)
+    if (!renderedFromCache)
     {
-        SIZE RealSectionLine = { (long)LIMIT_WIDTH, (long)RealRenderingSize.cy };
-        if (i == iNumberOfSections - 1)
-            RealSectionLine.cx = iRealRenderWidth % LIMIT_WIDTH;
+        if (pszText[0] != 0x0a)
+        {
+            ::SetBkColor(m_hFontDC, RGB(0, 0, 0));
+            ::SetTextColor(m_hFontDC, RGB(255, 255, 255));
+            TextOut(m_hFontDC, 0, 0, pszText, lstrlen(pszText));
+        }
 
-        WriteText(LIMIT_WIDTH * i * 3 + iClipMove, RealSectionLine.cx, RealSectionLine.cy);
-        UploadText(RealBoxPos.x + LIMIT_WIDTH * i + iTab, RealBoxPos.y, RealSectionLine.cx, RealSectionLine.cy);
+        int iRealRenderWidth = RealRenderingSize.cx;
+        int iNumberOfSections = (RealRenderingSize.cx / LIMIT_WIDTH) + ((iRealRenderWidth % LIMIT_WIDTH >= 0) ? 1 : 0);
+        for (int i = 0; i < iNumberOfSections; i++)
+        {
+            SIZE RealSectionLine = { (long)LIMIT_WIDTH, (long)RealRenderingSize.cy };
+            if (i == iNumberOfSections - 1)
+                RealSectionLine.cx = iRealRenderWidth % LIMIT_WIDTH;
+
+            WriteText(LIMIT_WIDTH * i * 3 + iClipMove, RealSectionLine.cx, RealSectionLine.cy);
+            UploadText(RealBoxPos.x + LIMIT_WIDTH * i + iTab, RealBoxPos.y, RealSectionLine.cx, RealSectionLine.cy);
+        }
     }
 
     if (lpTextSize)

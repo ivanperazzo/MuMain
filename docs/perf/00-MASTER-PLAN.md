@@ -46,9 +46,10 @@ sim/cloth descartados como cuello (medidos chicos).
 
 Incrementales, alto ROI inmediato. Orden por ROI:
 
-- **1.1 — UI text cache (H1).** `uinew 5.5→~1.5ms`. Texto se rasteriza GDI+
-  `glTexSubImage2D` por string por frame sin cache (`UIControls.cpp:2821`). Cache
-  string→textura LRU. **El mayor win fijo** (sube vacío Y crowded). → `06-ui-text-cache`.
+- **1.1 — UI text cache (H1). HECHO ✅** Medido in-game `uinew 5.5→1.38ms` (~4x),
+  hit 98–99 %, sin regresión visual; **default ON** (`MU_UITEXTCACHE=0` desactiva).
+  Cache string→textura GL propia (key texto+color+HFONT), HIT salta GDI+upload.
+  Archivos `UI/Legacy/UITextCache.{h,cpp}` + `UIControls`. → `06-ui-text-cache`.
 - **1.2 — UI hidden-update skip + manager cleanup (H2/H3).** Ventanas ocultas dejan
   de updatear; CNewUIManager sin 4 sorts + 3 copias/frame. ~0.5-1ms. → `06`.
 - **1.3 — Char RenderMesh-walk: saltar estado GL redundante en collect.** ~2200-3100

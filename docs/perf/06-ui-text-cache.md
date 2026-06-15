@@ -31,7 +31,26 @@ ventanas chicas + **el grueso en texto inmediato**. GPU ocioso (swap <1ms) → 1
 
 ## Enfoque por incremento (ROI: H1 → H2 → H3)
 
-### Increment 1 — H1: cache de texto string→textura  (el gran win)
+### Increment 1 — H1: cache de texto string→textura  (el gran win) — HECHO ✅
+
+**Implementado + medido in-game (MAIN_SCENE, scene=5):** `uinew 5.5 → 1.38 ms`
+(~4x; objetivo cumplido). Hit-rate **98–99 %**, ~590 strings/frame, ~6-10 miss
+(texto dinámico), LRU capado en 2048 entradas. Sin crash, texto nítido / colores
+OK / sin stale (validado por el usuario en juego: inventario/skills/chat/nombres).
+**Default flippeado ON** (kill-switch `MU_UITEXTCACHE=0`).
+
+Implementación real: textura GL propia por string (key = `hash(texto + color +
+HFONT)`, layout/clip aplicado al dibujar vía UVs → key independiente de la caja).
+HIT salta `TextOut` + conversión RGBA + `glTexSubImage2D` y dibuja el quad con
+`RenderBitmap(-glTex)` (el id negativo bindea la textura cruda). MISS rasteriza
+como antes, crea la textura (NEAREST/CLAMP, igual que BITMAP_FONT) y la cachea.
+Flush del cache al cambiar `g_fScreenRate`. Archivos: `UI/Legacy/UITextCache.{h,cpp}`
+(nuevo) + `UI/Legacy/UIControls.{cpp,h}` (`RenderText` + `BuildTextRGBA`).
+Pendiente menor: validación multi-mapa (cache es agnóstico al mapa, bajo riesgo).
+
+#### Diseño original
+
+
 - **Idea:** key = hash(string + font + textColor + bgColor + flags). Cache LRU
   `key → {GLtexture, w, h}`. En `RenderText`: si HIT → saltar TextOut+memcpy+
   glTexSubImage2D, dibujar el quad con la textura cacheada. Si MISS → rasterizar
