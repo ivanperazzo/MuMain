@@ -11496,6 +11496,18 @@ static void GatherVisibleChars(std::vector<Render::Build::VisibleChar>& out)
 
         Render::Models::NoteVisibleChar();
         out.push_back(e);
+
+        // Etapa 3b 6.8: battle-castle healing visual is a non-render shared-mutable
+        // side-effect (writes LastHealingParticle/WorldTime + CreateParticle on the
+        // global particle pool). It must NOT run in the parallel Phase B. Relocated
+        // here to Phase G (serial) with the SAME per-char guard (o->Type ==
+        // MODEL_PLAYER) and the SAME iteration order, so the particle-creation order
+        // — and thus the visuals — is byte-identical to the previous Phase-B call.
+        // The call previously ran after Phase B restored o->Position to the raw sim
+        // value, and CreateGuardStoneHealingVisual reads only that raw position, so
+        // calling it here (raw position, pre-interpolation-apply) is equivalent.
+        if (o->Type == MODEL_PLAYER)
+            battleCastle::CreateBattleCastleCharacter_Visual(c, o);
     }
 }
 
@@ -11546,13 +11558,10 @@ static void BuildVisibleChar(const Render::Build::VisibleChar& e)
         o->Position[2] = remoteSaved[2];
     }
 
-    if (o->Type == MODEL_PLAYER)
-        battleCastle::CreateBattleCastleCharacter_Visual(c, o);
-
-#ifdef _EDITOR
-    if (s_bShowCharacterPickBoxes)
-        RenderCharacterPickBoxDebug(o);
-#endif
+    // Etapa 3b 6.8: Phase B is now PURE (per-worker render only). The two former
+    // non-render side-effects were relocated to serial phases:
+    //   - battle-castle healing visual -> Phase G (GatherVisibleChars).
+    //   - editor pickbox GL draw        -> serial post-pass in RenderCharactersClient.
 }
 
 void RenderCharactersClient()
@@ -11564,6 +11573,16 @@ void RenderCharactersClient()
     for (auto& e : s_vis)                             // Phase B (serial here; Task 6 parallelizes)
         BuildVisibleChar(e);
     // Phase F (InstFlush) stays in the scene code.
+
+#ifdef _EDITOR
+    // Etapa 3b 6.8: editor pickbox debug draw issues GL directly, so it must run on
+    // the GL thread — NOT inside the (to-be-parallel) Phase B. Run it as a serial
+    // post-pass over the gathered list, preserving iteration order. Editor builds
+    // therefore keep this off the parallel path; Phase B stays pure for both builds.
+    if (s_bShowCharacterPickBoxes)
+        for (auto& e : s_vis)
+            RenderCharacterPickBoxDebug(e.o);
+#endif
 
     if (gMapManager.InBattleCastle() || gMapManager.WorldActive == WD_31HUNTING_GROUND)
     {
