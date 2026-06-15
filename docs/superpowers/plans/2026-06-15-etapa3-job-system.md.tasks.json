@@ -92,7 +92,7 @@
     {
       "id": 14,
       "subject": "Task 6.7: Collect globals -> per-bucket/instance + kill GL read (HIGH visual risk)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [13],
       "description": "Move s_instLight/s_instWave/s_chromeWave2/s_chromeL/s_chromeLightVec into InstanceRec/per-bucket data OR compute frame-global outside parallel region; precompute flatColor into ctx to replace glGetFloatv(GL_CURRENT_COLOR) at ZzzBMD.cpp:1649. A/B (chrome/wave/flat-color).",
       "metadata": {"files": ["src/source/Render/Models/BmdInstanceBatch.cpp","src/source/Render/Models/BmdInstanceBatch.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Build/BmdRenderContext.h"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_collect; [bmd_cov] identical; chrome/wave/flat visuals identical"}
