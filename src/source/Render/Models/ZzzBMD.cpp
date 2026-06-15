@@ -26,6 +26,9 @@
 #include "Core/Utilities/FrameProfiler.h"   // bottleneck profiling (Anim slot)
 #include "Render/Build/WorkerArena.h"   // Task 2: per-vertex skin scratch moved per-worker (accessor macros)
 #include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state moved to per-worker ctx
+#include "Render/GL/GLLog.h"             // Etapa 3b 6.9: [jobs] / GL-on-worker warn log
+#include "Core/Jobs/ThreadPool.h"       // Etapa 3b 6.9: GL-on-worker guard (CurrentWorkerIndex / JobsEnabled)
+#include <cassert>
 
 BMD* Models;
 BMD* ModelsDump;
@@ -1783,6 +1786,26 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     if (wentGpu)
         return;
 
+    // Etapa 3b 6.9: GL-on-worker safety. Everything below is the LEGACY immediate-draw
+    // path (glDrawArrays / glColorPointer / chrome state) and issues GL right now. Under
+    // MU_JOBS the per-entity build runs on worker threads with NO GL context, so reaching
+    // this path off the main thread (CurrentWorkerIndex() != 0) is a misconfiguration:
+    // the full-GPU-instanced config the parallel build targets keeps legacy=0 / permeshGPU=0
+    // (verified by [bmd_cov]). Assert in debug + log once; on a worker we MUST NOT issue GL.
+    if (Core::Jobs::JobsEnabled() && Core::Jobs::ThreadPool::CurrentWorkerIndex() != 0)
+    {
+        static bool s_warnedGlOnWorker = false;
+        if (!s_warnedGlOnWorker)
+        {
+            s_warnedGlOnWorker = true;
+            Render::GL::Log("[jobs] WARN: legacy GL draw path reached on worker %d (mesh %d) — "
+                            "non-instanceable mesh under MU_JOBS; skipping GL (config must keep legacy=0)",
+                            Core::Jobs::ThreadPool::CurrentWorkerIndex(), meshIndex);
+        }
+        assert(!"BMD::RenderMesh legacy GL path on a job worker thread (no GL context)");
+        return;   // never issue GL off the GL thread
+    }
+
     // P-bmd-skinskip: legacy CPU draw reads VertexTransform/LightTransform — force-skin
     // this mesh now if Transform deferred it (no-op if already skinned this frame).
     EnsureMeshSkinned(meshIndex);
@@ -3010,6 +3033,24 @@ void BMD::RenderBodyShadow(const int blendMesh, const int hiddenMesh, const int 
             return;   // collected to the GPU shadow batch; skip the legacy CPU draw
         }
         // else: fall through to the legacy CPU path for the whole part.
+    }
+
+    // Etapa 3b 6.9: GL-on-worker safety for the legacy CPU shadow path (issues GL below).
+    // In the full-GPU config every shadow mesh instances (allEligible -> return above). If
+    // a worker reaches here (a straggler mesh GetOrBuildMeshGpu deferred), it has no GL
+    // context: skip rather than crash. The deferred mesh builds + instances on the next
+    // main-thread frame.
+    if (Core::Jobs::JobsEnabled() && Core::Jobs::ThreadPool::CurrentWorkerIndex() != 0)
+    {
+        static bool s_warnedShadowOnWorker = false;
+        if (!s_warnedShadowOnWorker)
+        {
+            s_warnedShadowOnWorker = true;
+            Render::GL::Log("[jobs] WARN: legacy CPU shadow path reached on worker %d — "
+                            "straggler mesh under MU_JOBS; skipping GL (will instance next frame)",
+                            Core::Jobs::ThreadPool::CurrentWorkerIndex());
+        }
+        return;
     }
 
     EnableAlphaTest(false);

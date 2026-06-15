@@ -10,8 +10,10 @@
 #include "Render/GL/GLLoader.h"
 #include "Render/GL/GLLog.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
+#include "Core/Jobs/ThreadPool.h"
 
 #include <gl/glew.h>
+#include <atomic>
 #include <cstdint>
 #include <cstdlib>
 #include <unordered_map>
@@ -30,19 +32,39 @@ namespace Render::Models
         constexpr GLsizei kOffOrigin  = 2 * (GLsizei)sizeof(float);
         constexpr GLsizei kOffGround  = 5 * (GLsizei)sizeof(float);
 
-        struct Bucket
+        // GL-free per-worker payload (model/mesh + flattened recs). Merged at flush.
+        struct ShadowBucketData
         {
             const BMD* model = nullptr;
             int        meshIndex = 0;
-            std::vector<float>     recs;   // flattened ShadowRec (6 floats each)
+            std::vector<float> recs;   // flattened ShadowRec (6 floats each)
+        };
+        // GL-backed draw bucket: the merged payload + a per-bucket VBO (reused across frames).
+        struct Bucket : ShadowBucketData
+        {
             Render::GL::GpuBuffer  instVbo;
         };
+        using ShadowBucketMap = std::unordered_map<uint64_t, ShadowBucketData>;
 
-        std::unordered_map<uint64_t, Bucket> s_buckets;
+        // Etapa 3b 6.9: per-worker collection so the (parallel) Phase-B shadow collect
+        // never mutates a shared map. Each worker appends into its OWN map; flush merges
+        // them (order-independent: every shadow is the same 50%-black stencil-incr draw,
+        // so within-key concat order does not change pixels). Serial path = worker 0 only
+        // => byte-identical to the pre-6.9 single-map behaviour.
+        std::vector<ShadowBucketMap>         s_workerBuckets;
+        std::unordered_map<uint64_t, Bucket> s_drawBuckets;
         int   s_drawCount = 0;
         int   s_instCount = 0;
-        float s_sx = 2000.f;
-        float s_sy = 4000.f;
+        // sx/sy are map-global (identical for every char this frame); written by every
+        // ShadowAdd to the same value, so a relaxed atomic last-writer is race-free.
+        std::atomic<float> s_sx{2000.f};
+        std::atomic<float> s_sy{4000.f};
+
+        int WorkerBucketCount()
+        {
+            const int n = Core::Jobs::ThreadPool::Instance().WorkerCount();
+            return n < 1 ? 1 : n;
+        }
 
         uint64_t Key(const BMD* m, int mesh)
         {
@@ -62,17 +84,24 @@ namespace Render::Models
 
     void ShadowBegin()
     {
-        for (auto& kv : s_buckets)
-            kv.second.recs.clear();
+        const int workers = WorkerBucketCount();
+        if ((int)s_workerBuckets.size() < workers)
+            s_workerBuckets.resize(workers);
+        for (auto& wm : s_workerBuckets)
+            for (auto& kv : wm)
+                kv.second.recs.clear();
         s_drawCount = 0;
         s_instCount = 0;
     }
 
     void ShadowAdd(const BMD* model, int meshIndex, const ShadowRec& rec, float sx, float sy)
     {
-        s_sx = sx;
-        s_sy = sy;
-        Bucket& b = s_buckets[Key(model, meshIndex)];
+        s_sx.store(sx, std::memory_order_relaxed);   // map-global, identical for all chars this frame
+        s_sy.store(sy, std::memory_order_relaxed);
+        // Append to the CALLING worker's map (no shared mutation). Serial path => worker 0.
+        const int w = Core::Jobs::ThreadPool::CurrentWorkerIndex();
+        ShadowBucketMap& wm = s_workerBuckets[(w >= 0 && w < (int)s_workerBuckets.size()) ? w : 0];
+        ShadowBucketData& b = wm[Key(model, meshIndex)];
         b.model = model; b.meshIndex = meshIndex;
         b.recs.push_back(rec.paletteBase);
         b.recs.push_back(rec.bodyScale);
@@ -90,6 +119,25 @@ namespace Render::Models
         if (!sh.Ensure() || !tbo.Ensure())
             return;
 
+        // Merge the per-worker collections into the draw set (order-independent — every
+        // shadow is the same 50%-black stencil-incr draw). Retain s_drawBuckets's GpuBuffers
+        // across frames (keyed VBOs reused); clear only the records. Workers are visited in
+        // index order so the serial (worker-0-only) path is byte-identical.
+        for (auto& kv : s_drawBuckets)
+            kv.second.recs.clear();
+        for (int w = 0; w < (int)s_workerBuckets.size(); ++w)
+        {
+            for (auto& kv : s_workerBuckets[w])
+            {
+                if (kv.second.recs.empty())
+                    continue;
+                Bucket& d = s_drawBuckets[kv.first];
+                d.model = kv.second.model;
+                d.meshIndex = kv.second.meshIndex;
+                d.recs.insert(d.recs.end(), kv.second.recs.begin(), kv.second.recs.end());
+            }
+        }
+
         // The body InstFlush already uploaded the palette this frame; re-bind it.
         // (Upload is idempotent; calling it here makes the pass order-independent in
         // case no body instances flushed.)
@@ -100,7 +148,7 @@ namespace Render::Models
         sh.Use();
         tbo.Bind(1);
         sh.SetPaletteUnit(1);
-        sh.SetSkew(s_sx, s_sy);
+        sh.SetSkew(s_sx.load(std::memory_order_relaxed), s_sy.load(std::memory_order_relaxed));
         const float kShadowColor[4] = { 0.f, 0.f, 0.f, 0.5f };   // legacy: 50% black
         sh.SetColor(kShadowColor);
 
@@ -124,7 +172,7 @@ namespace Render::Models
         glStencilOp(GL_KEEP, GL_KEEP, GL_INCR);
 
         namespace L = Render::Models::GpuVtxLayout;
-        for (auto& kv : s_buckets)
+        for (auto& kv : s_drawBuckets)
         {
             Bucket& b = kv.second;
             const int instances = (int)(b.recs.size() / kInstFloats);
@@ -180,16 +228,29 @@ namespace Render::Models
     int  ShadowDrawCount()     { return s_drawCount; }
     int  ShadowInstanceCount() { return s_instCount; }
 
-    void DropShadowBuffers() { s_buckets.clear(); }
+    void DropShadowBuffers()
+    {
+        s_drawBuckets.clear();
+        for (auto& wm : s_workerBuckets)
+            wm.clear();
+    }
 
     void DropShadowBucketsFor(const BMD* model)
     {
-        for (auto it = s_buckets.begin(); it != s_buckets.end(); )
+        for (auto it = s_drawBuckets.begin(); it != s_drawBuckets.end(); )
         {
             if (it->second.model == model)
-                it = s_buckets.erase(it);
+                it = s_drawBuckets.erase(it);
             else
                 ++it;
         }
+        for (auto& wm : s_workerBuckets)
+            for (auto it = wm.begin(); it != wm.end(); )
+            {
+                if (it->second.model == model)
+                    it = wm.erase(it);
+                else
+                    ++it;
+            }
     }
 }

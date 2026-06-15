@@ -7,6 +7,12 @@
 
 #include "stdafx.h"
 #include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
+#include "Render/Build/WorkerArena.h"        // Etapa 3b 6.9: InitArenas/CurrentArena (warm verify)
+#include "Core/Jobs/ThreadPool.h"            // Etapa 3b 6.9: ParallelFor + JobsEnabled (parallel Phase B)
+#include "Core/Utilities/FrameProfiler.h"    // Etapa 3b 6.9: [jobs] phase timing
+#include "Render/GL/GLLog.h"                 // Etapa 3b 6.9: [jobs] log line
+#include <chrono>                            // Etapa 3b 6.9: [jobs] wall-time
+#include <cstdlib>                           // Etapa 3b 6.9: MU_JOBSLOG env
 #include "UI/Chat/Chat.h"
 #include "Core/Globals/_enum.h"
 #ifdef _WIN32
@@ -11564,15 +11570,90 @@ static void BuildVisibleChar(const Render::Build::VisibleChar& e)
     //   - editor pickbox GL draw        -> serial post-pass in RenderCharactersClient.
 }
 
+// Etapa 3b 6.9 — parallel Phase B.
+//
+// Below the threshold, fork overhead outweighs the win, so we stay serial. The
+// build runs in parallel ONLY when MU_JOBS is on, the worker pool has >1 worker,
+// the visible count clears the threshold, AND the per-mesh GPU caches are warm.
+//
+// GL-on-worker mitigation (pre-warm): GetOrBuildMeshGpu() builds VBOs (GL) the
+// FIRST time it sees a (model,mesh). If that first sight happens on a worker (no
+// GL context) it crashes. So the first kWarmupFrames frames run SERIALLY on the
+// main thread — every visible mesh gets its GPU cache built there. After warmup
+// the steady-state crowd's caches are all resident and the collect is GL-free
+// (the full-instanced config: [bmd_cov] permeshGPU=0 legacy=0), so the parallel
+// build only ever appends to per-worker buckets + the lock-free palette.
+namespace
+{
+    constexpr int kJobsMinEntities = 16;   // below this, serial (fork overhead not worth it)
+    // Run serial until the mesh GPU caches are built. The crowd animates, so an
+    // animation-gated mesh (e.g. a wing/equip part shown only on certain frames) may
+    // first appear after a few frames; a generous warmup lets every such mesh build on
+    // the main GL thread before parallelism starts. GetOrBuildMeshGpu's worker-defer
+    // (return nullptr) is the safety net for any straggler past this window.
+    constexpr int kJobsWarmupFrames = 30;
+    int s_charWarmupFrames = 0;
+    bool JobsLogEnabled()
+    {
+        static const bool s_on = [] {
+            if (Core::Jobs::JobsEnabled()) return true;   // MU_JOBS implies we want the [jobs] line
+            char b[8] = {}; size_t n = 0;
+            return getenv_s(&n, b, sizeof(b), "MU_JOBSLOG") == 0 && n > 0 && b[0] != '0';
+        }();
+        return s_on;
+    }
+}
+
 void RenderCharactersClient()
 {
+    using clock = std::chrono::steady_clock;
+    auto ms = [](clock::time_point a, clock::time_point b) {
+        return std::chrono::duration<double, std::milli>(b - a).count();
+    };
+
     // Reused per-frame buffer; cleared (not freed) each frame -> no alloc once warm.
     static std::vector<Render::Build::VisibleChar> s_vis;
 
+    const auto tG0 = clock::now();
     GatherVisibleChars(s_vis);                       // Phase G (serial)
-    for (auto& e : s_vis)                             // Phase B (serial here; Task 6 parallelizes)
-        BuildVisibleChar(e);
+    const auto tG1 = clock::now();
+
+    const int count = (int)s_vis.size();
+    const bool warm = (s_charWarmupFrames >= kJobsWarmupFrames);
+    const int  workers = Core::Jobs::ThreadPool::Instance().WorkerCount();
+    const bool goParallel = Core::Jobs::JobsEnabled() && warm
+                            && workers > 1 && count >= kJobsMinEntities;
+
+    const auto tB0 = clock::now();
+    if (goParallel)
+    {
+        // Phase B in parallel: ParallelFor maps each index to a worker via the
+        // CurrentWorkerIndex() thread_local; BuildVisibleChar reads/writes ONLY
+        // per-worker arena/ctx + per-worker instance buckets + the lock-free palette.
+        Core::Jobs::ThreadPool::Instance().ParallelFor(count, [](int i) {
+            BuildVisibleChar(s_vis[i]);
+        });
+    }
+    else
+    {
+        // Serial Phase B (MU_JOBS off, warming up, or below threshold). On the warmup
+        // frames this is what builds every visible mesh's GPU cache on the GL thread.
+        for (auto& e : s_vis)
+            BuildVisibleChar(e);
+        if (s_charWarmupFrames < kJobsWarmupFrames)
+            ++s_charWarmupFrames;
+    }
+    const auto tB1 = clock::now();
     // Phase F (InstFlush) stays in the scene code.
+
+    if (JobsLogEnabled())
+    {
+        static int s_logCtr = 0;
+        if ((s_logCtr++ % 30) == 0)
+            Render::GL::Log("[jobs] workers=%d chars=%d parallel=%d | G=%.2fms B=%.2fms (warmup=%d/%d)",
+                            goParallel ? workers : 1, count, goParallel ? 1 : 0,
+                            ms(tG0, tG1), ms(tB0, tB1), s_charWarmupFrames, kJobsWarmupFrames);
+    }
 
 #ifdef _EDITOR
     // Etapa 3b 6.8: editor pickbox debug draw issues GL directly, so it must run on

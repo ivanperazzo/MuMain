@@ -35,36 +35,62 @@ namespace Render::GL
         return true;
     }
 
+    void BonePaletteTBO::Begin(size_t maxBoneFloats)
+    {
+        // Pre-size to a generous worst-case so AppendPalette can write directly into
+        // m_staging.data() (stable for the frame) after an atomic range reserve. We
+        // GROW only (resize up, never shrink) so warm frames don't reallocate — and so
+        // .data() does not move while workers are appending. Reset the cursor last.
+        if (maxBoneFloats > m_staging.size())
+            m_staging.resize(maxBoneFloats);
+        m_cursor.store(0, std::memory_order_relaxed);
+    }
+
     int BonePaletteTBO::AppendPalette(const float (*boneMatrix)[3][4], int boneCount)
     {
-        const int base = BoneCount();
         if (boneMatrix == nullptr || boneCount <= 0)
-            return base;
+            return (int)(m_cursor.load(std::memory_order_relaxed) / kFloatsPerBone);
 
-        m_staging.reserve(m_staging.size() + static_cast<size_t>(boneCount) * kFloatsPerBone);
+        const size_t n   = static_cast<size_t>(boneCount) * kFloatsPerBone;
+        const size_t off = m_cursor.fetch_add(n, std::memory_order_relaxed);
+
+        // Overflow guard: the pre-sized capacity must hold the whole frame. If a frame
+        // exceeds the worst case (visible-char cap underestimated), drop this palette
+        // safely instead of writing out of bounds — base 0 maps to the first bone set,
+        // a benign visual glitch on that one char vs. a crash. Logged once so it's not
+        // silent. Begin() should size this so it never happens.
+        if (off + n > m_staging.size())
+        {
+            static bool s_warned = false;
+            if (!s_warned) { s_warned = true; Log("[tbo] palette overflow (off=%zu n=%zu cap=%zu) — raise Begin() worst-case", off, n, m_staging.size()); }
+            return 0;
+        }
+
+        float* dst = m_staging.data() + off;   // .data() is stable: pre-sized in Begin()
         for (int b = 0; b < boneCount; ++b)
         {
             const float (*M)[4] = boneMatrix[b];   // [3][4] row-major affine
             // 3 texels = the 3 rows (xyz = rotation, w = translation).
             for (int r = 0; r < 3; ++r)
             {
-                m_staging.push_back(M[r][0]);
-                m_staging.push_back(M[r][1]);
-                m_staging.push_back(M[r][2]);
-                m_staging.push_back(M[r][3]);
+                *dst++ = M[r][0];
+                *dst++ = M[r][1];
+                *dst++ = M[r][2];
+                *dst++ = M[r][3];
             }
         }
-        return base;
+        return (int)(off / kFloatsPerBone);
     }
 
     void BonePaletteTBO::Upload()
     {
         if (m_buf == 0 || BindBuffer == nullptr || BufferData == nullptr)
             return;
-        if (m_staging.empty())
+        const size_t used = m_cursor.load(std::memory_order_relaxed);   // valid length = claimed floats, NOT vector size
+        if (used == 0)
             return;
 
-        const GLsizeiptr bytes = static_cast<GLsizeiptr>(m_staging.size() * sizeof(float));
+        const GLsizeiptr bytes = static_cast<GLsizeiptr>(used * sizeof(float));
         BindBuffer(GL_TEXTURE_BUFFER, m_buf);
         if (bytes > m_capacityBytes)
         {

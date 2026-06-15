@@ -6,7 +6,10 @@
 #include "Render/Models/BmdInstanceBatch.h"
 #include "Render/Models/ShadowInstanceBatch.h"
 #include "Render/GL/GLLog.h"
+#include "Core/Jobs/ThreadPool.h"
 
+#include <atomic>
+#include <mutex>
 #include <unordered_map>
 #include <vector>
 #include <cstdlib>
@@ -42,14 +45,19 @@ namespace Render::Models
         bool s_gpuWaveInst    = true;    // $gpuwaveinst: textured BRIGHT + UV-scroll (wave) meshes -> instanced additive bucket w/ shader UV offset (Etapa 1.4b, default ON, validado in-game 15-jun)
         bool s_skinSkip       = false;   // $skinskip: Transform skips CPU skinning
 
-        int  s_charMeshTotal  = 0;       // chars-pass mesh draws this frame
-        int  s_charMeshGpu    = 0;       // of those, took the GPU path
-        int  s_visibleChars   = 0;       // visible characters this frame
-        int  s_statFrameCtr   = 0;
+        // Etapa 3b 6.9: NoteCharMeshDraw/NoteCharMeshClass run on WORKER threads during
+        // the parallel Phase-B build (called from BMD::RenderMesh's collect). Plain int
+        // increments would race -> lost updates -> a fluctuating, undercounted [bmd_cov]
+        // (the diagnostics only; the actual instanced draws are unaffected). Atomics make
+        // the coverage stats deterministic so jobs_off and jobs_on report identically.
+        std::atomic<int>  s_charMeshTotal{0};   // chars-pass mesh draws this frame
+        std::atomic<int>  s_charMeshGpu{0};     // of those, took the GPU path
+        std::atomic<int>  s_visibleChars{0};    // visible characters this frame
+        int  s_statFrameCtr   = 0;              // main-thread-only (LogAndResetGpuStats)
 
         // Coverage breakdown: why each char mesh did/didn't reach the GPU/instanced
         // path. Index = MeshCoverClass. Tells us which legacy bucket to attack next.
-        int  s_charClass[8]   = {0};
+        std::atomic<int>  s_charClass[8];       // value-init'd in a startup ctor below
 
         // Pack the expanded (non-indexed) triangle stream into the interleaved layout
         // BmdShader expects. Mirrors the legacy RenderMesh expansion exactly: for each
@@ -141,13 +149,39 @@ namespace Render::Models
             return nullptr;
         }
 
+        // Etapa 3b 6.9 — thread safety under the parallel Phase-B collect. The cache
+        // is read concurrently by all workers. Two hazards:
+        //   (1) s_cache.emplace structurally modifies the map -> never safe to race.
+        //   (2) BuildMesh() issues GL (VBO upload) -> illegal off the main GL thread.
+        // The first kWarmupFrames frames run SERIALLY (RenderCharactersClient), so every
+        // visible mesh is normally built on the main thread before parallelism kicks in.
+        // The lock here is a SAFETY NET for any straggler (an animation-gated mesh whose
+        // first sight lands on a later frame): if a worker hits an unbuilt slot we DO NOT
+        // build it on the worker (no GL context) — we return nullptr so the collect skips
+        // it this frame; the next main-thread frame builds it. The map find/emplace is
+        // always taken under the lock so concurrent worker reads never race a rehash.
+        static std::mutex s_cacheMtx;
+        const bool onWorker = Core::Jobs::ThreadPool::CurrentWorkerIndex() != 0;
+
+        std::unique_lock<std::mutex> lk(s_cacheMtx);
         auto it = s_cache.find(model);
         if (it == s_cache.end())
+        {
+            if (onWorker)
+                return nullptr;   // would emplace + build on a worker (GL) -> defer to main thread
             it = s_cache.emplace(model, std::vector<MeshGpu>(model->NumMeshs)).first;
+        }
 
-        MeshGpu& slot = it->second[meshIndex];
+        MeshGpu& slot = it->second[meshIndex];   // node storage stable across rehash -> ref valid after unlock
         if (!slot.built)
+        {
+            if (onWorker)
+                return nullptr;   // unbuilt: building issues GL -> defer to a main-thread frame
+            // Main thread: build under the lock (serial warmup / serial frame), so a
+            // concurrent worker either sees built==true or gets nullptr (deferred).
             BuildMesh(model, meshIndex, maxBones, slot);
+        }
+        lk.unlock();
 
         return &slot;
     }
@@ -253,39 +287,43 @@ namespace Render::Models
 
     void NoteCharMeshDraw(bool wentGpu)
     {
-        ++s_charMeshTotal;
-        if (wentGpu) ++s_charMeshGpu;
+        s_charMeshTotal.fetch_add(1, std::memory_order_relaxed);
+        if (wentGpu) s_charMeshGpu.fetch_add(1, std::memory_order_relaxed);
     }
 
     void NoteCharMeshClass(int cls)
     {
-        if (cls >= 0 && cls < 8) ++s_charClass[cls];
+        if (cls >= 0 && cls < 8) s_charClass[cls].fetch_add(1, std::memory_order_relaxed);
     }
 
-    void NoteVisibleChar() { ++s_visibleChars; }
+    void NoteVisibleChar() { s_visibleChars.fetch_add(1, std::memory_order_relaxed); }
 
     void LogAndResetGpuStats()
     {
         if (++s_statFrameCtr >= 30)    // ~ every 1-2s depending on FPS
         {
+            const int vis = s_visibleChars.load(std::memory_order_relaxed);
+            const int tot = s_charMeshTotal.load(std::memory_order_relaxed);
+            const int gpu = s_charMeshGpu.load(std::memory_order_relaxed);
+            int cc[8];
+            for (int i = 0; i < 8; ++i) cc[i] = s_charClass[i].load(std::memory_order_relaxed);
             Render::GL::Log("[bmd_gpu] %d visible chars, %d mesh draws/frame (%d/char), %d via GPU (%d%%) "
                 "| inst: %d draws / %d instances | skinskip=%d gpubmd=%d gpuinst=%d",
-                s_visibleChars, s_charMeshTotal,
-                s_visibleChars ? (s_charMeshTotal / s_visibleChars) : 0,
-                s_charMeshGpu,
-                s_charMeshTotal ? (s_charMeshGpu * 100 / s_charMeshTotal) : 0,
+                vis, tot,
+                vis ? (tot / vis) : 0,
+                gpu,
+                tot ? (gpu * 100 / tot) : 0,
                 InstDrawCount(), InstInstanceCount(),
                 (int)s_skinSkip, (int)GpuBmdEnabled(), (int)GpuInstEnabled());
             Render::GL::Log("[bmd_cov] inst=%d permeshGPU=%d | legacy: nontex=%d blend=%d wave=%d scale=%d geom=%d other=%d",
-                s_charClass[0], s_charClass[1], s_charClass[2], s_charClass[3],
-                s_charClass[4], s_charClass[5], s_charClass[6], s_charClass[7]);
+                cc[0], cc[1], cc[2], cc[3], cc[4], cc[5], cc[6], cc[7]);
             Render::GL::Log("[bmd_shadow] gpu: %d draws / %d instances (MU_GPUSHADOW=%d)",
                 ShadowDrawCount(), ShadowInstanceCount(), (int)GpuShadowEnabled());
             s_statFrameCtr = 0;
         }
-        s_charMeshTotal = 0;
-        s_charMeshGpu = 0;
-        s_visibleChars = 0;
-        for (int& c : s_charClass) c = 0;
+        s_charMeshTotal.store(0, std::memory_order_relaxed);
+        s_charMeshGpu.store(0, std::memory_order_relaxed);
+        s_visibleChars.store(0, std::memory_order_relaxed);
+        for (auto& c : s_charClass) c.store(0, std::memory_order_relaxed);
     }
 }

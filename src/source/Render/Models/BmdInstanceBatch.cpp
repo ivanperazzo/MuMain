@@ -76,6 +76,18 @@ namespace Render::Models
         }
     }
 
+    namespace
+    {
+        // Etapa 3b 6.9: the bone-palette TBO must be PRE-SIZED before the (parallel)
+        // collect so AppendPalette can claim ranges lock-free into a buffer whose
+        // .data() never moves. We grow the worst-case to last frame's actual usage +
+        // 50% headroom (and never shrink), with a floor that comfortably covers the
+        // 200-char stress (~200 chars * ~16 parts * 96 bones * 12 floats ~= 3.7M).
+        // The grow happens HERE, serially in Begin, never during ParallelFor.
+        size_t s_paletteWorstFloats = 0;
+        constexpr size_t kPaletteFloorFloats = 6u * 1024u * 1024u;   // ~24 MB, covers 200ch + slack
+    }
+
     void InstBegin()
     {
         // Size the per-worker collection once; clear each worker's records (retain map
@@ -86,7 +98,15 @@ namespace Render::Models
         for (auto& wm : s_workerBuckets)
             for (auto& kv : wm)
                 kv.second.recs.clear();
-        Render::GL::GetBonePaletteTBO().Begin();
+
+        // Grow the palette worst-case from last frame's claimed floats (+ headroom).
+        auto& tbo = Render::GL::GetBonePaletteTBO();
+        const size_t lastUsed = (size_t)tbo.BoneCount() * Render::GL::BonePaletteTBO::kFloatsPerBone;
+        size_t want = lastUsed + lastUsed / 2;          // +50% headroom for growth
+        if (want < kPaletteFloorFloats) want = kPaletteFloorFloats;
+        if (want > s_paletteWorstFloats) s_paletteWorstFloats = want;
+        tbo.Begin(s_paletteWorstFloats);
+
         s_drawCount = 0;
         s_instCount = 0;
     }
