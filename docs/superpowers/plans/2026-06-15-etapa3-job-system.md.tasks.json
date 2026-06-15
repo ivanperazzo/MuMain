@@ -1,0 +1,62 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-15-etapa3-job-system.md",
+  "specPath": "docs/superpowers/specs/2026-06-15-etapa3-job-system-design.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Core::Jobs::ThreadPool + ParallelFor",
+      "status": "pending",
+      "description": "Minimal persistent fork-join ThreadPool + blocking ParallelFor + MU_JOBS flag, doctest-tested. Files: src/source/Core/Jobs/ThreadPool.{h,cpp}, tests/jobs/{CMakeLists.txt,test_thread_pool.cpp}, tests/CMakeLists.txt, src/CMakeLists.txt. Verify: ctest -R test_thread_pool.",
+      "metadata": {"files": ["src/source/Core/Jobs/ThreadPool.h","src/source/Core/Jobs/ThreadPool.cpp","tests/jobs/CMakeLists.txt","tests/jobs/test_thread_pool.cpp","tests/CMakeLists.txt","src/CMakeLists.txt"], "verifyCommand": "ctest --test-dir out/build/tests -R test_thread_pool --output-on-failure"}
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: WorkerArena — per-worker per-vertex scratch (serial-identical)",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "Move ~30MB per-vertex scratch (VertexTransform/NormalTransform/IntensityTransform/LightTransform/g_chrome) into per-worker WorkerArena via thread_local pointer + accessor macros; serial-identical. Files: src/source/Render/Build/WorkerArena.{h,cpp}, ZzzBMD.{cpp,h}, Winmain.cpp, src/CMakeLists.txt, tests/jobs/test_worker_arena.cpp. Verify: ctest -R test_worker_arena + harness [bmd_cov] identical.",
+      "metadata": {"files": ["src/source/Render/Build/WorkerArena.h","src/source/Render/Build/WorkerArena.cpp","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/App/Platform/Windows/Winmain.cpp","src/CMakeLists.txt","tests/jobs/test_worker_arena.cpp"], "verifyCommand": "ctest --test-dir out/build/tests -R test_worker_arena --output-on-failure"}
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Bone palette per-entity + reentrancy audit (serial-identical)",
+      "status": "pending",
+      "blockedBy": [2],
+      "description": "Build bone matrices into per-entity OBJECT->BoneTransform; move build-time globals (BoneTransform scratch, g_chromeage/up/right, g_smodels_total snapshot, Hero->TargetCharacter clear) to arena/per-entity/read-only/Phase G; audit doc. Serial-identical. Files: ZzzBMD.cpp, WorkerArena.h, ZzzCharacter.cpp, ZzzObject.cpp, docs/perf/08-jobs-audit.md.",
+      "metadata": {"files": ["src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Build/WorkerArena.h","src/source/Engine/Object/ZzzCharacter.cpp","src/source/Engine/Object/ZzzObject.cpp","docs/perf/08-jobs-audit.md"], "verifyCommand": "run-harness-ab.bat 1 1 bone_after; diff [bmd_cov] vs Task2"}
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Per-worker instance buckets + merge (serial-identical)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "BmdInstanceBatch collects into per-worker bucket sets, merges order-independently at flush; per-worker palette TBO staging rebased. Serial uses worker 0 = identical. Merge unit-tested. Files: BmdInstanceBatch.{cpp,h}, BonePaletteTBO.{h,cpp}, tests/jobs/test_bucket_merge.cpp.",
+      "metadata": {"files": ["src/source/Render/Models/BmdInstanceBatch.cpp","src/source/Render/Models/BmdInstanceBatch.h","src/source/Render/GL/BonePaletteTBO.h","src/source/Render/GL/BonePaletteTBO.cpp","tests/jobs/test_bucket_merge.cpp"], "verifyCommand": "ctest --test-dir out/build/tests -R test_bucket_merge --output-on-failure"}
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Phase G/B/F restructure of the char pass (serial)",
+      "status": "pending",
+      "blockedBy": [4],
+      "description": "Restructure RenderCharactersClient into Gather (cull+interp+cloaked-target-clear→VisibleList) / Build (per-entity loop) / Flush, serial, identical output. Files: src/source/Render/Build/VisibleList.h, ZzzCharacter.cpp, MainScene.cpp.",
+      "metadata": {"files": ["src/source/Render/Build/VisibleList.h","src/source/Engine/Object/ZzzCharacter.cpp","src/source/Scenes/MainScene.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 phase_after; diff [bmd_cov]/[frame] vs Task4"}
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Turn on parallelism (Phase B via ParallelFor) — the win",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "Phase B via ThreadPool::ParallelFor under MU_JOBS (serial below threshold); [jobs] profiling; race audit pass. Output identical on AND off; Phase B wall-time drops at 100/200ch. Files: ZzzCharacter.cpp, BmdGpuCache.cpp, FrameProfiler.h.",
+      "metadata": {"files": ["src/source/Engine/Object/ZzzCharacter.cpp","src/source/Render/Models/BmdGpuCache.cpp","src/source/Core/Utilities/FrameProfiler.h"], "verifyCommand": "harness MU_JOBS=0 vs 1 at 100ch+200ch; [jobs] build ms parallel<<serial; [bmd_cov] identical; in-game multi-map"}
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Extend to the objects pass (props) — optional, if ROI remains",
+      "status": "pending",
+      "blockedBy": [6],
+      "description": "Apply G/B/F + ParallelFor to RenderObjects/RenderObjects_AfterCharacter reusing infra; if ROI negligible, document and stop. Files: src/source/Engine/Object/ZzzObject.cpp.",
+      "metadata": {"files": ["src/source/Engine/Object/ZzzObject.cpp"], "verifyCommand": "harness at prop-dense map; [frame] objects parallel<serial; visual identical"}
+    }
+  ],
+  "lastUpdated": "2026-06-15"
+}
