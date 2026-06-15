@@ -39,6 +39,7 @@ namespace Render::Models
             int        texId = 0;
             int        mode = 0;           // 0 = textured, 1 = chrome (sphere-map)
             int        blend = 0;          // 0 = opaque (alpha-test), 1 = additive (GL_ONE/ONE)
+            float      uvScroll[2] = { 0.f, 0.f };  // textured UV offset (wave), frame-global per (model, mesh)
             std::vector<float>     recs;   // flattened InstanceRec (10 floats each)
             Render::GL::GpuBuffer  instVbo;
         };
@@ -105,6 +106,7 @@ namespace Render::Models
     {
         Bucket& b = s_buckets[Key(model, meshIndex, texId, mode, blend)];
         b.model = model; b.meshIndex = meshIndex; b.texId = texId; b.mode = mode; b.blend = blend;
+        b.uvScroll[0] = rec.uvScroll[0]; b.uvScroll[1] = rec.uvScroll[1];   // per-bucket UV offset (wave); identical across instances of this model+mesh
         b.recs.push_back(rec.paletteBase);
         b.recs.push_back(rec.bodyScale);
         b.recs.push_back(rec.bodyOrigin[0]);
@@ -177,6 +179,7 @@ namespace Render::Models
 
             sh.SetChromeMode(b.mode);   // 0 textured / 1 chrome sphere-map
             sh.SetWave(s_instWave);
+            sh.SetUvScroll(b.uvScroll); // textured UV offset (wave); 0 for non-wave buckets
             BindTexture(b.texId);
             DrawArraysInstanced(GL_TRIANGLES, 0, g->vertexCount, instances);
             ++s_drawCount;

@@ -19,6 +19,7 @@ namespace Render::GL
             "uniform float uWave2;\n"       // CHROME2/6 scroll (WorldTime%5000*0.00024-0.4)
             "uniform vec3  uChromeL;\n"     // CHROME4 light vec (cos t*.001, sin t*.002, 1)
             "uniform vec3  uChromeLightVec;\n" // CHROME3 LightVector
+            "uniform vec2  uUvScroll;\n"    // textured UV offset (wave); 0 unless an EnableWave mesh
             "in vec3  aPos;\n"
             "in float aVBone;\n"
             "in vec3  aNormal;\n"
@@ -75,7 +76,7 @@ namespace Render::GL
             "            lum = max(dot(tn, uLightPos) * 0.8 + 0.4, 0.2);\n"
             "        }\n"
             "        vColor = vec4(aColor.rgb * lum, aColor.a);\n"
-            "        vUV = aUV;\n"
+            "        vUV = aUV + uUvScroll;\n"   // legacy: texCoords += BlendMeshTexCoordU/V when EnableWave
             "    }\n"
             "}\n";
 
@@ -111,6 +112,7 @@ namespace Render::GL
         m_uWave2      = m_prog.Uniform("uWave2");
         m_uChromeL    = m_prog.Uniform("uChromeL");
         m_uChromeLightVec = m_prog.Uniform("uChromeLightVec");
+        m_uUvScroll   = m_prog.Uniform("uUvScroll");
 
         const GLuint id = m_prog.Id();
         m_aPos         = GetAttribLocation(id, "aPos");
@@ -162,6 +164,11 @@ namespace Render::GL
         if (m_uWave2 >= 0)         Uniform1f(m_uWave2, wave2);
         if (m_uChromeL >= 0)       Uniform3fv(m_uChromeL, 1, L);
         if (m_uChromeLightVec >= 0) Uniform3fv(m_uChromeLightVec, 1, lightVec);
+    }
+
+    void InstancedBmdShader::SetUvScroll(const float uv[2]) const
+    {
+        if (m_uUvScroll >= 0) Uniform2fv(m_uUvScroll, 1, uv);
     }
 
     InstancedBmdShader& GetInstancedBmdShader()

@@ -48,6 +48,7 @@ namespace Render::GL
     extern PFNGLGETUNIFORMLOCATIONPROC    GetUniformLocation;
     extern PFNGLUNIFORM1IPROC             Uniform1i;
     extern PFNGLUNIFORM1FPROC             Uniform1f;
+    extern PFNGLUNIFORM2FVPROC            Uniform2fv;
     extern PFNGLUNIFORM3FVPROC            Uniform3fv;
     extern PFNGLUNIFORM4FVPROC            Uniform4fv;
     extern PFNGLUNIFORMMATRIX4FVPROC      UniformMatrix4fv;

@@ -75,6 +75,23 @@ namespace Render::Models
     void SetGpuBlendMeshEnabled(bool on);
     bool GpuBlendMeshEnabled();
 
+    // Runtime toggle ("$gpublendinst", env MU_GPUBLENDINST=0 disables, default ON, Etapa 1.4a):
+    // collapse ADDITIVE translucent blend meshes (wings — EnableAlphaBlend = GL_ONE/ONE)
+    // into the instanced additive bucket instead of the per-mesh GPU path, batching them
+    // order-independently with the rest of the char pass. DARK (subtractive, AlphaBlendMinus)
+    // blend meshes stay per-mesh/legacy. Runtime-settable for the antilag panel.
+    void SetGpuBlendInstEnabled(bool on);
+    bool GpuBlendInstEnabled();
+
+    // Runtime toggle ("$gpuwaveinst", env MU_GPUWAVEINST=0 disables, default ON, Etapa 1.4b):
+    // collapse textured BRIGHT meshes that animate their texcoords (EnableWave UV-scroll,
+    // e.g. glowing armour parts) into the instanced additive bucket. The instanced shader
+    // applies the per-bucket UV offset (BlendMeshTexCoordU/V, frame-global per model-type),
+    // reproducing the legacy "texCoords += scroll". Excludes RENDER_WAVE vertex displacement
+    // and DARK. Runtime-settable for the antilag panel.
+    void SetGpuWaveInstEnabled(bool on);
+    bool GpuWaveInstEnabled();
+
     // P-bmd-skinskip: production skip-skin (env MU_GPUSKIN=1, default off). When on AND
     // in the instanced Characters pass with GPU shadows on, BMD::Transform DEFERS the
     // per-vertex CPU skin; consumers that read VertexTransform/NormalTransform force-skin

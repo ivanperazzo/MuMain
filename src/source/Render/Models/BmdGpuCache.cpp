@@ -38,6 +38,8 @@ namespace Render::Models
         bool s_gpuCharsPass   = false;   // true only during the Characters render pass
         bool s_gpuInstEnabled = false;   // $gpuinst: instanced Characters batching
         bool s_gpuBlendMesh   = true;    // $gpublendmesh: translucent blend meshes via per-mesh GPU (default ON, Etapa 1.3)
+        bool s_gpuBlendInst   = true;    // $gpublendinst: additive translucent blend meshes (wings) -> instanced additive bucket (Etapa 1.4a, default ON, validado in-game 15-jun)
+        bool s_gpuWaveInst    = true;    // $gpuwaveinst: textured BRIGHT + UV-scroll (wave) meshes -> instanced additive bucket w/ shader UV offset (Etapa 1.4b, default ON, validado in-game 15-jun)
         bool s_skinSkip       = false;   // $skinskip: Transform skips CPU skinning
 
         int  s_charMeshTotal  = 0;       // chars-pass mesh draws this frame
@@ -195,6 +197,38 @@ namespace Render::Models
         }();
         (void)s_envInit;
         return s_gpuBlendMesh;
+    }
+
+    void SetGpuBlendInstEnabled(bool on) { s_gpuBlendInst = on; }
+    bool GpuBlendInstEnabled()
+    {
+        // Default ON (Etapa 1.4a, validado in-game 15-jun — additive blend meshes/wings
+        // collapse into the instanced additive bucket instead of per-mesh GPU). MU_GPUBLENDINST=0
+        // disables at startup; SetGpuBlendInstEnabled() toggles at runtime (antilag panel).
+        static const bool s_envInit = [] {
+            char b[8] = {}; size_t n = 0;
+            if (getenv_s(&n, b, sizeof(b), "MU_GPUBLENDINST") == 0 && n > 0)
+                s_gpuBlendInst = (atoi(b) != 0);
+            return true;
+        }();
+        (void)s_envInit;
+        return s_gpuBlendInst;
+    }
+
+    void SetGpuWaveInstEnabled(bool on) { s_gpuWaveInst = on; }
+    bool GpuWaveInstEnabled()
+    {
+        // Default ON (Etapa 1.4b, validado in-game 15-jun — textured BRIGHT meshes with
+        // UV-scroll/wave collapse into the instanced additive bucket; the shader applies the
+        // per-bucket UV offset). MU_GPUWAVEINST=0 disables at startup; runtime-settable.
+        static const bool s_envInit = [] {
+            char b[8] = {}; size_t n = 0;
+            if (getenv_s(&n, b, sizeof(b), "MU_GPUWAVEINST") == 0 && n > 0)
+                s_gpuWaveInst = (atoi(b) != 0);
+            return true;
+        }();
+        (void)s_envInit;
+        return s_gpuWaveInst;
     }
 
     bool GpuSkinDeferEnabled()

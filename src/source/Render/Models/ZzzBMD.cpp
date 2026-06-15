@@ -1501,12 +1501,29 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     const bool chromeVarAdditive = chromeVarOk
         && (renderFlags & (RENDER_CHROME3 | RENDER_CHROME4 | RENDER_BRIGHT)) != 0;
 
+    // Etapa 1.4a: an ADDITIVE translucent blend mesh (wings — set meshAlphaBlended above,
+    // textured, EnableAlphaBlend = GL_ONE/ONE; NOT DARK/AlphaBlendMinus) can join the
+    // instanced additive bucket (order-independent) instead of the per-mesh GPU path.
+    const bool blendMeshAdditive = meshAlphaBlended
+        && (renderFlags & RENDER_DARK) == 0
+        && Render::Models::GpuBlendInstEnabled();
+
+    // Etapa 1.4b: a textured BRIGHT mesh that animates its texcoords (EnableWave UV-scroll;
+    // NOT RENDER_WAVE vertex displacement, NOT DARK, not a blend mesh) can also join the
+    // additive bucket — the instanced shader applies the per-bucket UV offset below.
+    const bool waveAdditive = EnableWave
+        && finalRenderFlags == RENDER_TEXTURE
+        && (renderFlags & RENDER_BRIGHT) != 0
+        && (renderFlags & RENDER_DARK) == 0
+        && !meshAlphaBlended
+        && Render::Models::GpuWaveInstEnabled();
+
     bool wentGpu = false;
     bool instanced = false;
     if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
         && Render::GL::IsLoaded()
-        && (finalRenderFlags == RENDER_TEXTURE || plainChrome || chromeVarOk) && !EnableWave
-        && (!meshAlphaBlended || Render::Models::GpuBlendMeshEnabled())   // blend mesh: legacy unless MU_GPUBLENDMESH (then per-mesh GPU)
+        && (finalRenderFlags == RENDER_TEXTURE || plainChrome || chromeVarOk) && (!EnableWave || waveAdditive)
+        && (!meshAlphaBlended || Render::Models::GpuBlendMeshEnabled() || blendMeshAdditive)   // blend mesh: legacy unless MU_GPUBLENDMESH (per-mesh GPU) or MU_GPUBLENDINST (instanced additive)
         && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
         && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
     {
@@ -1527,8 +1544,9 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
             // (textured BRIGHT/DARK) meshes still keep the legacy/per-mesh path.
             const bool blended = (renderFlags & (RENDER_BRIGHT | RENDER_DARK)) != 0;
             if (Render::Models::GpuCharsPass() && Render::Models::GpuInstEnabled()
-                && s_lastTransformTranslate && !meshAlphaBlended   // blend meshes -> per-mesh GPU (RenderMeshGpu), not the opaque instanced batch
-                && (!blended || chromeAdditive || chromeVarAdditive))
+                && s_lastTransformTranslate
+                && (!meshAlphaBlended || blendMeshAdditive)   // opaque batch excludes blend meshes; additive blend meshes (wings) go to the additive bucket below
+                && (!blended || chromeAdditive || chromeVarAdditive || blendMeshAdditive || waveAdditive))
             {
                 Render::Models::InstanceRec rec;
                 rec.paletteBase   = (float)InstPaletteBaseForCurrentPart(NumBones);
@@ -1572,6 +1590,24 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                                          (float)(sin(WorldTime * 0.002f)), 1.f };
                     Render::Models::InstSetChromeParams(Wave2, L, LightVector);
                 }
+                else if (waveAdditive)
+                {
+                    // Textured BRIGHT + UV-scroll (wave): additive, per-normal lit like the
+                    // legacy path (LightTransform = BodyLight * intensity). BodyLight was
+                    // already scaled by alpha above for BRIGHT. The shader adds the per-bucket
+                    // UV offset (BlendMeshTexCoordU/V), reproducing legacy "texCoords += scroll".
+                    rec.color[0] = BodyLight[0]; rec.color[1] = BodyLight[1]; rec.color[2] = BodyLight[2];
+                    rec.color[3] = alpha;
+                    rec.lit = enableLight ? 1.f : 0.f;
+                    rec.uvScroll[0] = blendMeshTextureCoordU;
+                    rec.uvScroll[1] = blendMeshTextureCoordV;
+                    instBlend = 1;
+                    if (enableLight)
+                    {
+                        vec3_t lp; ComputeInstLitLight(lp);
+                        Render::Models::InstSetLight(lp);
+                    }
+                }
                 else if (enableLight)
                 {
                     // Lit: base colour = BodyLight, per-normal lum in the shader.
@@ -1589,6 +1625,11 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                     rec.color[0] = cur[0]; rec.color[1] = cur[1]; rec.color[2] = cur[2]; rec.color[3] = cur[3];
                     rec.lit = 0.f;
                 }
+                // Additive blend mesh (wings): the flat 'else' above already captured
+                // glColor (BodyLight * blendMeshAlpha) as rec.color; route to the additive
+                // bucket so InstFlush pass 2 draws it GL_ONE/ONE, matching the legacy path.
+                if (blendMeshAdditive)
+                    instBlend = 1;
                 Render::Models::InstAdd(this, meshIndex, instTex, rec, instMode, instBlend);
                 wentGpu = true;
                 instanced = true;

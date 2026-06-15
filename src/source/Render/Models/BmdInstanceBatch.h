@@ -22,6 +22,7 @@ namespace Render::Models
         float bodyOrigin[3];
         float color[4];        // rgb base colour, a = alpha
         float lit;             // 1 = per-normal lighting, 0 = flat
+        float uvScroll[2] = { 0.f, 0.f };  // textured UV offset (wave); per-bucket, NOT in the per-instance VBO
     };
 
     void InstBegin();

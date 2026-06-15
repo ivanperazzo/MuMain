@@ -35,6 +35,7 @@ namespace Render::GL
     PFNGLGETUNIFORMLOCATIONPROC    GetUniformLocation    = nullptr;
     PFNGLUNIFORM1IPROC             Uniform1i             = nullptr;
     PFNGLUNIFORM1FPROC             Uniform1f             = nullptr;
+    PFNGLUNIFORM2FVPROC            Uniform2fv            = nullptr;
     PFNGLUNIFORM3FVPROC            Uniform3fv            = nullptr;
     PFNGLUNIFORM4FVPROC            Uniform4fv            = nullptr;
     PFNGLUNIFORMMATRIX4FVPROC      UniformMatrix4fv      = nullptr;
@@ -100,6 +101,7 @@ namespace Render::GL
         Load(GetUniformLocation,    "glGetUniformLocation");
         Load(Uniform1i,             "glUniform1i");
         Load(Uniform1f,             "glUniform1f");
+        Load(Uniform2fv,            "glUniform2fv");
         Load(Uniform3fv,            "glUniform3fv");
         Load(Uniform4fv,            "glUniform4fv");
         Load(UniformMatrix4fv,      "glUniformMatrix4fv");
