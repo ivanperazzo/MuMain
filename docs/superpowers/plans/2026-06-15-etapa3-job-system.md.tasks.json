@@ -100,7 +100,7 @@
     {
       "id": 15,
       "subject": "Task 6.8: Phase-B side-effects -> Phase G + cross-model attach",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [14],
       "description": "Relocate CreateBattleCastleCharacter_Visual (CreateGuardStoneHealingVisual particle/global writes) to Phase G or serial post-pass; keep editor pickbox GL on GL thread. Handle cross-model attach writers (AnimationTransformWithAttachHighModel* this->BodyScale=otherObj->Scale) via CurrentRenderCtx() routing. A/B.",
       "metadata": {"files": ["src/source/Engine/Object/ZzzCharacter.cpp","src/source/Engine/Object/ZzzObject.cpp","src/source/World/GMBattleCastle.cpp","src/source/Render/Models/ZzzBMD.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_sideeffects; [bmd_cov] identical; battle-castle heal visual identical"}
