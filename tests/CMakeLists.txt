@@ -63,3 +63,5 @@ add_subdirectory(anim)
 add_subdirectory(effects)
 
 add_subdirectory(editor)
+
+add_subdirectory(jobs)
