@@ -23,6 +23,7 @@
 #include <SDL3/SDL.h>
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Build/WorkerArena.h"
+#include "Render/Build/BmdRenderContext.h"
 #include "Core/Jobs/ThreadPool.h"
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
@@ -1442,6 +1443,11 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
     // Task 2: pre-allocate the per-worker skin-scratch arenas (one per job worker +
     // the main thread = index 0). Avoids first-frame allocation stalls (~30 MB each).
     Render::Build::InitArenas(Core::Jobs::ThreadPool::Instance().WorkerCount());
+
+    // Etapa 3b 6.1: pre-allocate the per-worker BmdRenderContext slots (same worker
+    // count as the arenas). As of 6.1 these are unreferenced by render code; 6.2-6.9
+    // repoint the per-render BMD fields onto CurrentRenderCtx().field.
+    Render::Build::InitRenderCtxs(Core::Jobs::ThreadPool::Instance().WorkerCount());
 
     // Bridge SDL's native handles so the remaining Win32 code (IME, DirectSound,
     // cursor, the legacy EDIT-control text boxes) keeps working.
