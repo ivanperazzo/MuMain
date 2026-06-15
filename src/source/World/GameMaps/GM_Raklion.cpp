@@ -16,8 +16,9 @@
 
 using namespace SEASON4A;
 
+#include "Render/Build/WorkerArena.h"   // Task 2: IntensityTransform accessor macro
+
 extern int g_iLimitAttackTime;
-extern float IntensityTransform[MAX_MESH][MAX_VERTICES];
 
 CGM_RaklionPtr CGM_Raklion::Make()
 {

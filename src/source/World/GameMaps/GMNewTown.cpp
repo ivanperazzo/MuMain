@@ -6,6 +6,7 @@
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Build/WorkerArena.h"   // Task 2: IntensityTransform accessor macro
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Scenes/SceneCore.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -719,8 +720,6 @@ bool GMNewTown::RenderObjectVisual(OBJECT* pObject, BMD* pModel)
 
     return true;
 }
-
-extern float  IntensityTransform[MAX_MESH][MAX_VERTICES];
 
 bool GMNewTown::RenderObject(OBJECT* pObject, BMD* pModel, bool ExtraMon)
 {

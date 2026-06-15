@@ -337,10 +337,8 @@ private:
 extern BMD* Models;
 extern BMD* ModelsDump;
 extern float BoneTransform[MAX_BONES][3][4];
-extern vec3_t VertexTransform[MAX_MESH][MAX_VERTICES];
-extern vec3_t NormalTransform[MAX_MESH][MAX_VERTICES];
-extern vec3_t LightTransform[MAX_MESH][MAX_VERTICES];
-extern float  IntensityTransform[MAX_MESH][MAX_VERTICES];
-extern float g_chrome[MAX_VERTICES][2];
+// VertexTransform/NormalTransform/LightTransform/IntensityTransform/g_chrome moved
+// to the per-worker Render::Build::WorkerArena (Task 2). Include
+// "Render/Build/WorkerArena.h" to access them via the accessor macros.
 
 #endif

@@ -22,6 +22,8 @@
 #include "Core/Time/FrameTimerScheduler.h"
 #include <SDL3/SDL.h>
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Build/WorkerArena.h"
+#include "Core/Jobs/ThreadPool.h"
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/AI/ZzzAI.h"
@@ -1436,6 +1438,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
     // null pointer. Logs GL_VERSION + loaded count; GPU paths check IsLoaded().
     Render::GL::LoadModernGL();
     Render::GL::SelfTest();   // smoke-test shader+VBO on the real driver (gl_log.txt)
+
+    // Task 2: pre-allocate the per-worker skin-scratch arenas (one per job worker +
+    // the main thread = index 0). Avoids first-frame allocation stalls (~30 MB each).
+    Render::Build::InitArenas(Core::Jobs::ThreadPool::Instance().WorkerCount());
 
     // Bridge SDL's native handles so the remaining Win32 code (IME, DirectSound,
     // cursor, the legacy EDIT-control text boxes) keeps working.

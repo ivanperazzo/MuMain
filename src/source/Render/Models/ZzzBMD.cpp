@@ -24,6 +24,7 @@
 #include "Render/GL/BmdShader.h"
 #include "Render/GL/GLLoader.h"
 #include "Core/Utilities/FrameProfiler.h"   // bottleneck profiling (Anim slot)
+#include "Render/Build/WorkerArena.h"   // Task 2: per-vertex skin scratch moved per-worker (accessor macros)
 
 BMD* Models;
 BMD* ModelsDump;
@@ -35,10 +36,9 @@ vec3_t BoundingMax[MAX_BONES];
 
 float  BoneTransform[MAX_BONES][3][4];
 
-vec3_t VertexTransform[MAX_MESH][MAX_VERTICES];
-vec3_t NormalTransform[MAX_MESH][MAX_VERTICES];
-float  IntensityTransform[MAX_MESH][MAX_VERTICES];
-vec3_t LightTransform[MAX_MESH][MAX_VERTICES];
+// VertexTransform/NormalTransform/IntensityTransform/LightTransform/g_chrome moved
+// to the per-worker Render::Build::WorkerArena (Task 2); accessor macros in
+// WorkerArena.h keep every call site unchanged. (BoneTransform stays — Task 3.)
 
 vec3_t RenderArrayVertices[MAX_VERTICES * 3];
 vec4_t RenderArrayColors[MAX_VERTICES * 3];
@@ -741,7 +741,7 @@ void BMD::AnimationTransformOnlySelf(vec3_t* arrOutSetfAllBonePositions,
 
 vec3_t		g_vright;		// needs to be set to viewer's right in order for chrome to work
 int			g_smodels_total = 1;				// cookie
-float		g_chrome[MAX_VERTICES][2];	// texture coords for surface normals
+// g_chrome moved to Render::Build::WorkerArena (Task 2; macro in WorkerArena.h).
 int			g_chromeage[MAX_BONES];	// last time chrome vectors were updated
 vec3_t		g_chromeup[MAX_BONES];		// chrome vector "up" in bone reference frames
 vec3_t		g_chromeright[MAX_BONES];	// chrome vector "right" in bone reference frames

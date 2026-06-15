@@ -52,8 +52,7 @@ static bool s_bShowItemPickBoxes = false;
 static float s_fCullRadiusItem = 0.0f;
 #endif
 
-extern vec3_t VertexTransform[MAX_MESH][MAX_VERTICES];
-extern vec3_t LightTransform[MAX_MESH][MAX_VERTICES];
+#include "Render/Build/WorkerArena.h"   // Task 2: VertexTransform/LightTransform accessor macros
 
 int          g_iTotalObj = 0;
 OBJECT_BLOCK ObjectBlock[256];

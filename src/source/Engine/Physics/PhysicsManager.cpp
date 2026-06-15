@@ -8,6 +8,7 @@
 #include "Engine/Object/ZzzCharacter.h"
 #include "Render/Effects/ZzzEffect.h"
 #include "World/MapInfra/MapManager.h"
+#include "Render/Build/WorkerArena.h"   // Task 2: VertexTransform accessor macro
 
 #define RENDER_CLOTH
 #define ADD_COLLISION

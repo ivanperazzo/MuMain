@@ -23,9 +23,10 @@
 #include "CSWaterTerrain.h"
 #include "World/MapInfra/MapManager.h"
 
+#include "Render/Build/WorkerArena.h"   // Task 2: g_chrome accessor macro
+
 extern  double   WorldTime;
 extern  float   TerrainMappingAlpha[TERRAIN_SIZE * TERRAIN_SIZE];
-extern  float   g_chrome[MAX_VERTICES][2];
 
 namespace
 {
