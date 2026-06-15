@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
+#include "Render/Build/BuildEmitMode.h"       // Etapa 3b 6.8b: suppress effects on the parallel pass
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -30,6 +31,11 @@ void CreateJointFpsChecked(int Type, vec3_t Position, vec3_t TargetPosition, vec
 void CreateJoint(int Type, vec3_t Position, vec3_t TargetPosition, vec3_t Angle, int SubType, OBJECT* Target, float Scale, short PKKey,
     WORD SkillIndex, WORD SkillSerialNum, int iChaIndex, const float* vPriorColor, short int sTargetindex)
 {
+    // Etapa 3b 6.8b: suppressed during the parallel (MeshOnly) char build; replayed in
+    // the EffectsOnly serial pass (see BuildEmitMode.h).
+    if (Render::Build::BuildSuppressEffects())
+        return;
+
     for (int i = 0; i < MAX_JOINTS; i++)
     {
         JOINT* o = &Joints[i];

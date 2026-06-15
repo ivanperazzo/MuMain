@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
+#include "Render/Build/BuildEmitMode.h"       // Etapa 3b 6.8b: suppress effects on the parallel pass
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -332,6 +333,11 @@ void CreateEffectFpsChecked(int Type, vec3_t Position, vec3_t Angle, vec3_t Ligh
 
 void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int SubType, OBJECT* Owner, short PKKey, WORD SkillIndex, WORD Skill, WORD SkillSerialNum, float Scale, short int sTargetIndex)
 {
+    // Etapa 3b 6.8b: suppressed during the parallel (MeshOnly) char build; replayed in
+    // the EffectsOnly serial pass (see BuildEmitMode.h).
+    if (Render::Build::BuildSuppressEffects())
+        return;
+
     for (int icntEffect = 0; icntEffect < MAX_EFFECTS; icntEffect++)
     {
         OBJECT* o = &Effects[icntEffect];

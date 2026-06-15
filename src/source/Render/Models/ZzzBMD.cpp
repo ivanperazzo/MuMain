@@ -26,6 +26,7 @@
 #include "Core/Utilities/FrameProfiler.h"   // bottleneck profiling (Anim slot)
 #include "Render/Build/WorkerArena.h"   // Task 2: per-vertex skin scratch moved per-worker (accessor macros)
 #include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state moved to per-worker ctx
+#include "Render/Build/BuildEmitMode.h"       // Etapa 3b 6.8b: mesh-emission suppress on the EffectsOnly replay
 #include "Render/GL/GLLog.h"             // Etapa 3b 6.9: [jobs] / GL-on-worker warn log
 #include "Core/Jobs/ThreadPool.h"       // Etapa 3b 6.9: GL-on-worker guard (CurrentWorkerIndex / JobsEnabled)
 #include <cassert>
@@ -1282,6 +1283,14 @@ void BMD::ComputeInstLitLight(vec3_t out)
 
 void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshIndex, float blendMeshAlpha, float blendMeshTextureCoordU, float blendMeshTextureCoordV, int explicitTextureIndex)
 {
+    // Etapa 3b 6.8b: the EffectsOnly serial replay re-walks RenderCharacter ONLY to
+    // re-issue the suppressed effect side effects in entity order. The mesh instances /
+    // [bmd_cov] counters were already emitted by the parallel MeshOnly pass, so skip the
+    // mesh emission here to avoid double-instancing/double-counting. (The replay only ever
+    // renders characters, never props.)
+    if (Render::Build::BuildSuppressMesh())
+        return;
+
     if (meshIndex >= NumMeshs || meshIndex < 0) return;
 
     Mesh_t* m = &Meshs[meshIndex];
@@ -2960,6 +2969,11 @@ void BMD::AddMeshShadowTriangles(const int blendMesh, const int hiddenMesh, cons
 
 void BMD::RenderBodyShadow(const int blendMesh, const int hiddenMesh, const int startMeshNumber, const int endMeshNumber, void* pClothes, const int clothesCount)
 {
+    // Etapa 3b 6.8b: shadows were already emitted by the parallel MeshOnly pass; the
+    // EffectsOnly replay must not re-emit them (see RenderMesh / BuildEmitMode.h).
+    if (Render::Build::BuildSuppressMesh())
+        return;
+
     if (!g_pOption->GetRenderAllEffects())
     {
         return;

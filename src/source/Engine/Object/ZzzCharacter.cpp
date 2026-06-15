@@ -25,6 +25,7 @@
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Models/BmdGpuCache.h"
 #include "Render/Build/VisibleList.h"
+#include "Render/Build/BuildEmitMode.h"      // Etapa 3b 6.8b: MeshOnly/EffectsOnly split + Build::Rand()
 #include "Render/Interpolation.h"
 #include "Render/AnimTiming.h"
 #include "Render/AnimInterp.h"
@@ -6973,7 +6974,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
 
     float Luminosity;
     vec3_t Light;
-    Luminosity = (float)(rand() % 30 + 70) * 0.005f;
+    Luminosity = (float)(Render::Build::Rand() % 30 + 70) * 0.005f;
     switch (Type)
     {
     case MODEL_TIGER_BOW:
@@ -7016,7 +7017,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
 
             if (rand_fps_check(3))
             {
-                CreateSprite(BITMAP_SHINY + 1, Position, 0.6f, Light2, o, (float)(rand() % 360));
+                CreateSprite(BITMAP_SHINY + 1, Position, 0.6f, Light2, o, (float)(Render::Build::Rand() % 360));
             }
             CreateSprite(BITMAP_LIGHT, Position, 2.f, Light, o);
         }
@@ -7052,21 +7053,21 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     {
         Vector(1.0f, 0.3f, 0.0f, Light);
 
-        float fRendomPos = (float)(rand() % 60) / 20.0f - 1.5f;
-        float fRendomScale = (float)(rand() % 10) / 20.0f + 1.4f;
+        float fRendomPos = (float)(Render::Build::Rand() % 60) / 20.0f - 1.5f;
+        float fRendomScale = (float)(Render::Build::Rand() % 10) / 20.0f + 1.4f;
         Vector(0.f, -100.f + fRendomPos, fRendomPos, p);
         b->TransformPosition(g_BoneTransformScratch[0], p, Position, true);
         CreateSprite(BITMAP_SHINY + 1, Position, fRendomScale, Light, o);
         CreateSprite(BITMAP_SHINY + 1, Position, fRendomScale - 0.3f, Light, o, 20.0f);
 
-        fRendomPos = (float)(rand() % 60) / 20.0f - 1.5f;
-        fRendomScale = (float)(rand() % 10) / 20.0f + 1.0f;
+        fRendomPos = (float)(Render::Build::Rand() % 60) / 20.0f - 1.5f;
+        fRendomScale = (float)(Render::Build::Rand() % 10) / 20.0f + 1.0f;
         Vector(0.f, -100.f + fRendomPos, fRendomPos, p);
         b->TransformPosition(g_BoneTransformScratch[0], p, Position, true);
         CreateSprite(BITMAP_LIGHT, Position, fRendomScale + 0.3f, Light, o);
 
-        fRendomPos = (float)(rand() % 40) / 20.0f - 1.0f;
-        fRendomScale = (float)(rand() % 8) / 20.0f + 0.4f;
+        fRendomPos = (float)(Render::Build::Rand() % 40) / 20.0f - 1.0f;
+        fRendomScale = (float)(Render::Build::Rand() % 8) / 20.0f + 0.4f;
         Vector(0.f, 100.f + fRendomPos, fRendomPos, p);
         b->TransformPosition(g_BoneTransformScratch[0], p, Position, true);
         CreateSprite(BITMAP_SHINY + 1, Position, fRendomScale, Light, o);
@@ -7089,8 +7090,8 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     break;
     case MODEL_EXPLOSION_BLADE:
     {
-        float fRendomPos = (float)(rand() % 60) / 20.0f - 1.5f;
-        float fRendomScale = (float)(rand() % 30) / 20.0f + 1.5f;
+        float fRendomPos = (float)(Render::Build::Rand() % 60) / 20.0f - 1.5f;
+        float fRendomScale = (float)(Render::Build::Rand() % 30) / 20.0f + 1.5f;
         float fLight = (float)sinf((WorldTime) * 0.7f) * 0.2f + 0.5f;
 
         float fRotation = (WorldTime * 0.0006f) * 360.0f;
@@ -7123,8 +7124,8 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     case MODEL_GRAND_VIPER_STAFF:
     {
         Vector(0.4f, 0.4f, 0.4f, Light);
-        float fRendomPos = (float)(rand() % 60) / 20.0f - 1.5f;
-        float fRendomScale = (float)(rand() % 15) / 20.0f + 1.8f;
+        float fRendomPos = (float)(Render::Build::Rand() % 60) / 20.0f - 1.5f;
+        float fRendomScale = (float)(Render::Build::Rand() % 15) / 20.0f + 1.8f;
         Vector(0.f, -170.f + fRendomPos, 0.f + fRendomPos, p);
         b->TransformPosition(g_BoneTransformScratch[0], p, Position, true);
         CreateSprite(BITMAP_SPARK + 1, Position, fRendomScale, Light, o);
@@ -7136,8 +7137,8 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
             CreateJoint(BITMAP_JOINT_ENERGY, Position, Position, o->Angle, 17, o, 30.f);
         }
 
-        fRendomPos = (float)(rand() % 60) / 20.0f - 1.5f;
-        fRendomScale = (float)(rand() % 15) / 20.0f + 1.0f;
+        fRendomPos = (float)(Render::Build::Rand() % 60) / 20.0f - 1.5f;
+        fRendomScale = (float)(Render::Build::Rand() % 15) / 20.0f + 1.0f;
         Vector(0.f, -170.f + fRendomPos, 0.f + fRendomPos, p);
         Vector(1.0f, 0.4f, 1.0f, Light);
         CreateSprite(BITMAP_LIGHT, Position, fRendomScale, Light, o);
@@ -7185,7 +7186,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         b->TransformPosition(g_BoneTransformScratch[2], p, Position, true);
         CreateSprite(BITMAP_SHINY + 1, Position, 0.7f, Light, o);
 
-        float fScale = 0.5f + (float)(rand() % 100) / 180;
+        float fScale = 0.5f + (float)(Render::Build::Rand() % 100) / 180;
         float fRotation = (WorldTime * 0.0006f) * 360.0f;
         Vector(0.f, 0.f, 0.f, p);
         b->TransformPosition(g_BoneTransformScratch[2], p, Position, true);
@@ -7210,7 +7211,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         b->TransformPosition(g_BoneTransformScratch[1], p, Position, true);
         CreateSprite(BITMAP_LIGHT, Position, 1.0f, Light, o);	// flare01.jpg
 
-        fScale = (float)(rand() % 30) / 60.0f + 0.2f;
+        fScale = (float)(Render::Build::Rand() % 30) / 60.0f + 0.2f;
         fLight = (float)sinf((WorldTime) * 0.7f) * 0.2f + 0.3f;
         fRotation = (WorldTime * 0.0006f) * 360.0f;
         Vector(0.1f + fLight, 0.2f, 0.0f, Light);
@@ -7219,7 +7220,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         Vector(1.0f - fLight, 0.0f, 0.0f, Light);
         if (fPosition >= 20.0f)
         {
-            iRandom = rand() % 5 + 2;	// 2 ~ 6
+            iRandom = Render::Build::Rand() % 5 + 2;	// 2 ~ 6
             fPosition = 0.0f;
             //Vector(1.0f, 0.0f, 0.0f, Light);
         }
@@ -7248,14 +7249,14 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
                 Vector(1.f, 1.f, 1.f, Light);
                 Vector(0.f, 0.f, 0.f, p);
                 b->TransformPosition(g_BoneTransformScratch[6], p, Position, true);
-                Position[0] += rand() % 30 - 15.f;
-                Position[1] += rand() % 30 - 15.f;
+                Position[0] += Render::Build::Rand() % 30 - 15.f;
+                Position[1] += Render::Build::Rand() % 30 - 15.f;
                 Position[2] += 20.f;
 
                 vec3_t	Angle;
                 for (int i = 0; i < 4; i++)
                 {
-                    Vector((float)(rand() % 60 + 60 + 90), 0.f, o->Angle[2], Angle);//(float)(rand()%30),Angle);
+                    Vector((float)(Render::Build::Rand() % 60 + 60 + 90), 0.f, o->Angle[2], Angle);//(float)(Render::Build::Rand()%30),Angle);
                     CreateJoint(BITMAP_JOINT_SPARK, Position, Position, Angle);
                     CreateParticle(BITMAP_SPARK, Position, Angle, Light);
                 }
@@ -7267,7 +7268,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     {
         float fScale;
         Luminosity = (float)sinf((WorldTime) * 0.002f) * 0.3f + 0.1f;
-        fScale = (float)(rand() % 10) / 30.0f + 1.7f;
+        fScale = (float)(Render::Build::Rand() % 10) / 30.0f + 1.7f;
 
         Vector(0.f, 0.f, 0.f, p);
 
@@ -7329,27 +7330,27 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
 
         // flare01
         Vector(0.7f, 0.7f, 0.7f, Light);
-        fScale = (float)(rand() % 10) / 500.0f;
+        fScale = (float)(Render::Build::Rand() % 10) / 500.0f;
         b->TransformPosition(g_BoneTransformScratch[9], p, Position, true);
         CreateSprite(BITMAP_LIGHT, Position, 0.3f + fScale, Light, o);
         //			Vector(0.1f, 0.5f, 0.1f, Light);
         //			CreateSprite(BITMAP_LIGHT, Position, 1.5f, Light, o);
 
         Vector(0.2f, 0.6f + fLight, 0.2f, Light);
-        fScale = (float)(rand() % 10) / 500.0f;
+        fScale = (float)(Render::Build::Rand() % 10) / 500.0f;
         b->TransformPosition(g_BoneTransformScratch[9], p, Position, true);
         CreateSprite(BITMAP_LIGHT, Position, 4.0f + fScale, Light, o);
 
         // shiny02
         Vector(0.4f, 0.5f + fLight, 0.4f, Light);
-        fScale = (float)(rand() % 30) / 60.0f;
+        fScale = (float)(Render::Build::Rand() % 30) / 60.0f;
         fRotation = (WorldTime * 0.0004f) * 360.0f;
         b->TransformPosition(g_BoneTransformScratch[9], p, Position, true);
         CreateSprite(BITMAP_SHINY + 1, Position, 1.2f + fScale, Light, o, -fRotation);
 
         // magic_ground1
         Vector(0.6f, 1.f, 0.6f, Light);
-        fScale = (float)(rand() % 10) / 500.0f;
+        fScale = (float)(Render::Build::Rand() % 10) / 500.0f;
         fRotation = (WorldTime * 0.0006f) * 360.0f;
         b->TransformPosition(g_BoneTransformScratch[9], p, Position, true);
         CreateSprite(BITMAP_MAGIC, Position, 0.25f + fScale, Light, o, fRotation);
@@ -7372,7 +7373,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         CreateSprite(BITMAP_SHINY + 1, Position, 0.6f + fScale, Light, o, fRotation);
 
         Vector(0.6f, 1.f, 0.6f, Light);
-        fScale = (float)(rand() % 10) / 500.0f;
+        fScale = (float)(Render::Build::Rand() % 10) / 500.0f;
         fRotation = (WorldTime * 0.0006f) * 360.0f;
         b->TransformPosition(g_BoneTransformScratch[2], p, Position, true);
         CreateSprite(BITMAP_MAGIC, Position, 0.15f + fScale, Light, o, fRotation);
@@ -7395,7 +7396,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         Vector(0.f, 0.f, 0.f, p);
         Vector(Luminosity * 0.f, Luminosity * 0.5f, Luminosity * 1.f, Light);
 
-        auto Rotation = (float)(rand() % 360);
+        auto Rotation = (float)(Render::Build::Rand() % 360);
         b->TransformPosition(g_BoneTransformScratch[5], p, Position, true);
         Vector(Luminosity * 0.f, Luminosity * 0.5f, Luminosity * 1.f, Light);
         CreateSprite(BITMAP_LIGHT, Position, 1.f, Light, o);
@@ -7420,7 +7421,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     break;
     case MODEL_GREAT_LORD_SCEPTER:
     {
-        auto Rotation = (float)(rand() % 360);
+        auto Rotation = (float)(Render::Build::Rand() % 360);
         Luminosity = (float)sinf((WorldTime) * 0.002f) * 0.3f + 0.7f;
 
         Vector(0.f, 0.f, 0.f, p);
@@ -7446,7 +7447,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
 
             if (rand_fps_check(3))
             {
-                CreateSprite(BITMAP_SHINY + 1, Position, 0.6f, Light2, o, (float)(rand() % 360));
+                CreateSprite(BITMAP_SHINY + 1, Position, 0.6f, Light2, o, (float)(Render::Build::Rand() % 360));
             }
             CreateSprite(BITMAP_LIGHT, Position, 2.f, Light, o);
         }
@@ -7458,7 +7459,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
             vec3_t pos, delta, angle;
 
             Vector(0.f, 0.f, 0.f, p);
-            Vector(-90.f, (float)(rand() % 360), o->Angle[2] - 45, angle);
+            Vector(-90.f, (float)(Render::Build::Rand() % 360), o->Angle[2] - 45, angle);
             b->TransformPosition(g_BoneTransformScratch[3], p, pos, true);
             b->TransformPosition(g_BoneTransformScratch[2], p, Position, true);
 
@@ -7477,7 +7478,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
 
                     if ( rand_fps_check(3) )
                     {
-                        CreateSprite(BITMAP_SHINY+1,Position,0.6f,Light2, o, ( float)( rand()%360));
+                        CreateSprite(BITMAP_SHINY+1,Position,0.6f,Light2, o, ( float)( Render::Build::Rand()%360));
                     }
                     CreateSprite(BITMAP_LIGHT,Position,1.f,Light,o);
                 }
@@ -7551,7 +7552,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
             if (i == 3)
             {
                 Vector(0.5f, 0.5f, 0.5f, Light);
-                CreateSprite(BITMAP_SHINY + 1, Position, 0.6f, Light, o, rand() % 360);
+                CreateSprite(BITMAP_SHINY + 1, Position, 0.6f, Light, o, Render::Build::Rand() % 360);
             }
         }
     }
@@ -7568,7 +7569,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
 
         Vector(Luminosity * -10.f, 0.f, 0.f, p);
         Vector(0.6f, 0.8f, 1.f, Light);
-        Luminosity = rand() % 360;
+        Luminosity = Render::Build::Rand() % 360;
         b->TransformPosition(g_BoneTransformScratch[1], p, Position, true);
         CreateSprite(BITMAP_LIGHT, Position, 0.7f, Light, o);
         CreateSprite(BITMAP_SHINY + 1, Position, 0.5f, Light, o, Luminosity);
@@ -7587,7 +7588,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
             Vector(i * 15.f - 10.f, 0.f, 0.f, p);
             b->TransformPosition(g_BoneTransformScratch[2], p, Position, true);
             CreateSprite(BITMAP_LIGHT, Position, 1.3f, Light, o);
-            CreateSprite(BITMAP_SHINY + 1, Position, 0.4f, Light, o, rand() % 360);
+            CreateSprite(BITMAP_SHINY + 1, Position, 0.4f, Light, o, Render::Build::Rand() % 360);
         }
     }
     break;
@@ -7600,7 +7601,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         b->TransformPosition(g_BoneTransformScratch[0], p, Position, true);
         if (rand_fps_check(3))
         {
-            CreateSprite(BITMAP_SHINY + 1, Position, 0.6f, Light2, o, (float)(rand() % 360));
+            CreateSprite(BITMAP_SHINY + 1, Position, 0.6f, Light2, o, (float)(Render::Build::Rand() % 360));
         }
         CreateSprite(BITMAP_LIGHT, Position, 2.f, Light, o);
     }
@@ -7651,14 +7652,14 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
                 Vector(1.f, 1.f, 1.f, Light);
                 Vector(0.f, 0.f, 0.f, p);
                 b->TransformPosition(g_BoneTransformScratch[1], p, Position, true);
-                Position[0] += rand() % 30 - 15.f;
-                Position[1] += rand() % 30 - 15.f;
+                Position[0] += Render::Build::Rand() % 30 - 15.f;
+                Position[1] += Render::Build::Rand() % 30 - 15.f;
                 Position[2] += 20.f;
 
                 vec3_t	Angle;
                 for (int i = 0; i < 4; i++)
                 {
-                    Vector((float)(rand() % 60 + 60 + 90), 0.f, o->Angle[2], Angle);//(float)(rand()%30),Angle);
+                    Vector((float)(Render::Build::Rand() % 60 + 60 + 90), 0.f, o->Angle[2], Angle);//(float)(Render::Build::Rand()%30),Angle);
                     CreateJoint(BITMAP_JOINT_SPARK, Position, Position, Angle);
                     CreateParticle(BITMAP_SPARK, Position, Angle, Light);
                 }
@@ -7742,7 +7743,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     }break;
     case MODEL_IMPERIAL_SWORD:
     {
-        float fRendomScale = (float)((rand() % 15) / 30.0f) + 0.5f;
+        float fRendomScale = (float)((Render::Build::Rand() % 15) / 30.0f) + 0.5f;
         Vector(0.f, 0.f, 0.f, Position);
         Vector(0.1f, 0.4f, 0.9f, Light);
         b->TransformPosition(g_BoneTransformScratch[8], Position, p, true);		// Zx01
@@ -7826,9 +7827,9 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         }
 
         Vector(0.5f, 0.8f, 0.6f, Light);
-        vDPos[0] = Position[0] + ((float)(rand() % 20 - 10) * 3.f);
-        vDPos[1] = Position[1] + ((float)(rand() % 20 - 10) * 3.f);
-        vDPos[2] = Position[2] + ((float)(rand() % 20 - 10) * 3.f);
+        vDPos[0] = Position[0] + ((float)(Render::Build::Rand() % 20 - 10) * 3.f);
+        vDPos[1] = Position[1] + ((float)(Render::Build::Rand() % 20 - 10) * 3.f);
+        vDPos[2] = Position[2] + ((float)(Render::Build::Rand() % 20 - 10) * 3.f);
 
         if (rand_fps_check(10))
         {
@@ -7887,13 +7888,13 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
 
         if (((int)WorldTime / 100) % 10 == 0)
         {
-            Object->m_iAnimation = rand() % 100;
-            Object->EyeRight[0] = (rand() % 10 - 5);
-            Object->EyeRight[1] = (rand() % 10 - 5);
-            Object->EyeRight[2] = (rand() % 10 - 5);
-            Object->EyeRight2[0] = (rand() % 10 - 5) * 1.2f;
-            Object->EyeRight2[1] = (rand() % 10 - 5) * 1.2f;
-            Object->EyeRight2[2] = (rand() % 10 - 5) * 1.2f;
+            Object->m_iAnimation = Render::Build::Rand() % 100;
+            Object->EyeRight[0] = (Render::Build::Rand() % 10 - 5);
+            Object->EyeRight[1] = (Render::Build::Rand() % 10 - 5);
+            Object->EyeRight[2] = (Render::Build::Rand() % 10 - 5);
+            Object->EyeRight2[0] = (Render::Build::Rand() % 10 - 5) * 1.2f;
+            Object->EyeRight2[1] = (Render::Build::Rand() % 10 - 5) * 1.2f;
+            Object->EyeRight2[2] = (Render::Build::Rand() % 10 - 5) * 1.2f;
         }
         // Object->m_iAnimation Random Texture
         int iRandomTexure1, iRandomTexure2;
@@ -7901,23 +7902,23 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         iRandomTexure2 = (Object->m_iAnimation) % 3;		// 3개
 
         // Zx01
-        fRandomScale = (float)(rand() % 10) / 10.0f + 1.0f;		//(1.0~2.0)
+        fRandomScale = (float)(Render::Build::Rand() % 10) / 10.0f + 1.0f;		//(1.0~2.0)
         CreateSprite(BITMAP_LIGHT, vPosZx01, fRandomScale, vLight1, o);
         CreateSprite(BITMAP_SHINY + 1, vPosZx01, 0.5f, vDLight, o);
         VectorAdd(vPosZx01, Object->EyeRight, vPosZx01);
-        CreateSprite(BITMAP_LIGHTNING_MEGA1 + iRandomTexure1, vPosZx01, (((rand() % 11) - 20) / 100.f) + 0.5f, vLight2, o, rand() % 380);
+        CreateSprite(BITMAP_LIGHTNING_MEGA1 + iRandomTexure1, vPosZx01, (((Render::Build::Rand() % 11) - 20) / 100.f) + 0.5f, vLight2, o, Render::Build::Rand() % 380);
 
         // Zx02
-        fRandomScale = (float)((rand() % 10) / 5.0f) + 1.5f;		//(2.0~3.25)
+        fRandomScale = (float)((Render::Build::Rand() % 10) / 5.0f) + 1.5f;		//(2.0~3.25)
         CreateSprite(BITMAP_LIGHT, vPosZx02, fRandomScale, vLight1, o);
         CreateSprite(BITMAP_SHINY + 1, vPosZx02, 1.0f, vDLight, o);
         VectorAdd(vPosZx02, Object->EyeRight2, vPosZx02);
-        CreateSprite(BITMAP_LIGHTNING_MEGA1 + iRandomTexure1, vPosZx02, (((rand() % 11) - 20) / 50.f) + 0.8f, vLight2, o, rand() % 380);
+        CreateSprite(BITMAP_LIGHTNING_MEGA1 + iRandomTexure1, vPosZx02, (((Render::Build::Rand() % 11) - 20) / 50.f) + 0.8f, vLight2, o, Render::Build::Rand() % 380);
     }break;
     case MODEL_STINGER_BOW:
     {
         vec3_t vZX03, vZx04;
-        int iNumCreateFeather = rand() % 3;
+        int iNumCreateFeather = Render::Build::Rand() % 3;
 
         Vector(0.2f, 0.25f, 0.3f, Light);
 
@@ -7962,7 +7963,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         float fLumi = absf((sinf(WorldTime * 0.001f))) * 0.8f + 0.2f;
         vec3_t vDLight;
         Vector(fLumi * 0.8f, fLumi * 0.1f, fLumi * 0.3f, vDLight);
-        float fRendomScale = (float)(rand() % 10) / 20.0f + 0.8f;		// (0.5~1.25)
+        float fRendomScale = (float)(Render::Build::Rand() % 10) / 20.0f + 0.8f;		// (0.5~1.25)
         Vector(0.8f, 0.2f, 0.4f, Light);
         b->TransformPosition(g_BoneTransformScratch[2], Position, p, true);		// Red01
         CreateSprite(BITMAP_LIGHT, p, 2.0f, vDLight, o);
@@ -7997,7 +7998,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         Vector(0.9f, 0.3f, 0.5f, Light);
         CreateSprite(BITMAP_SHINY + 6, p, 0.8f, Light, o);
 
-        float fRendomScale = (float)(rand() % 15) / 20.0f + 1.0f;
+        float fRendomScale = (float)(Render::Build::Rand() % 15) / 20.0f + 1.0f;
         CreateSprite(BITMAP_SHINY + 1, p, fRendomScale, Light, o);
         CreateSprite(BITMAP_SHINY + 1, p, fRendomScale - 0.3f, Light, o, 90.0f);
         if (rand_fps_check(1))
@@ -8049,7 +8050,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         CreateSprite(BITMAP_SHOCK_WAVE, Position, Object->Timer, Object->EyeRight, o);
 
         Vector(0.9f, 0.5f, 0.2f, Light);
-        fRandomScale = (float)(rand() % 5) / 25.0f + 0.3f;		// (0.3~0.4)
+        fRandomScale = (float)(Render::Build::Rand() % 5) / 25.0f + 0.3f;		// (0.3~0.4)
         CreateSprite(BITMAP_LIGHTMARKS, Position, fRandomScale, Light, o);
 
         b->TransformByObjectBone(Position, Object, 2);		// Zx02
@@ -8097,7 +8098,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         if (rand_fps_check(1))
         {
             Vector(1.f, 1.f, 1.f, Light);
-            switch (rand() % 3)
+            switch (Render::Build::Rand() % 3)
             {
             case 0:
                 CreateParticle(BITMAP_FIRE_HIK1, Position, Object->Angle, Light, 0, 0.7f);
@@ -8332,18 +8333,18 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     break;
     case MODEL_SWORD_35_WING:
         vec3_t vLight;
-        float fSize = (double)(rand() % 30) / 300.0;
+        float fSize = (double)(Render::Build::Rand() % 30) / 300.0;
         Vector(0.18f, 0.45f, 0.22f, vLight);
         Vector(0.f, 0.f, 0.f, p);
         for (int i = 0; i < 8; ++i)
         {
             b->TransformPosition(g_BoneTransformScratch[3 + i], p, Position, true);
-            CreateSprite(BITMAP_LIGHT_MARKS, Position, fSize + 0.3f, vLight, Object, rand() % 360);
+            CreateSprite(BITMAP_LIGHT_MARKS, Position, fSize + 0.3f, vLight, Object, Render::Build::Rand() % 360);
         }
         for (int i = 0; i < 8; ++i)
         {
             b->TransformPosition(g_BoneTransformScratch[13 + i], p, Position, true);
-            CreateSprite(BITMAP_LIGHT_MARKS, Position, fSize + 0.3f, vLight, Object, rand() % 360);
+            CreateSprite(BITMAP_LIGHT_MARKS, Position, fSize + 0.3f, vLight, Object, Render::Build::Rand() % 360);
         }
         break;
     }
@@ -8735,7 +8736,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
     }
     else if (c->MonsterIndex == MONSTER_ALQUAMOS)
     {
-        float Luminosity = (float)(rand() % 30 + 70) * 0.01f;
+        float Luminosity = (float)(Render::Build::Rand() % 30 + 70) * 0.01f;
         Vector(Luminosity * 0.8f, Luminosity * 0.9f, Luminosity * 1.f, Light);
 
         for (int i = 0; i < 9; ++i)
@@ -8750,8 +8751,8 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
         {
             for (int i = 0; i < 3; i++)
             {
-                Vector((float)(rand() % 20 - 10), (float)(rand() % 20 - 10), (float)(rand() % 20 - 10), p);
-                b->TransformPosition(o->BoneTransform[rand() % b->NumBones], p, Position, true);
+                Vector((float)(Render::Build::Rand() % 20 - 10), (float)(Render::Build::Rand() % 20 - 10), (float)(Render::Build::Rand() % 20 - 10), p);
+                b->TransformPosition(o->BoneTransform[Render::Build::Rand() % b->NumBones], p, Position, true);
                 CreateParticle(BITMAP_SPARK + 1, Position, o->Angle, Light, 3);
             }
         }
@@ -9081,7 +9082,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
 
             if (rand_fps_check(3))
             {
-                auto randpos = (float)(rand() % 30 + 5);
+                auto randpos = (float)(Render::Build::Rand() % 30 + 5);
 
                 if (rand_fps_check(2)) {
                     vtaWorldPos[0] += randpos;
@@ -9246,7 +9247,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
                 int iNumBones = Models[o->Type].NumBones;
                 if (rand_fps_check(1))
                 {
-                    Models[o->Type].TransformByObjectBone(vPos, o, rand() % iNumBones);
+                    Models[o->Type].TransformByObjectBone(vPos, o, Render::Build::Rand() % iNumBones);
                     CreateParticle(BITMAP_TWINTAIL_WATER, vPos, o->Angle, c->Light, 2, 0.5f);
                 }
             }
@@ -9930,7 +9931,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
         } // if( !g_isCharacterBuff(o, eBuff_Cloaking) )
     } //if ( bCloak )
 
-    float Luminosity = (float)(rand() % 30 + 70) * 0.01f;
+    float Luminosity = (float)(Render::Build::Rand() % 30 + 70) * 0.01f;
     if (c->PK >= PVP_MURDERER2)
     {
         Vector(1.f, 0.1f, 0.1f, c->Light);
@@ -9979,7 +9980,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
             if (g_isCharacterBuff(o, eBuff_AddCriticalDamage) && o->Kind == KIND_PLAYER && o->Type == MODEL_PLAYER && (c->LastCritDamageEffect < WorldTime - CritDamageEffectInterval))
             {
                 c->LastCritDamageEffect = WorldTime;
-                bool    renderSkillWave = (rand() % 20) ? true : false;
+                bool    renderSkillWave = (Render::Build::Rand() % 20) ? true : false;
                 short   weaponType = -1;
                 Vector(0.f, 0.f, 0.f, p);
                 Vector(1.f, 0.6f, 0.3f, Light);
@@ -10253,7 +10254,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
 
                         for (int j = 0; j < 4; j++)
                         {
-                            Vector((float)(rand() % 20 - 10), (float)(rand() % 20 - 10 - 90.f), (float)(rand() % 20 - 10), Position);
+                            Vector((float)(Render::Build::Rand() % 20 - 10), (float)(Render::Build::Rand() % 20 - 10 - 90.f), (float)(Render::Build::Rand() % 20 - 10), Position);
                             Models[o->Type].TransformPosition(o->BoneTransform[w->LinkBone], Position, p, true);
                             if (rand_fps_check(1))
                             {
@@ -10264,7 +10265,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
 
                         for (int j = 0; j < 10; j++)
                         {
-                            if (rand() % 4 < 3)
+                            if (Render::Build::Rand() % 4 < 3)
                             {
                                 Vector(0.f, -j * 20 + 60.f, 0.f, Position);
                                 Models[o->Type].TransformPosition(o->BoneTransform[w->LinkBone], Position, p, true);
@@ -10364,7 +10365,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
 
                         for (int j = 0; j < 8; j++)
                         {
-                            if (rand() % 4 < 3)
+                            if (Render::Build::Rand() % 4 < 3)
                             {
                                 Vector(0.f, -j * 20 - 30.f, 0.f, Position);
                                 Models[o->Type].TransformPosition(o->BoneTransform[w->LinkBone], Position, p, true);
@@ -10629,13 +10630,13 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
                 || iSkillType == AT_SKILL_ALICE_ENERVATION
                 )
             {
-                CreateSprite(BITMAP_PIN_LIGHT, vWorldPos, 1.7f, vLight, o, (float)(rand() % 360));
-                CreateSprite(BITMAP_PIN_LIGHT, vWorldPos, 1.5f, vLight, o, (float)(rand() % 360));
+                CreateSprite(BITMAP_PIN_LIGHT, vWorldPos, 1.7f, vLight, o, (float)(Render::Build::Rand() % 360));
+                CreateSprite(BITMAP_PIN_LIGHT, vWorldPos, 1.5f, vLight, o, (float)(Render::Build::Rand() % 360));
             }
             else if (iSkillType == AT_SKILL_ALICE_BLIND)
             {
-                CreateSprite(BITMAP_PIN_LIGHT, vWorldPos, 1.7f, vLight, o, (float)(rand() % 360), 1);
-                CreateSprite(BITMAP_PIN_LIGHT, vWorldPos, 1.5f, vLight, o, (float)(rand() % 360), 1);
+                CreateSprite(BITMAP_PIN_LIGHT, vWorldPos, 1.7f, vLight, o, (float)(Render::Build::Rand() % 360), 1);
+                CreateSprite(BITMAP_PIN_LIGHT, vWorldPos, 1.5f, vLight, o, (float)(Render::Build::Rand() % 360), 1);
             }
 
             // cra04, clud64
@@ -10719,7 +10720,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
             {
                 for (int i = 0; i < 2; i++)
                 {
-                    Luminosity = (float)(rand() % 30 + 70) * 0.01f;
+                    Luminosity = (float)(Render::Build::Rand() % 30 + 70) * 0.01f;
                     Vector(Luminosity * 1.f, Luminosity * 0.3f, Luminosity * 0.2f, Light);
                     b->TransformPosition(o->BoneTransform[c->Weapon[i].LinkBone], p, Position, true);
                     CreateSprite(BITMAP_SHINY + 1, Position, 1.5f, Light, o);
@@ -11204,9 +11205,9 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
 
         if (rand_fps_check(30))
         {
-            p[0] = Position[0] + rand() % 100 - 50;
-            p[1] = Position[1] + rand() % 100 - 50;
-            p[2] = Position[2] + rand() % 100 - 50;
+            p[0] = Position[0] + Render::Build::Rand() % 100 - 50;
+            p[1] = Position[1] + Render::Build::Rand() % 100 - 50;
+            p[2] = Position[2] + Render::Build::Rand() % 100 - 50;
 
             CreateJoint(BITMAP_JOINT_ENERGY, p, Position, o->Angle, 6, NULL, 20.f);
         }
@@ -11627,17 +11628,36 @@ void RenderCharactersClient()
     const auto tB0 = clock::now();
     if (goParallel)
     {
-        // Phase B in parallel: ParallelFor maps each index to a worker via the
-        // CurrentWorkerIndex() thread_local; BuildVisibleChar reads/writes ONLY
-        // per-worker arena/ctx + per-worker instance buckets + the lock-free palette.
+        // Etapa 3b 6.8b: the parallel Phase B is made PURE by splitting it into two passes.
+        //
+        // Pass 1 (PARALLEL, MeshOnly): build skeleton + emit mesh instances/shadows.
+        // Create*/rand_fps_check/Build::Rand are SUPPRESSED, so no worker touches the
+        // global effect pools or the non-thread-safe CRT rand -> no cross-worker race
+        // (this was the [bmd_cov] jitter source: concurrent rand() corruption flipped
+        // render-path decisions). Each entity still reads/writes ONLY per-worker arena/ctx
+        // + per-worker instance buckets + the lock-free palette.
+        Render::Build::SetBuildEmitMode(Render::Build::EmitMode::MeshOnly);
         Core::Jobs::ThreadPool::Instance().ParallelFor(count, [](int i) {
             BuildVisibleChar(s_vis[i]);
         });
+
+        // Pass 2 (SERIAL, EffectsOnly): re-walk RenderCharacter over s_vis IN ENTITY ORDER
+        // on this (GL/main) thread to re-issue the suppressed effect side effects. Mesh
+        // instance/shadow emission + [bmd_cov] counters are suppressed here (already done
+        // in pass 1), so this only replays Create*/rand. Because the drain is serial and
+        // ordered, the rand() sequence and global-pool mutations are EXACTLY what the
+        // single serial render produced -> visuals byte-identical, just a separate phase.
+        Render::Build::SetBuildEmitMode(Render::Build::EmitMode::EffectsOnly);
+        for (auto& e : s_vis)
+            BuildVisibleChar(e);
+
+        Render::Build::SetBuildEmitMode(Render::Build::EmitMode::Full);
     }
     else
     {
-        // Serial Phase B (MU_JOBS off, warming up, or below threshold). On the warmup
-        // frames this is what builds every visible mesh's GPU cache on the GL thread.
+        // Serial Phase B (MU_JOBS off, warming up, or below threshold). Full mode: meshes
+        // + effects + rand in one pass, exactly as before 6.8b -> byte-identical. On the
+        // warmup frames this is what builds every visible mesh's GPU cache on the GL thread.
         for (auto& e : s_vis)
             BuildVisibleChar(e);
         if (s_charWarmupFrames < kJobsWarmupFrames)

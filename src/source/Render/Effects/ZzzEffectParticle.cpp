@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
+#include "Render/Build/BuildEmitMode.h"       // Etapa 3b 6.8b: suppress effects on the parallel pass
 #include "Render/Models/BoneManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -54,6 +55,11 @@ int CreateParticleFpsChecked(int Type, vec3_t Position, vec3_t Angle, vec3_t Lig
 
 int CreateParticle(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int SubType, float Scale, OBJECT* Owner)
 {
+    // Etapa 3b 6.8b: suppressed during the parallel (MeshOnly) char build; replayed in
+    // the EffectsOnly serial pass (see BuildEmitMode.h).
+    if (Render::Build::BuildSuppressEffects())
+        return false;
+
     if (!g_pOption->GetRenderAllEffects())
     {
         return false;
