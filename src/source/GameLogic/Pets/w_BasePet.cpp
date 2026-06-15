@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "w_BasePet.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.4: animation state -> per-worker ctx
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/AI/ZzzAI.h"
@@ -234,7 +235,7 @@ bool PetObject::UpdateModel(double tick, bool bForceRender)
     }
 
     BMD* b = &Models[m_obj->Type];
-    b->CurrentAction = m_obj->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = m_obj->CurrentAction;
     b->PlayAnimation(&m_obj->AnimationFrame, &m_obj->PriorAnimationFrame, &m_obj->PriorAction, m_obj->Velocity, m_obj->Position, m_obj->Angle);
 
     return TRUE;

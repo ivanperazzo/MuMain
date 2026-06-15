@@ -10298,7 +10298,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         Vector(Luminosity * 0.3f, Luminosity * 0.6f, Luminosity, Light);
         {
             BMD* b = &Models[o->Type];
-            b->CurrentAction = o->CurrentAction;
+            Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
             b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity * 2.0f, o->Position, o->Angle);
             AddTerrainLight(o->Position[0], o->Position[1], Light, 3, PrimaryTerrainLight);
         }
@@ -15202,16 +15202,20 @@ void MoveEffect(OBJECT* o, int iIndex)
                 pObject->AnimationFrame = pOwner->AnimationFrame;
 
                 Render::Build::CurrentRenderCtx().bodyScale = pOwner->Scale;
-                pOwnerModel->CurrentAction = pOwner->CurrentAction;
-                VectorCopy(pOwner->Angle, pOwnerModel->BodyAngle);
+                Render::Build::CurrentRenderCtx().currentAction = pOwner->CurrentAction;
+                VectorCopy(pOwner->Angle, Render::Build::CurrentRenderCtx().bodyAngle);
                 VectorCopy(pOwner->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                 Render::Build::CurrentRenderCtx().bodyScale = pObject->Scale;
-                pModel->CurrentAction = pObject->CurrentAction;
-                VectorCopy(pObject->Angle, pModel->BodyAngle);
+                // Etapa 3b 6.4: pOwnerModel and pModel are distinct shared BMDs; with the per-worker
+                // single-slot ctx their currentAction must be (re)set at point of use, not both up
+                // front, or pModel's value would clobber pOwner's. currentAction for pObject is set
+                // inside the loop right before pModel->Animation; pOwner's (above) stays live for the
+                // PlaySpeed read + pOwnerModel->Animation below.
+                VectorCopy(pObject->Angle, Render::Build::CurrentRenderCtx().bodyAngle);
                 VectorCopy(pObject->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
-                pModel->CurrentAnimation = pObject->AnimationFrame;
-                pModel->CurrentAnimationFrame = (int)pObject->AnimationFrame;
+                Render::Build::CurrentRenderCtx().currentAnimation = pObject->AnimationFrame;
+                Render::Build::CurrentRenderCtx().currentAnimationFrame = (int)pObject->AnimationFrame;
 
                 vec3_t  vLight;
                 Vector(1.0f, 1.0f, 1.0f, vLight);
@@ -15219,7 +15223,8 @@ void MoveEffect(OBJECT* o, int iIndex)
                 vec3_t StartPos, StartRelative;
                 vec3_t EndPos, EndRelative;
 
-                float fOwnerActionSpeed = pOwnerModel->Actions[pOwnerModel->CurrentAction].PlaySpeed * FPS_ANIMATION_FACTOR;
+                // ctx.currentAction == pOwner->CurrentAction here (set above; pObject's set moved into the loop).
+                float fOwnerActionSpeed = pOwnerModel->Actions[Render::Build::CurrentRenderCtx().currentAction].PlaySpeed * FPS_ANIMATION_FACTOR;
                 float fOwnerSpeedPerFrame = fOwnerActionSpeed / 10.f;
                 float fOwnerAnimationFrame = pOwner->AnimationFrame - fOwnerActionSpeed;
 
@@ -15229,11 +15234,15 @@ void MoveEffect(OBJECT* o, int iIndex)
 
                 for (int i = 0; i < 10; i++)
                 {
+                    // Etapa 3b 6.4: set ctx.currentAction per-model right before each use so the
+                    // single-slot ctx reproduces the old distinct-BMD-member semantics.
+                    Render::Build::CurrentRenderCtx().currentAction = pOwner->CurrentAction;
                     pOwnerModel->Animation(g_BoneTransformScratch,
                         fOwnerAnimationFrame, (int)fOwnerAnimationFrame - 1,
                         pOwner->PriorAction, pOwner->Angle, pOwner->HeadAngle, false, false);
                     pOwnerModel->RotationPosition(g_BoneTransformScratch[33], p, p);	// ParentMatrix
 
+                    Render::Build::CurrentRenderCtx().currentAction = pObject->CurrentAction;
                     pModel->Animation(g_BoneTransformScratch, fAnimationFrame,
                         (int)fAnimationFrame - 1, pObject->PriorAction,
                         pObject->Angle, pObject->HeadAngle, true, true);	// g_BoneTransformScratch
@@ -17709,7 +17718,7 @@ void MoveEffect(OBJECT* o, int iIndex)
     case MODEL_DRAGON_LOWER_DUMMY:
     {
         BMD* pModel = &Models[o->Type];
-        pModel->CurrentAction = o->CurrentAction;
+        Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
         pModel->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity, o->Position, o->Angle);
 
         if (o->AnimationFrame > 1 && o->AnimationFrame < 6)
@@ -17903,10 +17912,10 @@ void MoveEffect(OBJECT* o, int iIndex)
         if (o->Type >= MODEL_BIRD01 && o->Type < MODEL_SKILL_END)
         {
             BMD* b = &Models[o->Type];
-            b->CurrentAction = o->CurrentAction;
+            Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
             if (o->CurrentAction != 255 && b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity, o->Position, o->Angle) == false)
             {
-                o->AnimationFrame = b->Actions[b->CurrentAction].NumAnimationKeys;
+                o->AnimationFrame = b->Actions[Render::Build::CurrentRenderCtx().currentAction].NumAnimationKeys;
                 o->CurrentAction = 255;
             }
         }
@@ -17940,7 +17949,7 @@ void MoveEffect(OBJECT* o, int iIndex)
             case MODEL_SWORD_FORCE:
             {
                 BMD* b = &Models[o->Type];
-                b->CurrentAction = o->CurrentAction;
+                Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
                 b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity, o->Position, o->Angle);
                 MoveParticle(o, true);
             }
@@ -18009,9 +18018,9 @@ void RenderWheelWeapon(OBJECT* o)
 
     int Type = o->Owner->Weapon + MODEL_SWORD;
     BMD* b = &Models[Type];
-    b->CurrentAction = 0;
+    Render::Build::CurrentRenderCtx().currentAction = 0;
     b->Skin = gCharacterManager.GetBaseClass(Hero->Class);
-    b->CurrentAction = o->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
     VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
     float TempType = o->Type;
@@ -18039,9 +18048,9 @@ void RenderFuryStrike(OBJECT* o)
 
         int Type = o->Owner->Weapon + MODEL_SWORD;
         BMD* b = &Models[Type];
-        b->CurrentAction = 0;
+        Render::Build::CurrentRenderCtx().currentAction = 0;
         b->Skin = gCharacterManager.GetBaseClass(Hero->Class);
-        b->CurrentAction = o->CurrentAction;
+        Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
         VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
         float TempType = o->Type;
@@ -18753,7 +18762,7 @@ void RenderEffects(bool bRenderBlendMesh)
                         Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
                         BodyLight(o, pBMDSwordModel);
                         Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
-                        pBMDSwordModel->CurrentAction = o->CurrentAction;
+                        Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
                         VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                         pBMDSwordModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
@@ -18926,7 +18935,7 @@ void RenderEffects(bool bRenderBlendMesh)
                 case MODEL_DRAGON_LOWER_DUMMY:
                 {
                     BMD* b = &Models[o->Type];
-                    b->CurrentAction = o->CurrentAction;
+                    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
                     b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity / 6.f, o->Position, o->Angle);
                     RenderObject(o);
                 }

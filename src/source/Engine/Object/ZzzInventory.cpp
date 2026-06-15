@@ -9248,7 +9248,7 @@ void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancient
     }
 
     BMD* b = &Models[ObjectSelect.Type];
-    b->CurrentAction = 0;
+    Render::Build::CurrentRenderCtx().currentAction = 0;
     ObjectSelect.AnimationFrame = 0;
     ObjectSelect.PriorAnimationFrame = 0;
     ObjectSelect.PriorAction = 0;

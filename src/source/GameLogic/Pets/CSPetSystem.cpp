@@ -16,6 +16,7 @@
 #include "UI/Legacy/UIManager.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.4: animation state -> per-worker ctx
 #include "Engine/Object/ZzzCharacter.h"
 #include "Render/Effects/ZzzEffect.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -210,7 +211,7 @@ bool CSPetSystem::PlayAnimation(OBJECT* o)
         break;
     }
 
-    b->CurrentAction = o->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
     return b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, playSpeed, o->Position, o->Angle);
 }
 

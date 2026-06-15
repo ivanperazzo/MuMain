@@ -197,17 +197,17 @@ public:
     int           BoneFoot[4];
     float         BodyScale;       // reserved (layout) -> ctx.bodyScale
     vec3_t        BodyOrigin;      // reserved (layout) -> ctx.bodyOrigin
-    vec3_t        BodyAngle;
+    vec3_t        BodyAngle;       // reserved (layout) -> ctx.bodyAngle  (Etapa 3b 6.4)
     float         BodyHeight;      // reserved (layout) -> ctx.bodyHeight
     char          StreamMesh;
     vec3_t        ShadowAngle;     // reserved (layout) -> ctx.shadowAngle
     char          Skin;
     bool          HideSkin;
     float         Velocity;
-    unsigned short CurrentAction;
-    unsigned short PriorAction;
-    float         CurrentAnimation;
-    short         CurrentAnimationFrame;
+    unsigned short CurrentAction;          // reserved (layout) -> ctx.currentAction          (Etapa 3b 6.4)
+    unsigned short PriorAction;            // reserved (layout) -> ctx.priorAction (param shadow: NOT macro'd) (Etapa 3b 6.4)
+    float         CurrentAnimation;        // reserved (layout) -> ctx.currentAnimation        (Etapa 3b 6.4)
+    short         CurrentAnimationFrame;   // reserved (layout) -> ctx.currentAnimationFrame   (Etapa 3b 6.4)
     short         Sounds[MAX_MONSTER_SOUND];
     int           renderCount;
     float		  fTransformedSize;

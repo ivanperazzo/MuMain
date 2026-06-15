@@ -184,7 +184,7 @@ OBJECT* CollisionDetectObjects(OBJECT* PickObject)
                         {
                             BMD* b = &Models[o->Type];
                             Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
-                            b->CurrentAction = o->CurrentAction;
+                            Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
                             VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                             b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
                             b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, true);
@@ -256,7 +256,7 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
     BodyLight(o, b);
     Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
-    b->CurrentAction = o->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
     VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
     if (o->Type == MODEL_CASTLE_GATE)
@@ -386,7 +386,7 @@ bool Calc_ObjectAnimation(OBJECT* o, bool Translate, int Select)
     Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
     BodyLight(o, b);
     Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
-    b->CurrentAction = o->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
     VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
     if (o->EnableBoneMatrix)
@@ -638,7 +638,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
             else if (o->Type == MODEL_CURSEDTEMPLE_PRODECTION_SKILL)
             {
                 Vector(0.3f, 0.3f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
-                VectorCopy(o->Angle, b->BodyAngle);
+                VectorCopy(o->Angle, Render::Build::CurrentRenderCtx().bodyAngle);
                 b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, 0, o->BlendMeshLight, o->BlendMeshTexCoordU, -WorldTime * 0.0004f);
             }
             else if (o->Type == MODEL_CURSEDTEMPLE_RESTRAINT_SKILL)
@@ -2812,7 +2812,7 @@ void RenderObjectVisual(OBJECT* o)
             CreateSprite(BITMAP_LIGHTNING + 1, Position, 2.5f, Light, o, -Rotation);
             break;
         case 103:		//. Sleddog
-            if (b->CurrentAnimationFrame == b->Actions[o->CurrentAction].NumAnimationKeys - 1) {
+            if (Render::Build::CurrentRenderCtx().currentAnimationFrame == b->Actions[o->CurrentAction].NumAnimationKeys - 1) {
                 if (rand_fps_check(32))
                     SetAction(o, 1);
                 else
@@ -3711,7 +3711,7 @@ void MoveObject(OBJECT* o)
     Alpha(o);
     if (o->Alpha < 0.01f) return;
     BMD* b = &Models[o->Type];
-    b->CurrentAction = o->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
 
     float fSpeed = o->Velocity;
     if (gMapManager.WorldActive == WD_8TARKAN)
@@ -6450,9 +6450,9 @@ void RenderItems()
                         Type = MODEL_EVENT + 1;
                 }
                 BMD* b = &Models[Type];
-                b->CurrentAction = 0;
+                Render::Build::CurrentRenderCtx().currentAction = 0;
                 b->Skin = gCharacterManager.GetBaseClass(Hero->Class); // ???
-                b->CurrentAction = o->CurrentAction;
+                Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
                 VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 ItemHeight(o->Type, b);
                 b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
@@ -7259,7 +7259,7 @@ void RenderPartObjectBody(BMD* b, OBJECT* o, int Type, float Alpha, int RenderTy
         float fLumi = (sinf(WorldTime * 0.001f) + 1.5f) * 0.25f;
 
         float PlaySpeed = 0.f;
-        PlaySpeed = b->Actions[b->CurrentAction].PlaySpeed;
+        PlaySpeed = b->Actions[Render::Build::CurrentRenderCtx().currentAction].PlaySpeed;
 
         b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, 2.f / 7.f, o->Position, o->Angle);
         b->RenderBody(RenderType, Alpha, o->BlendMesh, o->BlendMeshLight * 1.5f, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
@@ -8194,7 +8194,7 @@ void RenderPartObjectBody(BMD* b, OBJECT* o, int Type, float Alpha, int RenderTy
     }
     else if (Type == MODEL_HELPER + 71 || Type == MODEL_HELPER + 72 || Type == MODEL_HELPER + 73 || Type == MODEL_HELPER + 74 || Type == MODEL_HELPER + 75)
     {
-        int _angle = int(b->BodyAngle[1]) % 360;
+        int _angle = int(Render::Build::CurrentRenderCtx().bodyAngle[1]) % 360;
         float _meshLight1;
         if (0 < _angle && _angle <= 180)
         {

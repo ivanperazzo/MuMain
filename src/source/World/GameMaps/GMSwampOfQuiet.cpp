@@ -540,7 +540,7 @@ bool GMSwampOfQuiet::MoveMonsterVisual(OBJECT* pObject, BMD* pModel)
 
         case MONSTER01_ATTACK1:
         case MONSTER01_ATTACK2:
-            if (2 < pModel->CurrentAnimationFrame)
+            if (2 < Render::Build::CurrentRenderCtx().currentAnimationFrame)
             {
                 vec3_t vAngle, vRel;
                 VectorCopy(pObject->Angle, vAngle);

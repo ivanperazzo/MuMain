@@ -81,6 +81,23 @@ static_assert(sizeof(vec4_t) == sizeof(float[4]), "BoneQuaternion arena layout d
 #define LightEnable  (Render::Build::CurrentRenderCtx().lightEnable)
 #define ShadowAngle  (Render::Build::CurrentRenderCtx().shadowAngle)
 
+// Etapa 3b 6.4: the animation state (BodyAngle / CurrentAction / CurrentAnimation /
+// CurrentAnimationFrame) was per-render mutable state living on the shared Models[type] BMD;
+// it now lives in the per-worker Render::Build::BmdRenderContext (CurrentRenderCtx()). Bare
+// references inside BMD methods here (and the b->/pModel-> setters in other TUs) are repointed
+// onto the ctx slot; signatures are unchanged. The set->use sequence is contiguous within a
+// worker, so the per-worker single slot reproduces the old shared-member semantics byte-for-byte.
+// NOTE: PriorAction is DELIBERATELY NOT macro'd — both BMD::Animation and BMD::PlayAnimation take
+// a `PriorAction` PARAMETER that shadows the (migrated) BMD member; a macro would rewrite the
+// parameter name and break those methods. The BMD member PriorAction has NO bare-token read in
+// this file (every use here is the param or an OBJECT member), and its cross-TU setters (if any)
+// move to ctx.priorAction explicitly. PlayAnimation's `*PriorAction = CurrentAction;` writes the
+// caller's OBJECT field through the param pointer (the durable source) and reads ctx.currentAction.
+#define BodyAngle             (Render::Build::CurrentRenderCtx().bodyAngle)
+#define CurrentAction         (Render::Build::CurrentRenderCtx().currentAction)
+#define CurrentAnimation      (Render::Build::CurrentRenderCtx().currentAnimation)
+#define CurrentAnimationFrame (Render::Build::CurrentRenderCtx().currentAnimationFrame)
+
 vec3_t RenderArrayVertices[MAX_VERTICES * 3];
 vec4_t RenderArrayColors[MAX_VERTICES * 3];
 vec2_t RenderArrayTexCoords[MAX_VERTICES * 3];

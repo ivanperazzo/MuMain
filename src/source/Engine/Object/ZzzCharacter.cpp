@@ -2489,7 +2489,7 @@ bool CharacterAnimation(CHARACTER* c, OBJECT* o)
     float PlaySpeed = 0.f;
     if (b->NumActions > 0)
     {
-        PlaySpeed = b->Actions[b->CurrentAction].PlaySpeed;
+        PlaySpeed = b->Actions[Render::Build::CurrentRenderCtx().currentAction].PlaySpeed;
         if (PlaySpeed < 0.f)
             PlaySpeed = 0.f;
         if (c->Change && o->CurrentAction >= MONSTER01_ATTACK1 && o->CurrentAction <= MONSTER01_ATTACK2)
@@ -3743,7 +3743,7 @@ void AnimationCharacter(CHARACTER* c, OBJECT* o, BMD* b)
     switch (o->Type)
     {
     case MODEL_DEVIAS_TRADER:
-        if (b->CurrentAnimationFrame == b->Actions[o->CurrentAction].NumAnimationKeys - 1)
+        if (Render::Build::CurrentRenderCtx().currentAnimationFrame == b->Actions[o->CurrentAction].NumAnimationKeys - 1)
         {
             if (rand_fps_check(32))
                 SetAction(o, 1);
@@ -3752,7 +3752,7 @@ void AnimationCharacter(CHARACTER* c, OBJECT* o, BMD* b)
         }
         break;
     case MODEL_RABBIT:
-        if (o->CurrentAction <= 1 && b->CurrentAnimationFrame == b->Actions[o->CurrentAction].NumAnimationKeys - 1)
+        if (o->CurrentAction <= 1 && Render::Build::CurrentRenderCtx().currentAnimationFrame == b->Actions[o->CurrentAction].NumAnimationKeys - 1)
         {
             if (rand_fps_check(10))
                 SetAction(o, 1);
@@ -3998,7 +3998,7 @@ void CreateWeaponBlur(CHARACTER* c, OBJECT* o, BMD* b)
                 // Scaling that slice by FPS_ANIMATION_FACTOR (REFERENCE_FPS / FPS) collapses it at
                 // high frame rates - the points pile onto a single weapon position and the streak
                 // disappears. Span a fixed PlaySpeed slice so the trail renders the same at any FPS.
-                const float playSpeed = b->Actions[b->CurrentAction].PlaySpeed;
+                const float playSpeed = b->Actions[Render::Build::CurrentRenderCtx().currentAction].PlaySpeed;
                 float animationFrame = o->AnimationFrame - playSpeed;
                 const float priorAnimationFrame = o->PriorAnimationFrame;
                 const float animationSpeed = playSpeed / inter;
@@ -4056,7 +4056,7 @@ void MoveCharacter(CHARACTER* c, OBJECT* o)
     BMD* b = &Models[o->Type];
     VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
-    b->CurrentAction = o->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
 
     CalcStopTime();
     HeroAttributeCalc(c);
@@ -5600,7 +5600,7 @@ void MoveCharacterVisual(CHARACTER* c, OBJECT* o)
     }
     VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
-    b->CurrentAction = o->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
 
     if (o->Visible)
     {
@@ -6593,7 +6593,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     //CopyShadowAngle(f,b);
     Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
     Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
-    b->CurrentAction = f->CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = f->CurrentAction;
     Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
 
     OBJECT* Object = &g_ItemObject[Type];
@@ -6919,7 +6919,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     }
     if ((f->Type >= MODEL_WINGS_OF_DARKNESS && f->Type <= MODEL_WINGS_OF_DARKNESS) && c->SafeZone)
     {
-        b->CurrentAction = 1;
+        Render::Build::CurrentRenderCtx().currentAction = 1;
     }
     if (!Link || (Type < MODEL_BOW || Type >= MODEL_BOW + MAX_ITEM_INDEX) || Type == MODEL_STINGER_BOW)
     {

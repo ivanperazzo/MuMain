@@ -622,7 +622,7 @@ bool MoveMount(OBJECT* o, bool bForceRender)
             FlyRange = 150.f;
             break;
         }
-        b->CurrentAction = o->CurrentAction;
+        Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
 
         b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity, o->Position, o->Angle);
 
@@ -1396,7 +1396,7 @@ void MoveBoids()
             if (EnableEvent != 0 && o->Type == MODEL_DRAGON_)
             {
                 SetAction(o, MONSTER01_DIE + 1);
-                b->CurrentAction = o->CurrentAction;
+                Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
                 b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, PlaySpeed, o->Position, o->Angle);
                 AngleMatrix(o->Angle, o->Matrix);
                 vec3_t Position, Direction;
@@ -1414,12 +1414,12 @@ void MoveBoids()
             }
             else
             {
-                b->CurrentAction = o->CurrentAction;
+                Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
 
                 if (gMapManager.WorldActive == WD_51HOME_6TH_CHAR
                     )
                 {
-                    PlaySpeed = b->Actions[b->CurrentAction].PlaySpeed;
+                    PlaySpeed = b->Actions[Render::Build::CurrentRenderCtx().currentAction].PlaySpeed;
                 }
                 b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, PlaySpeed, o->Position, o->Angle);
 
@@ -1794,7 +1794,7 @@ void MoveFishs()
             if (o->Type != -1)
             {
                 BMD* b = &Models[o->Type];
-                b->CurrentAction = o->CurrentAction;
+                Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
 
                 b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity * 0.5f, o->Position, o->Angle);
             }

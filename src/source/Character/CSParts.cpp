@@ -212,7 +212,7 @@ void CSParts::IRender(CHARACTER* c)
     }
 
     b = &Models[m_pObj.Type];
-    b->CurrentAction = m_pObj.CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = m_pObj.CurrentAction;
 
     const float speed = m_pObj.Velocity;
     b->PlayAnimation(&m_pObj.AnimationFrame, &m_pObj.PriorAnimationFrame, &m_pObj.PriorAction, speed, m_pObj.Position, m_pObj.Angle);
@@ -241,7 +241,7 @@ void CSAnimationParts::Animation(CHARACTER* c)
     }
 
     BMD* b = &Models[m_pObj.Type];
-    b->CurrentAction = m_pObj.CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = m_pObj.CurrentAction;
 
     float fSpeed = m_pObj.Velocity;
     b->PlayAnimation(&m_pObj.AnimationFrame, &m_pObj.PriorAnimationFrame, &m_pObj.PriorAction, fSpeed, m_pObj.Position, m_pObj.Angle);
