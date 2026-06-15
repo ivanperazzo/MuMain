@@ -3,27 +3,29 @@
 #include "Render/Build/WorkerArena.h"
 #include "Core/Jobs/ThreadPool.h"
 
-#include <set>
+#include <map>
 #include <mutex>
+#include <set>
 
-TEST_CASE("each worker gets a distinct arena; main thread is index 0")
+TEST_CASE("distinct workers get distinct arenas (injective), same index stable")
 {
     using Core::Jobs::ThreadPool;
     ThreadPool& pool = ThreadPool::Instance();
-
-    std::set<const void*> seen;
+    std::map<int, const void*> byIdx;
     std::mutex m;
-    pool.ParallelFor(pool.WorkerCount() * 8, [&](int) {
+    bool stable = true;
+    pool.ParallelFor(pool.WorkerCount() * 64, [&](int){
+        const int idx = ThreadPool::CurrentWorkerIndex();
         const void* a = &Render::Build::CurrentArena();
         std::lock_guard<std::mutex> g(m);
-        seen.insert(a);
+        auto it = byIdx.find(idx);
+        if (it != byIdx.end()) { if (it->second != a) stable = false; }
+        else byIdx[idx] = a;
     });
-    // At most WorkerCount distinct arenas, at least 1.
-    CHECK(seen.size() >= 1);
-    CHECK(seen.size() <= (size_t)pool.WorkerCount());
-
-    // The main thread (outside ParallelFor) is worker index 0.
-    CHECK(ThreadPool::CurrentWorkerIndex() == 0);
+    CHECK(stable);                         // same index -> same arena
+    std::set<const void*> arenas;
+    for (auto& kv : byIdx) arenas.insert(kv.second);
+    CHECK(arenas.size() == byIdx.size());  // distinct indices -> distinct arenas (injective)
 }
 
 TEST_CASE("two distinct worker indices map to distinct arenas")
@@ -37,4 +39,11 @@ TEST_CASE("two distinct worker indices map to distinct arenas")
     const void* a0 = &Render::Build::CurrentArena();
     const void* a0again = &Render::Build::CurrentArena();
     CHECK(a0 == a0again);
+}
+
+TEST_CASE("main thread is index 0")
+{
+    using Core::Jobs::ThreadPool;
+    // The main thread (outside ParallelFor) is worker index 0.
+    CHECK(ThreadPool::CurrentWorkerIndex() == 0);
 }

@@ -36,7 +36,7 @@ namespace Render::Build
         float chrome[kArenaMaxVertices][2];
     };
 
-    // Arena for the calling thread. Heap-allocated lazily, kept for process life.
+    // Thread-safe across distinct workers ONLY after InitArenas(>=WorkerCount()); ArenaAt's grow path is startup-only and must not run during ParallelFor.
     WorkerArena& CurrentArena();
 
     // Pre-allocate all worker arenas (call once at startup; avoids first-frame stalls).
@@ -47,6 +47,9 @@ namespace Render::Build
 // keep every existing VertexTransform[i][j]-style call site unchanged. Any TU that
 // touched the old file-globals includes this header instead of declaring the
 // matching `extern`.
+// NOTE: The 5 macros below are intentional global macros (zero call-site churn) and
+// must not be shadowed or #undef'd. g_chrome is a deliberately global name — it
+// mirrors the old file-global and must remain unchanged for binary-compatible call sites.
 #define VertexTransform     (Render::Build::CurrentArena().vertexTransform)
 #define NormalTransform     (Render::Build::CurrentArena().normalTransform)
 #define IntensityTransform  (Render::Build::CurrentArena().intensityTransform)

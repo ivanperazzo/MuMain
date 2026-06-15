@@ -14,6 +14,9 @@ _deps/
 
 # CMake build directories
 build/
+# 'build/' above matches src/source/Render/Build/ case-insensitively on Windows;
+# keep that real source dir tracked.
+!src/source/Render/Build/
 build-mingw/
 /cmake-build-debug/
 /cmake-build-release/

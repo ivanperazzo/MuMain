@@ -2,6 +2,7 @@
 
 #include "Core/Jobs/ThreadPool.h"
 
+#include <cassert>
 #include <memory>
 #include <vector>
 
@@ -27,6 +28,12 @@ namespace Render::Build
 
     WorkerArena& CurrentArena()
     {
-        return ArenaAt(Core::Jobs::ThreadPool::CurrentWorkerIndex());
+        const int idx = Core::Jobs::ThreadPool::CurrentWorkerIndex();
+        // Thread-safe to call concurrently from distinct workers ONLY after
+        // InitArenas(>=WorkerCount()) has run (startup). The grow path in ArenaAt is
+        // not concurrency-safe and must never run during a parallel ParallelFor.
+        assert(idx >= 0 && idx < (int)s_arenas.size() && s_arenas[idx] &&
+               "InitArenas(WorkerCount()) must run before parallel CurrentArena()");
+        return ArenaAt(idx);
     }
 }
