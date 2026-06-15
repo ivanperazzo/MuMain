@@ -1,6 +1,7 @@
 ﻿// GMDoppelGanger2.cpp: implementation of the GMDoppelGanger2 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -268,7 +269,7 @@ bool CGMDoppelGanger2::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         vec3_t light;
         Vector(1.0f, 0.0f, 0.0f, light);
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        VectorCopy(light, b->BodyLight);
+        VectorCopy(light, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME, 0.5f, 0, 0.5f, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
         vec3_t vLightFire, Position, vPos;
@@ -319,7 +320,7 @@ bool CGMDoppelGanger2::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         vec3_t light;
         Vector(1.0f, 0.0f, 0.0f, light);
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        VectorCopy(light, b->BodyLight);
+        VectorCopy(light, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME, 0.5f, 0, 0.5f, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
         vec3_t vLightFire, Position, vPos;

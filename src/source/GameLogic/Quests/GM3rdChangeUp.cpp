@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Engine/Object/ZzzInfomation.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
@@ -302,9 +303,9 @@ void SEASON3A::CGM3rdChangeUp::RenderAfterObjectMesh(OBJECT* o, BMD* b)
             o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 78:
-        b->BodyLight[0] = 0.52f;
-        b->BodyLight[1] = 0.52f;
-        b->BodyLight[2] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
 
         b->StreamMesh = 0;
         b->RenderMesh(
@@ -765,7 +766,7 @@ bool SEASON3A::CGM3rdChangeUp::RenderMonsterObjectMesh(OBJECT* o, BMD* b, int Ex
     break;
     case MODEL_SORAM:
     {
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, 5);
         b->EndRender();

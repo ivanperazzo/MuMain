@@ -1,6 +1,7 @@
 ﻿// GMDoppelGanger4.cpp: implementation of the CGMDoppelGanger4 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -629,9 +630,9 @@ void CGMDoppelGanger4::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         break;
     case 76:
     {
-        b->BodyLight[0] = 0.52f;
-        b->BodyLight[1] = 0.52f;
-        b->BodyLight[2] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
         b->StreamMesh = 0;
         b->RenderMesh(
             0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh,

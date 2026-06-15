@@ -1339,9 +1339,9 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     }
     else if (o->Type == MODEL_WARP || o->Type == MODEL_WARP2 || o->Type == MODEL_WARP3)
     {
-        b->BodyLight[0] = 1.0f;
-        b->BodyLight[1] = 1.0f;
-        b->BodyLight[2] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 1.0f;
         o->BlendMeshLight = 1.0f;
 
         if (o->Type == MODEL_WARP)
@@ -1366,9 +1366,9 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             return true;
         }
 
-        b->BodyLight[0] = 0.5f;
-        b->BodyLight[1] = 0.6f;
-        b->BodyLight[2] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.5f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.6f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 1.0f;
         o->BlendMeshLight = 0.8f;
 
         if (o->Type == MODEL_WARP4)
@@ -1442,7 +1442,7 @@ bool CGM_Raklion::RenderMonster(OBJECT* o, BMD* b, bool ExtraMon)
     case MODEL_ICE_GIANT:
         if (o->CurrentAction != MONSTER01_DIE)
         {
-            Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+            Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
@@ -1641,7 +1641,7 @@ bool CGM_Raklion::RenderMonster(OBJECT* o, BMD* b, bool ExtraMon)
     {
         if (o->CurrentAction != MONSTER01_DIE)
         {
-            Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+            Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);

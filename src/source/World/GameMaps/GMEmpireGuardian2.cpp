@@ -1,6 +1,7 @@
 ﻿// GMEmpireGuardian2.cpp: implementation of the GMEmpireGuardian2 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -832,7 +833,7 @@ bool GMEmpireGuardian2::RenderMonster(OBJECT* o, BMD* b, bool ExtraMon)
     {
         if (o->CurrentAction == MONSTER01_DIE)
         {
-            Vector(0.3f, 1.0f, 0.2f, b->BodyLight);
+            Vector(0.3f, 1.0f, 0.2f, Render::Build::CurrentRenderCtx().bodyLight);
         }
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);

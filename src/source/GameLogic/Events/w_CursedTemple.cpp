@@ -1070,11 +1070,11 @@ bool CursedTemple::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     break;
     case MODEL_CURSEDTEMPLE_ENTER_NPC:
     {
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(0, RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-        Vector(10.f, 10.f, 10.f, b->BodyLight);
+        Vector(10.f, 10.f, 10.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(2, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);

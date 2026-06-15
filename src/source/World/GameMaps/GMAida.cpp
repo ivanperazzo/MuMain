@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "UI/Legacy/UIWindows.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
@@ -152,9 +153,9 @@ bool M33Aida::RenderAidaObjectVisual(OBJECT* pObject, BMD* pModel)
     {
         pModel->BeginRender(1.0f);
 
-        pModel->BodyLight[0] = 0.52f;
-        pModel->BodyLight[1] = 0.52f;
-        pModel->BodyLight[2] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
 
         pModel->StreamMesh = 0;
         pModel->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
@@ -1340,9 +1341,9 @@ bool M33Aida::RenderAidaMonsterObjectMesh(OBJECT* pObject, BMD* pModel, bool Ext
     {
         pModel->BeginRender(1.f);
 
-        pModel->BodyLight[0] = 0.9f;
-        pModel->BodyLight[1] = 0.9f;
-        pModel->BodyLight[2] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.9f;
 
         pModel->StreamMesh = 0;
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, -(int)WorldTime % 10000 * 0.0003f, -(int)WorldTime % 10000 * 0.0003f);
@@ -1359,9 +1360,9 @@ bool M33Aida::RenderAidaMonsterObjectMesh(OBJECT* pObject, BMD* pModel, bool Ext
     {
         pModel->BeginRender(1.f);
 
-        pModel->BodyLight[0] = 0.9f;
-        pModel->BodyLight[1] = 0.9f;
-        pModel->BodyLight[2] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.9f;
 
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         pModel->RenderMesh(1, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
@@ -1380,28 +1381,28 @@ bool M33Aida::RenderAidaMonsterObjectMesh(OBJECT* pObject, BMD* pModel, bool Ext
     {
         pModel->BeginRender(1.f);
 
-        pModel->BodyLight[0] = 1.0f;
-        pModel->BodyLight[1] = 1.0f;
-        pModel->BodyLight[2] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 1.0f;
 
         pModel->StreamMesh = 0;
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
-        pModel->BodyLight[0] = 1.0f;
-        pModel->BodyLight[1] = 0.0f;
-        pModel->BodyLight[2] = 0.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.0f;
         pModel->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT | RENDER_CHROME, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         pModel->StreamMesh = -1;
 
-        pModel->BodyLight[0] = 1.0f;
-        pModel->BodyLight[1] = 1.0f;
-        pModel->BodyLight[2] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 1.0f;
         pModel->RenderMesh(1, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
 
         pModel->StreamMesh = 1;
         pModel->RenderMesh(2, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
-        pModel->BodyLight[0] = 0.5f;
-        pModel->BodyLight[1] = 0.0f;
-        pModel->BodyLight[2] = 0.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.5f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.0f;
         pModel->RenderMesh(2, RENDER_TEXTURE | RENDER_BRIGHT | RENDER_CHROME, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         pModel->StreamMesh = -1;
 
@@ -1414,9 +1415,9 @@ bool M33Aida::RenderAidaMonsterObjectMesh(OBJECT* pObject, BMD* pModel, bool Ext
     {
         pModel->BeginRender(1.f);
 
-        pModel->BodyLight[0] = 0.9f;
-        pModel->BodyLight[1] = 0.9f;
-        pModel->BodyLight[2] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.9f;
 
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         pModel->RenderMesh(1, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
@@ -1435,9 +1436,9 @@ bool M33Aida::RenderAidaMonsterObjectMesh(OBJECT* pObject, BMD* pModel, bool Ext
     {
         pModel->BeginRender(1.f);
 
-        pModel->BodyLight[0] = 0.9f;
-        pModel->BodyLight[1] = 0.9f;
-        pModel->BodyLight[2] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.9f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.9f;
 
         pModel->StreamMesh = 0;
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, -(int)WorldTime % 10000 * 0.0003f, -(int)WorldTime % 10000 * 0.0003f);

@@ -180,18 +180,27 @@ public:
     short         IndexLightMap; //ver1.2
     Bitmap_t* LightMaps;    //ver1.2
 
-    bool          LightEnable;
-    bool          ContrastEnable;
-    vec3_t        BodyLight;
+    // Etapa 3b: the per-render fields below were MIGRATED to the per-worker
+    // Render::Build::BmdRenderContext (CurrentRenderCtx()); render code no longer reads/writes
+    // them on the shared BMD. They are RETAINED as RESERVED LAYOUT PADDING because
+    // sizeof(BMD)/the member layout MUST stay byte-identical to the original: Models[] is
+    // allocated as `ModelsDump + rand()%1024` with ZeroMemory(Models, MAX_MODELS*sizeof(BMD))
+    // (ZzzOpenData.cpp:100-102), and a pre-existing heap overflow ("World74\") lands harmlessly
+    // only at the original layout — shrinking sizeof(BMD) shifts the array base onto Models[]
+    // and corrupts it (crash-login). DO NOT delete or reorder these. Do not read/write them in
+    // render code — use CurrentRenderCtx().<field>.
+    bool          LightEnable;     // reserved (layout) -> ctx.lightEnable
+    bool          ContrastEnable;  // reserved (layout) -> ctx.contrastEnable
+    vec3_t        BodyLight;       // reserved (layout) -> ctx.bodyLight
     int           BoneHead;
 
     int           BoneFoot[4];
-    // Etapa 3b 6.2: BodyScale / BodyOrigin / BodyHeight moved off the shared BMD into the
-    // per-worker Render::Build::BmdRenderContext (CurrentRenderCtx()). They were per-render
-    // mutable scalars that raced across same-type entities under the job system.
+    float         BodyScale;       // reserved (layout) -> ctx.bodyScale
+    vec3_t        BodyOrigin;      // reserved (layout) -> ctx.bodyOrigin
     vec3_t        BodyAngle;
+    float         BodyHeight;      // reserved (layout) -> ctx.bodyHeight
     char          StreamMesh;
-    vec3_t        ShadowAngle;
+    vec3_t        ShadowAngle;     // reserved (layout) -> ctx.shadowAngle
     char          Skin;
     bool          HideSkin;
     float         Velocity;
@@ -213,8 +222,6 @@ public:
     BMD() : NumBones(0), NumActions(0), NumMeshs(0),
         Meshs(NULL), Bones(NULL), Actions(NULL), Textures(NULL), IndexTexture(NULL)
     {
-        LightEnable = false;
-        ContrastEnable = false;
         HideSkin = false;
         bLightMap = false;
         iBillType = -1;
@@ -301,7 +308,8 @@ public:
     void RenderBodyTranslate(int RenderFlag, float Alpha = 1.f, int BlendMesh = -1, float BlendMeshLight = 1.f, float BlendMeshTexCoordU = 0.f, float BlendMeshTexCoordV = 0.f, int HiddenMesh = -1, int Texture = -1);
     void RenderBodyShadow(int blendMesh = -1, int hiddenMesh = -1, int startMeshNumber = -1, int endMeshNumber = -1, void* pClothes = nullptr, int clothesCount = 0);
 
-    void SetBodyLight(vec3_t right) { VectorCopy(right, BodyLight); }
+    // Etapa 3b 6.3: SetBodyLight removed — BodyLight is now per-worker ctx.bodyLight; its
+    // sole caller (ZzzEffect) writes VectorCopy(o->Light, CurrentRenderCtx().bodyLight) directly.
 
     bool LightMapEnable;
     bool CollisionDetectLineToMesh(vec3_t, vec3_t, bool Collision = true, int Mesh = -1, int Triangle = -1);

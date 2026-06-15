@@ -1,6 +1,7 @@
 ﻿// GMEmpireGuardian1.cpp: implementation of the GMEmpireGuardian1 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -1336,7 +1337,7 @@ bool GMEmpireGuardian1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(2, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         float Luminosity = sinf(WorldTime * 0.002f) * 0.5f + 0.6f;
-        Vector(Luminosity * b->BodyLight[0], Luminosity * b->BodyLight[1], Luminosity * b->BodyLight[2], b->BodyLight);
+        Vector(Luminosity * Render::Build::CurrentRenderCtx().bodyLight[0], Luminosity * Render::Build::CurrentRenderCtx().bodyLight[1], Luminosity * Render::Build::CurrentRenderCtx().bodyLight[2], Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
     }
     return true;
@@ -1346,7 +1347,7 @@ bool GMEmpireGuardian1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(2, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        Vector(1.2f, 1.2f, 1.2f, b->BodyLight);
+        Vector(1.2f, 1.2f, 1.2f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(3, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
     }
     return true;
@@ -1355,7 +1356,7 @@ bool GMEmpireGuardian1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     {
         b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(2, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        Vector(1.1f, 1.1f, 1.1f, b->BodyLight);
+        Vector(1.1f, 1.1f, 1.1f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
     }
     return true;
@@ -1379,7 +1380,7 @@ bool GMEmpireGuardian1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(3, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(2, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        Vector(1.0f, 0.0f, 0.0f, b->BodyLight);
+        Vector(1.0f, 0.0f, 0.0f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(1, RENDER_BRIGHT | RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(1, RENDER_BRIGHT | RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
     }
@@ -1783,10 +1784,10 @@ bool GMEmpireGuardian1::RenderMonster(OBJECT* o, BMD* b, bool ExtraMon)
         float fBlendMeshLight = (sinf(WorldTime * 0.003f) + 1.0f) * 0.5f;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         vec3_t _temp;
-        VectorCopy(b->BodyLight, _temp);
-        Vector(b->BodyLight[0] * 3.0f, b->BodyLight[0] * 3.0f, b->BodyLight[0] * 3.0f, b->BodyLight);
+        VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, _temp);
+        Vector(Render::Build::CurrentRenderCtx().bodyLight[0] * 3.0f, Render::Build::CurrentRenderCtx().bodyLight[0] * 3.0f, Render::Build::CurrentRenderCtx().bodyLight[0] * 3.0f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 1, fBlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_RAYMOND_SWORD);
-        VectorCopy(_temp, b->BodyLight);
+        VectorCopy(_temp, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(3, RENDER_BRIGHT | RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
     }
     return true;

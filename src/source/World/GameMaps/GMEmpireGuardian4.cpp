@@ -684,7 +684,7 @@ bool GMEmpireGuardian4::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     case 97:
     case 100:
     {
-        Vector(0.170382, 0.170382, 0.170382, b->BodyLight);
+        Vector(0.170382, 0.170382, 0.170382, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
     }
     return true;
@@ -1099,12 +1099,12 @@ bool GMEmpireGuardian4::RenderMonster(OBJECT* o, BMD* b, bool ExtraMon)
 
         b->RenderMesh(3, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-        Vector(b->BodyLight[0], b->BodyLight[1], b->BodyLight[2], v3LightBackup);
-        Vector(0.3f, 0.3f, 0.3f, b->BodyLight);
+        Vector(Render::Build::CurrentRenderCtx().bodyLight[0], Render::Build::CurrentRenderCtx().bodyLight[1], Render::Build::CurrentRenderCtx().bodyLight[2], v3LightBackup);
+        Vector(0.3f, 0.3f, 0.3f, Render::Build::CurrentRenderCtx().bodyLight);
 
         b->RenderMesh(3, RENDER_BRIGHT | RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-        VectorCopy(v3LightBackup, b->BodyLight);
+        VectorCopy(v3LightBackup, Render::Build::CurrentRenderCtx().bodyLight);
     }
     return true;
     }

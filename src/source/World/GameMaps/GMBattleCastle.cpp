@@ -1184,7 +1184,7 @@ namespace battleCastle
 
         if (o->Type == 12)
         {
-            Vector(1.f, 1.f, 1.f, b->BodyLight);
+            Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_INTERFACE_MAP);
             return true;
@@ -1192,7 +1192,7 @@ namespace battleCastle
         else if (o->Type == 17)
         {
             b->StreamMesh = 0;
-            Vector(0.45f, 0.45f, 0.45f, b->BodyLight);
+            Vector(0.45f, 0.45f, 0.45f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0002f, o->HiddenMesh);
             b->StreamMesh = -1;
             return true;
@@ -1206,7 +1206,7 @@ namespace battleCastle
         }
         else if (o->Type == 66)
         {
-            Vector(0.1f, 0.4f, 0.6f, b->BodyLight);
+            Vector(0.1f, 0.4f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_CHROME | RENDER_BRIGHT, o->Alpha, o->BlendMesh, sinf(WorldTime * 0.001f) * 0.2f + 0.3f, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
             return true;
         }
@@ -1227,23 +1227,23 @@ namespace battleCastle
             if (IsBattleCastleStart())
             {
                 b->BeginRender(o->Alpha);
-                glColor3fv(b->BodyLight);
+                glColor3fv(Render::Build::CurrentRenderCtx().bodyLight);
                 b->RenderMesh(3, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-                Vector(0.3f, 0.3f, 0.3f, b->BodyLight);
+                Vector(0.3f, 0.3f, 0.3f, Render::Build::CurrentRenderCtx().bodyLight);
                 b->RenderMesh(3, RENDER_BRIGHT | RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_CHROME);
-                Vector(0.2f, 0.2f, 0.5f, b->BodyLight);
+                Vector(0.2f, 0.2f, 0.5f, Render::Build::CurrentRenderCtx().bodyLight);
                 b->RenderMesh(3, RENDER_BRIGHT | RENDER_METAL, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_CHROME);
-                Vector(1.f, 1.f, 1.f, b->BodyLight);
+                Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
                 b->EndRender();
             }
             else
             {
                 b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
-                Vector(0.3f, 0.3f, 0.3f, b->BodyLight);
+                Vector(0.3f, 0.3f, 0.3f, Render::Build::CurrentRenderCtx().bodyLight);
                 b->RenderBody(RENDER_BRIGHT | RENDER_CHROME, o->Alpha, 0.5f, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh, BITMAP_CHROME);
-                Vector(0.2f, 0.2f, 0.5f, b->BodyLight);
+                Vector(0.2f, 0.2f, 0.5f, Render::Build::CurrentRenderCtx().bodyLight);
                 b->RenderBody(RENDER_BRIGHT | RENDER_METAL, o->Alpha, 0.5f, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh, BITMAP_CHROME);
-                Vector(1.f, 1.f, 1.f, b->BodyLight);
+                Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
             }
             return true;
         }
@@ -1932,7 +1932,7 @@ namespace battleCastle
             vec3_t  Temp, p, Position;
             BMD* linkBmd = &Models[MODEL_FLY_BIG_STONE1];
             Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
-            linkBmd->ContrastEnable = o->ContrastEnable;
+            Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
             BodyLight(o, linkBmd);
             Render::Build::CurrentRenderCtx().bodyScale = 1.3f;
             linkBmd->CurrentAction = 0;
@@ -1961,9 +1961,9 @@ namespace battleCastle
         break;
 
         case MODEL_NPC_BARRIER:
-            Vector(0.3f, 0.3f, 1.f, b->BodyLight);
+            Vector(0.3f, 0.3f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh, BITMAP_WATER + WaterTextureNumber);
-            Vector(0.3f, 1.f, 0.3f, b->BodyLight);
+            Vector(0.3f, 1.f, 0.3f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh, BITMAP_WATER + ((int)(WorldTime * 0.01f) % 32));
             success = true;
             break;
@@ -2003,11 +2003,11 @@ namespace battleCastle
                 else
                 {
                     b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
-                    Vector(0.3f, 0.3f, 0.3f, b->BodyLight);
+                    Vector(0.3f, 0.3f, 0.3f, Render::Build::CurrentRenderCtx().bodyLight);
                     b->RenderBody(RENDER_BRIGHT | RENDER_CHROME, o->Alpha, 0.5f, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh, BITMAP_CHROME);
-                    Vector(0.2f, 0.2f, 0.5f, b->BodyLight);
+                    Vector(0.2f, 0.2f, 0.5f, Render::Build::CurrentRenderCtx().bodyLight);
                     b->RenderBody(RENDER_BRIGHT | RENDER_METAL, o->Alpha, 0.5f, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh, BITMAP_CHROME);
-                    Vector(1.f, 1.f, 1.f, b->BodyLight);
+                    Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
                 }
             }
             success = true;
@@ -2015,7 +2015,7 @@ namespace battleCastle
 
         case MODEL_LIFE_STONE:
             o->BlendMeshLight = o->m_byBuildTime / 10.f;
-            Vector(o->BlendMeshLight, o->BlendMeshLight, o->BlendMeshLight, b->BodyLight);
+            Vector(o->BlendMeshLight, o->BlendMeshLight, o->BlendMeshLight, Render::Build::CurrentRenderCtx().bodyLight);
             if (o->m_byBuildTime >= 2)
             {
                 b->RenderMesh(0, RENDER_TEXTURE);
@@ -2026,15 +2026,15 @@ namespace battleCastle
             }
             if (o->m_byBuildTime >= 4)
             {
-                Vector(o->BlendMeshLight * 0.5f, o->BlendMeshLight * 0.5f, o->BlendMeshLight * 0.5f, b->BodyLight);
+                Vector(o->BlendMeshLight * 0.5f, o->BlendMeshLight * 0.5f, o->BlendMeshLight * 0.5f, Render::Build::CurrentRenderCtx().bodyLight);
                 b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT);
             }
             if (o->m_byBuildTime >= 5)
             {
-                Vector(0.5f, 0.5f, 0.5f, b->BodyLight);
+                Vector(0.5f, 0.5f, 0.5f, Render::Build::CurrentRenderCtx().bodyLight);
                 b->RenderMesh(3, RENDER_TEXTURE | RENDER_BRIGHT, 1.f, 3, 1.f, WorldTime * 0.0001f);
 
-                Vector(0.2f, 0.2f, 0.2f, b->BodyLight);
+                Vector(0.2f, 0.2f, 0.2f, Render::Build::CurrentRenderCtx().bodyLight);
                 b->RenderMesh(4, RENDER_TEXTURE | RENDER_BRIGHT, 1.f, 3, 1.f, WorldTime * 0.0001f);
             }
             success = true;

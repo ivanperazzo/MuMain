@@ -1,6 +1,7 @@
 ﻿// GMDoppelGanger3.cpp: implementation of the CGMDoppelGanger3 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -432,9 +433,9 @@ void CGMDoppelGanger3::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         break;
     case 38:
     {
-        b->BodyLight[0] = std::min<float>(b->BodyLight[0] * 2.0f, 1.0f);
-        b->BodyLight[1] = std::min<float>(b->BodyLight[1] * 2.0f, 1.0f);
-        b->BodyLight[2] = std::min<float>(b->BodyLight[2] * 2.0f, 1.0f);
+        Render::Build::CurrentRenderCtx().bodyLight[0] = std::min<float>(Render::Build::CurrentRenderCtx().bodyLight[0] * 2.0f, 1.0f);
+        Render::Build::CurrentRenderCtx().bodyLight[1] = std::min<float>(Render::Build::CurrentRenderCtx().bodyLight[1] * 2.0f, 1.0f);
+        Render::Build::CurrentRenderCtx().bodyLight[2] = std::min<float>(Render::Build::CurrentRenderCtx().bodyLight[2] * 2.0f, 1.0f);
         b->RenderBody(RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
     }
     break;

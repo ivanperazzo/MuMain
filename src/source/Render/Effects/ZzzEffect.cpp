@@ -2042,7 +2042,7 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
                 o->Position[1] = Position[1];
                 o->Position[2] = Position[2] + 12.f;
                 Vector(0.f, 0.f, 0.f, o->Direction);
-                //				Vector(0.1f,0.1f,0.1f,b->BodyLight);
+                //				Vector(0.1f,0.1f,0.1f,Render::Build::CurrentRenderCtx().bodyLight);
                 break;
             case MODEL_CHANGE_UP_CYLINDER:
                 o->BlendMesh = -2;
@@ -9689,7 +9689,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         {
             o->Scale += (0.04f) * FPS_ANIMATION_FACTOR;
             BMD* b = &Models[o->Type];
-            VectorCopy(o->Light, b->BodyLight);
+            VectorCopy(o->Light, Render::Build::CurrentRenderCtx().bodyLight);
         }
         break;
     case MODEL_MAGIC_CIRCLE1:
@@ -11979,7 +11979,7 @@ void MoveEffect(OBJECT* o, int iIndex)
 
         BMD* effbmd = &Models[o->Type];
 
-        effbmd->SetBodyLight(o->Light);
+        VectorCopy(o->Light, Render::Build::CurrentRenderCtx().bodyLight);
         effbmd->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity / 3.f, o->Position, o->Angle);
 
         CreateEffectFpsChecked(BITMAP_SHOCK_WAVE, o->Owner->Position, o->Angle, o->Light, 10, o->Owner);
@@ -18127,7 +18127,7 @@ void RenderEffects(bool bRenderBlendMesh)
                 case MODEL_MULTI_SHOT3:
                 {
                     BMD* b = &Models[o->Type];
-                    Vector(1.f, 1.f, 1.f, b->BodyLight);
+                    Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
                     b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity / 6.f, o->Position, o->Angle);
                     RenderObject(o);
                 }
@@ -18750,7 +18750,7 @@ void RenderEffects(bool bRenderBlendMesh)
                     else
                     {
                         Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
-                        pBMDSwordModel->ContrastEnable = o->ContrastEnable;
+                        Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
                         BodyLight(o, pBMDSwordModel);
                         Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
                         pBMDSwordModel->CurrentAction = o->CurrentAction;
@@ -18763,15 +18763,15 @@ void RenderEffects(bool bRenderBlendMesh)
                         pBMDSwordModel->AnimationTransformOnlySelf(arrEachBoneTranslations, o);
                     }
 
-                    pBMDSwordModel->LightEnable = true;
+                    Render::Build::CurrentRenderCtx().lightEnable = true;
 
-                    Vector(1.0f, 1.0f, 1.0f, pBMDSwordModel->BodyLight);
+                    Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
                     pBMDSwordModel->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-                    Vector(1.0f, 1.0f, 1.0f, pBMDSwordModel->BodyLight);
+                    Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
                     pBMDSwordModel->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-                    Vector(0.2f, 0.2f, 1.0f, pBMDSwordModel->BodyLight);
+                    Vector(0.2f, 0.2f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
                     o->Alpha = 1.0f;
                     pBMDSwordModel->RenderMesh(2, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
                     o->Alpha = 1.0f;

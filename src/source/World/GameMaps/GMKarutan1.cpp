@@ -3,6 +3,7 @@
 //*****************************************************************************
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 
 #ifdef ASG_ADD_MAP_KARUTAN
 
@@ -223,7 +224,7 @@ bool CGMKarutan1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(2, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight,
             o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+        Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(3, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 0, o->BlendMeshLight,
             o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         return true;
@@ -243,7 +244,7 @@ bool CGMKarutan1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
 
             b->RenderMesh(3, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 3, o->BlendMeshLight * 0.9f,
                 WorldTime * 0.0010f, o->BlendMeshTexCoordV);
-            Vector(0.4f, 0.95f, 1.0f, b->BodyLight);
+            Vector(0.4f, 0.95f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(2, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 2, o->BlendMeshLight * 0.3f,
                 WorldTime * 0.0015f, o->BlendMeshTexCoordV);
         }
@@ -266,14 +267,14 @@ bool CGMKarutan1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 1, fLumi,
                 o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_NARCONDRA_SKIN_EFFECT3);
 
-            Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+            Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 0, o->BlendMeshLight,
                 o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-            Vector(1.0f, 0.1f, 1.0f, b->BodyLight);
+            Vector(1.0f, 0.1f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(4, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 4, o->BlendMeshLight * 0.9f,
                 WorldTime * 0.0010f, o->BlendMeshTexCoordV);
-            Vector(0.7f, 0.4f, 1.0f, b->BodyLight);
+            Vector(0.7f, 0.4f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(5, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 5, o->BlendMeshLight * 0.7f,
                 WorldTime * 0.0015f, o->BlendMeshTexCoordV);
         }
@@ -676,7 +677,7 @@ void CGMKarutan1::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BMD* pM
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                Vector(2.f, 2.f, 2.f, pModel->BodyLight);
+                Vector(2.f, 2.f, 2.f, Render::Build::CurrentRenderCtx().bodyLight);
 
                 pModel->TransformPosition(
                     g_BoneTransformScratch[156], StartRelative, StartPos, false);

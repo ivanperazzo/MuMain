@@ -56,10 +56,21 @@ never runs during `ParallelFor`.
 **Hard invariant every sub-task keeps:** serial-identical. `MU_JOBS` stays OFF until the final
 switch; every intermediate commit produces pixel-identical output and identical `[bmd_cov]`
 (inst=2300 @100ch). Verified by the A/B harness + in-game, exactly like Tasks 1-5.
-**Do NOT change `sizeof(BMD)` in a way that shifts the `Models` array layout** (crash-login). Moving
-a member OUT of BMD shrinks it — acceptable (the array is sized by `sizeof(BMD)` at alloc, no
-external offset assumption beyond the random-offset guard), but verify the login scene after the
-member-removal steps.
+
+**CRITICAL — NEVER change `sizeof(BMD)` or the member layout (learned the hard way, 6.3).** The
+earlier draft said "moving a member OUT of BMD shrinks it — acceptable." **That is WRONG and caused
+a crash.** `Models[]` is allocated as `ModelsDump + rand()%1024` with
+`ZeroMemory(Models, MAX_MODELS*sizeof(BMD))` (`ZzzOpenData.cpp:100-102`), and a *pre-existing* heap
+overflow (writes the string `"World74\"`) lands on harmless padding **only at the original layout**.
+Removing members shifts the array base so the overflow lands on `Models[]`, corrupting `Actions` →
+AV in the char render (login-scene crowd crashes; no `bmd_cov`, no MuError entry — silent). 6.2
+removed 20 bytes and survived by rand luck; 6.3 removed 26 more and crashed every run.
+→ **RULE: do NOT delete or reorder BMD member declarations.** When migrating a field, KEEP its
+declaration as **reserved layout padding** (mark it `// reserved (layout) -> ctx.<field>`) and only
+repoint its *usage* (reads/writes) to `CurrentRenderCtx()`. The shared BMD becomes effectively
+immutable during render (nothing touches the reserved fields) — that is all the parallelism goal
+requires; the bytes staying put is free. Re-verify the login-scene crowd harness after every step
+(crash is silent in `[bmd_cov]`-only checks).
 
 ## The context object
 
@@ -126,7 +137,9 @@ move together). **No method signatures change.** After each step: build Release,
   No BMD member removed, no signature touched.
 - **6.2 — Placement group:** `BodyScale`, `BodyOrigin`, `BodyHeight`, file-global `BoneScale` →
   `CurrentRenderCtx()`. Repoint setters + ~50 read sites (SkinMesh, Transform, TransformPosition,
-  lit-build, inst gate `:1553-1581`, shadow). Remove the BMD members + the file-global. A/B.
+  lit-build, inst gate `:1553-1581`, shadow). RETAIN the BMD members as reserved padding (do NOT
+  delete — sizeof(BMD) must stay byte-identical); remove only the file-global `BoneScale` (not a
+  BMD member, so it doesn't affect layout). A/B + login-scene crowd harness (crash is silent).
 - **6.3 — Lighting group:** `BodyLight` (the ~40-read hot one), `LightEnable`, `ContrastEnable`,
   `ShadowAngle` → `CurrentRenderCtx()`. Repoint setters + RenderMesh color path + all
   Render*Alternative/Translate/Shadow variants + the 4 `InstanceRec` builders. A/B (highest

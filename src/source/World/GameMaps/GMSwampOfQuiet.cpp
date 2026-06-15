@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Render/Models/ZzzBMD.h"
@@ -213,15 +214,15 @@ bool GMSwampOfQuiet::RenderObject(OBJECT* pObject, BMD* pModel, bool ExtraMon)
             switch (pObject->Type)
             {
             case MODEL_SHADOW_PAWN:
-                Vector(1.0f, 0.2f, 0.2f, pModel->BodyLight);
+                Vector(1.0f, 0.2f, 0.2f, Render::Build::CurrentRenderCtx().bodyLight);
                 pModel->RenderMesh(3, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, 3, fLumi);
                 break;
             case MODEL_SHADOW_KNIGHT:
-                Vector(0.5f, 0.8f, 1.0f, pModel->BodyLight);
+                Vector(0.5f, 0.8f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
                 pModel->RenderMesh(3, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, 3, fLumi);
                 break;
             case MODEL_SHADOW_LOOK:
-                Vector(0.5f, 1.0f, 0.5f, pModel->BodyLight);
+                Vector(0.5f, 1.0f, 0.5f, Render::Build::CurrentRenderCtx().bodyLight);
                 pModel->RenderMesh(4, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, 4, fLumi);
                 break;
             }

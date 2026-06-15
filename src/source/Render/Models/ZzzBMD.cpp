@@ -67,6 +67,20 @@ static_assert(sizeof(vec4_t) == sizeof(float[4]), "BoneQuaternion arena layout d
 #define BodyHeight  (Render::Build::CurrentRenderCtx().bodyHeight)
 #define BoneScale   (Render::Build::CurrentRenderCtx().boneScale)
 
+// Etapa 3b 6.3: the lighting state (LightEnable / BodyLight / ShadowAngle) was per-render
+// mutable state living on the shared Models[type] BMD; it now lives in the per-worker
+// Render::Build::BmdRenderContext (CurrentRenderCtx()). Bare references inside BMD methods
+// here (and the b->/pModel-> setters in other TUs) are repointed onto the ctx slot;
+// signatures are unchanged. The set->use sequence is contiguous within a worker, so the
+// per-worker single slot reproduces the old shared-member semantics byte-for-byte.
+// These object-like macros are FILE-LOCAL to ZzzBMD.cpp; the free function BodyLight(OBJECT*,
+// BMD*) and identifiers like s_lastLightEnable / AmbientShadowAngle / CopyShadowAngle are
+// distinct whole tokens the preprocessor will not rewrite. (ContrastEnable has no bare use
+// here, so it gets no macro — only its cross-TU setters move to ctx.contrastEnable.)
+#define BodyLight    (Render::Build::CurrentRenderCtx().bodyLight)
+#define LightEnable  (Render::Build::CurrentRenderCtx().lightEnable)
+#define ShadowAngle  (Render::Build::CurrentRenderCtx().shadowAngle)
+
 vec3_t RenderArrayVertices[MAX_VERTICES * 3];
 vec4_t RenderArrayColors[MAX_VERTICES * 3];
 vec2_t RenderArrayTexCoords[MAX_VERTICES * 3];

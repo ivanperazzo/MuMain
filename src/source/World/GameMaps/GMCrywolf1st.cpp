@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "UI/Legacy/UIWindows.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
@@ -444,12 +445,12 @@ bool M34CryWolf1st::RenderCryWolf1stObjectMesh(OBJECT* o, BMD* b, int ExtraMon)
     {
         if (m_OccupationState == CRYWOLF_OCCUPATION_STATE_PEACE)
         {
-            Vector(0.4f, 0.4f, 0.4f, b->BodyLight);
+            Vector(0.4f, 0.4f, 0.4f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         }
         else
         {
-            Vector(0.4f, 0.4f, 0.4f, b->BodyLight);
+            Vector(0.4f, 0.4f, 0.4f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         }
     }
@@ -547,9 +548,9 @@ bool M34CryWolf1st::RenderCryWolf1stObjectMesh(OBJECT* o, BMD* b, int ExtraMon)
             float fTemp = 0.1f;
 
             if (m_StatueHP <= 10) fTemp = 1.0f;
-            b->BodyLight[0] = (sinf(WorldTime * 0.004f) * 3.0f) * fTemp + 5.0f - m_StatueHP / 20.0f;
-            b->BodyLight[1] = m_StatueHP / 25.0f - 1.0f;
-            b->BodyLight[2] = m_StatueHP / 20.0f - 0.5f;
+            Render::Build::CurrentRenderCtx().bodyLight[0] = (sinf(WorldTime * 0.004f) * 3.0f) * fTemp + 5.0f - m_StatueHP / 20.0f;
+            Render::Build::CurrentRenderCtx().bodyLight[1] = m_StatueHP / 25.0f - 1.0f;
+            Render::Build::CurrentRenderCtx().bodyLight[2] = m_StatueHP / 20.0f - 0.5f;
 
             b->StreamMesh = 0;
             b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
@@ -563,7 +564,7 @@ bool M34CryWolf1st::RenderCryWolf1stObjectMesh(OBJECT* o, BMD* b, int ExtraMon)
     return true;
     case MODEL_SKILL_FURY_STRIKE:
     {
-        Vector(0.0f, 0.0f, 0.9f, b->BodyLight);
+        Vector(0.0f, 0.0f, 0.9f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
     }
     return true;
@@ -1414,7 +1415,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     {
     case MODEL_SORAM:
     {
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, 5);
         b->EndRender();
@@ -1423,7 +1424,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_BALGASS:
     {
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {
@@ -1474,7 +1475,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     {
         if (ExtraMon)
         {
-            Vector(0.5f, 0.5f, 0.6f, b->BodyLight);
+            Vector(0.5f, 0.5f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
             b->BeginRender(o->Alpha);
             for (int i = 0; i < Models[o->Type].NumMeshs; i++)
             {
@@ -1492,7 +1493,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     {
         if (ExtraMon)
         {
-            Vector(0.5f, 0.5f, 0.8f, b->BodyLight);
+            Vector(0.5f, 0.5f, 0.8f, Render::Build::CurrentRenderCtx().bodyLight);
             b->BeginRender(o->Alpha);
             for (int i = 0; i < Models[o->Type].NumMeshs; i++)
             {
@@ -1508,7 +1509,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_TANTALLOS:
     {
-        Vector(0.6f, 0.8f, 0.6f, b->BodyLight);
+        Vector(0.6f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {
@@ -1521,7 +1522,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_BLOODY_WOLF:
     {
-        Vector(0.6f, 0.8f, 0.6f, b->BodyLight);
+        Vector(0.6f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {
@@ -1534,7 +1535,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_BEAM_KNIGHT:	//318
     {
-        Vector(0.6f, 0.8f, 0.6f, b->BodyLight);
+        Vector(0.6f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {
@@ -1547,7 +1548,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_DRAGON_:	//319
     {
-        Vector(0.6f, 0.8f, 0.6f, b->BodyLight);
+        Vector(0.6f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {

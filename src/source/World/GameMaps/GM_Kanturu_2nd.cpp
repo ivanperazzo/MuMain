@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Engine/Object/ZzzInfomation.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
@@ -654,9 +655,9 @@ void M38Kanturu2nd::Render_Kanturu2nd_AfterObjectMesh(OBJECT* o, BMD* b)
     {
         b->BeginRender(o->Alpha);
 
-        b->BodyLight[0] = 0.4f;
-        b->BodyLight[1] = 0.4f;
-        b->BodyLight[2] = 0.4f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.4f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.4f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.4f;
 
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(0, RENDER_CHROME7 | RENDER_DARK, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_CHROME);
@@ -697,11 +698,11 @@ bool M38Kanturu2nd::Render_Kanturu2nd_MonsterObjectMesh(OBJECT* o, BMD* b, int E
 
         if (o->CurrentAction != MONSTER01_DIE)
         {
-            Vector(0.9f, 0.9f, 1.0f, b->BodyLight);
+            Vector(0.9f, 0.9f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
         }
         else
         {
-            Vector(0.3f, 1.0f, 0.2f, b->BodyLight);
+            Vector(0.3f, 1.0f, 0.2f, Render::Build::CurrentRenderCtx().bodyLight);
         }
 
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);

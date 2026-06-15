@@ -2,6 +2,7 @@
 // File: GM_kanturu_1st.cpp
 //*****************************************************************************
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Engine/Object/ZzzInfomation.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
@@ -345,9 +346,9 @@ void M37Kanturu1st::RenderKanturu1stAfterObjectMesh(OBJECT* o, BMD* b)
     switch (o->Type)
     {
     case 76:
-        b->BodyLight[0] = 0.52f;
-        b->BodyLight[1] = 0.52f;
-        b->BodyLight[2] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
 
         b->StreamMesh = 0;
         b->RenderMesh(
@@ -953,7 +954,7 @@ bool M37Kanturu1st::RenderKanturu1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     case MODEL_SPLINTER_WOLF:
     {
         float fLumi = (sinf(WorldTime * 0.002f) + 1.f) * 0.5f;
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(0, RENDER_TEXTURE);
         b->RenderMesh(1, RENDER_TEXTURE);
         b->RenderMesh(2, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 2, fLumi);
@@ -997,7 +998,7 @@ bool M37Kanturu1st::RenderKanturu1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     case MODEL_SATYROS:
     {
         vec3_t Light;
-        VectorCopy(b->BodyLight, Light);
+        VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, Light);
         b->BeginRender(1.f);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         b->StreamMesh = 1;
@@ -1005,7 +1006,7 @@ bool M37Kanturu1st::RenderKanturu1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
         b->RenderMesh(3, RENDER_CHROME | RENDER_BRIGHT, 1.f, 0, o->BlendMeshLight, o->BlendMeshTexCoordU, WorldTime * 0.001f, BITMAP_CHROME);
 
         float Luminosity = sinf(WorldTime * 0.001f) * 0.5f + 0.5f;
-        Vector(Light[0] * Luminosity, Light[0] * Luminosity, Light[0] * Luminosity, b->BodyLight);
+        Vector(Light[0] * Luminosity, Light[0] * Luminosity, Light[0] * Luminosity, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(4, RENDER_TEXTURE | RENDER_BRIGHT, 1.f, 2, o->BlendMeshLight, WorldTime * 0.0001f, -WorldTime * 0.0005f);
         b->EndRender();
         return true;
@@ -1014,7 +1015,7 @@ bool M37Kanturu1st::RenderKanturu1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     case MODEL_KENTAUROS:
     {
         float fLumi = (sinf(WorldTime * 0.002f) + 1.f) * 0.5f;
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 1, fLumi);
         b->RenderMesh(1, RENDER_CHROME2 | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
@@ -1044,7 +1045,7 @@ bool M37Kanturu1st::RenderKanturu1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     case MODEL_KENTAUROS_WARRIOR:
     {
         float fLumi = (sinf(WorldTime * 0.002f) + 1.f) * 0.5f;
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 1, fLumi);
         b->RenderMesh(1, RENDER_CHROME2 | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);

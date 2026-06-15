@@ -2,6 +2,7 @@
 //
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 
 #include "GameLogic/Social/MonkSystem.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -490,7 +491,7 @@ bool CMonkSystem::RageFighterEffect(OBJECT* _pObj, int _Type)
     BMD* b = &Models[_Type];
     if (_pObj->CurrentAction == PLAYER_SKILL_DARKSIDE_READY)
     {
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         float fAlpha = 1.0f;
         int _nAniKey = Models[_pObj->Type].Actions[PLAYER_SKILL_DARKSIDE_READY].NumAnimationKeys;
         float _nRoop = (float)(180.0f / _nAniKey) * _pObj->AnimationFrame + 180.0f;
@@ -501,9 +502,9 @@ bool CMonkSystem::RageFighterEffect(OBJECT* _pObj, int _Type)
     }
     else if (_pObj->CurrentAction == PLAYER_SKILL_DARKSIDE_ATTACK)
     {
-        Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+        Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
         float fAlpha = _pObj->Alpha;
-        VectorScale(b->BodyLight, fAlpha, b->BodyLight);
+        VectorScale(Render::Build::CurrentRenderCtx().bodyLight, fAlpha, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderBody(RENDER_TEXTURE | RENDER_BRIGHT, fAlpha, _pObj->BlendMesh, _pObj->BlendMeshLight, _pObj->BlendMeshTexCoordU, _pObj->BlendMeshTexCoordV);
         return true;
     }
@@ -523,7 +524,7 @@ bool CMonkSystem::RageFighterEffect(OBJECT* _pObj, int _Type)
         {
             fAlpha = 0.0f;
         }
-        Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+        Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderBody(RENDER_BRIGHT | RENDER_COLOR, _pObj->Alpha, _pObj->BlendMesh, _pObj->BlendMeshLight, _pObj->BlendMeshTexCoordU, _pObj->BlendMeshTexCoordV);
         b->RenderBody(RENDER_TEXTURE, fAlpha, _pObj->BlendMesh, _pObj->BlendMeshLight, _pObj->BlendMeshTexCoordU, _pObj->BlendMeshTexCoordV);
 

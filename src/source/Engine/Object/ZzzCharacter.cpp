@@ -6591,7 +6591,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         return;
 
     //CopyShadowAngle(f,b);
-    b->ContrastEnable = o->ContrastEnable;
+    Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
     Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
     b->CurrentAction = f->CurrentAction;
     Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
@@ -6603,8 +6603,8 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
     Object->EnableShadow = o->EnableShadow;
     Object->m_bRenderShadow = o->m_bRenderShadow;
     Object->m_bySkillCount = o->m_bySkillCount;
-    b->LightEnable = Object->LightEnable;
-    b->LightEnable = false;
+    Render::Build::CurrentRenderCtx().lightEnable = Object->LightEnable;
+    Render::Build::CurrentRenderCtx().lightEnable = false;
 
     g_CharacterCopyBuff(Object, o);
 
@@ -8662,14 +8662,14 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
         {
             if (c->MonsterIndex >= MONSTER_GOLDEN_DARK_KNIGHT)
             {
-                VectorCopy(Models[o->Type].BodyLight, vBackupBodyLight);
-                Vector(1.f, 0.6f, 0.3f, Models[o->Type].BodyLight);
+                VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, vBackupBodyLight);
+                Vector(1.f, 0.6f, 0.3f, Render::Build::CurrentRenderCtx().bodyLight);
             }
 
             if (c->MonsterIndex == MONSTER_GOLDEN_GREAT_DRAGON)
             {
-                VectorCopy(Models[o->Type].BodyLight, vBackupBodyLight);
-                Vector(1.f, 0.0f, 0.0f, Models[o->Type].BodyLight);
+                VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, vBackupBodyLight);
+                Vector(1.f, 0.0f, 0.0f, Render::Build::CurrentRenderCtx().bodyLight);
 
                 float	fEffectScale = o->Scale * 1.6f;
                 vec3_t	v3EffectLightColor, v3EffectPosition;
@@ -8724,7 +8724,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
 
         if (c->MonsterIndex >= MONSTER_GOLDEN_DARK_KNIGHT && c->MonsterIndex <= MONSTER_GOLDEN_RABBIT)
         {
-            VectorCopy(vBackupBodyLight, Models[o->Type].BodyLight);
+            VectorCopy(vBackupBodyLight, Render::Build::CurrentRenderCtx().bodyLight);
         }
     }
     else if (c->MonsterIndex == MONSTER_ALQUAMOS)
