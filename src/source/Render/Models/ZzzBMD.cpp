@@ -29,7 +29,6 @@
 BMD* Models;
 BMD* ModelsDump;
 
-vec4_t BoneQuaternion[MAX_BONES];
 short  BoundingVertices[MAX_BONES];
 vec3_t BoundingMin[MAX_BONES];
 vec3_t BoundingMax[MAX_BONES];
@@ -43,6 +42,13 @@ vec3_t BoundingMax[MAX_BONES];
 #define g_chromeup      (Render::Build::CurrentArena().chromeUp)
 #define g_chromeright   (Render::Build::CurrentArena().chromeRight)
 
+// Task 3 (review follow-up): BoneQuaternion (per-bone slerp scratch in BMD::Animation) is
+// ZzzBMD.cpp-only, so its macro is file-local like the chrome caches. vec4_t == float[4]
+// (Core/Globals/_types.h), layout-identical to arena.boneQuaternion[][4]. ParentMatrix is
+// cross-TU and macro-mapped in WorkerArena.h.
+static_assert(sizeof(vec4_t) == sizeof(float[4]), "BoneQuaternion arena layout drifted from vec4_t");
+#define BoneQuaternion  (Render::Build::CurrentArena().boneQuaternion)
+
 // VertexTransform/NormalTransform/IntensityTransform/LightTransform/g_chrome moved
 // to the per-worker Render::Build::WorkerArena (Task 2); accessor macros in
 // WorkerArena.h keep every call site unchanged.
@@ -52,7 +58,10 @@ vec4_t RenderArrayColors[MAX_VERTICES * 3];
 vec2_t RenderArrayTexCoords[MAX_VERTICES * 3];
 
 bool  StopMotion = false;
-float ParentMatrix[3][4];
+// Task 3 (review follow-up): file-global `float ParentMatrix[3][4];` removed — now a
+// per-worker arena member via the ParentMatrix macro (WorkerArena.h). Transient root-bone
+// concat scratch; was never read across calls. Same TUs that used the old extern now
+// include WorkerArena.h.
 
 static vec3_t LightVector = { 0.f, -0.1f, -0.8f };
 static vec3_t LightVector2 = { 0.f, -0.5f, -0.8f };
@@ -746,7 +755,10 @@ void BMD::AnimationTransformOnlySelf(vec3_t* arrOutSetfAllBonePositions,
     delete[] arrBonesTMLocal;
 }
 
-vec3_t		g_vright;		// needs to be set to viewer's right in order for chrome to work
+// Task 3 (review follow-up): the file-global `vec3_t g_vright;` was written to the invariant
+// constant (0,0,1) at the top of BMD::Chrome and read only within that same function — a
+// benign write-then-read of a constant, but still a shared mutable global. Made a function-
+// local in BMD::Chrome (below) so it is no longer a global at all. Used nowhere else.
 // Task 3: g_smodels_total is a read-only "frame id" cookie. It is NEVER incremented
 // anywhere in the tree (grep: one def + one read), so it is effectively a constant 1 and
 // the original chrome-cache invalidation it keyed is dead. Kept read-only; the per-entity
@@ -757,6 +769,7 @@ const int	g_smodels_total = 1;				// cookie (read-only; never bumped)
 
 void BMD::Chrome(float* pchrome, int bone, vec3_t normal)
 {
+    vec3_t g_vright;	// viewer's right; invariant (0,0,1) here, set per-call (was a file-global)
     Vector(0.f, 0.f, 1.f, g_vright);
 
     float n;
@@ -772,6 +785,9 @@ void BMD::Chrome(float* pchrome, int bone, vec3_t normal)
         CrossProduct(tmp, chromeupvec, chromerightvec);
         VectorNormalize(chromerightvec);
 
+        // Vestigial: g_smodels_total is const 1 and NOTHING reads g_chromeage to branch
+        // (grep: this is its only access). Retained for serial-identical safety; the original
+        // chrome-cache invalidation it keyed is dead. Do not reintroduce a reader (Task 6).
         g_chromeage[bone] = g_smodels_total;
     }
 

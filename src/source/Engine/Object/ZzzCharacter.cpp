@@ -6510,7 +6510,9 @@ void MoveCharactersClient()
     MoveBlurs();
 }
 
-extern float  ParentMatrix[3][4];
+// Task 3 (review follow-up): `extern float ParentMatrix[3][4];` dropped — ParentMatrix is
+// now a per-worker arena member behind the ParentMatrix macro (Render/Build/WorkerArena.h,
+// pulled in via ZzzBMD.h). Here it is only a throwaway R_ConcatTransforms target.
 
 void RenderGuild(OBJECT* o, int Type, vec3_t vPos)
 {

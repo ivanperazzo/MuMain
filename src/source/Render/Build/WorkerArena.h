@@ -49,6 +49,16 @@ namespace Render::Build
         int   chromeAge[kArenaMaxBones];
         float chromeUp[kArenaMaxBones][3];
         float chromeRight[kArenaMaxBones][3];
+
+        // Task 3 (review follow-up): two more transient bone-build scratches that the
+        // per-entity build path wrote to file-globals. boneQuaternion is BMD::Animation's
+        // per-bone slerp workspace (one float[4]/bone, == vec4_t); parentMatrix is the
+        // root-bone concat scratch written in BMD::Animation/TransformPosition/RotationPosition
+        // and reused as a throwaway R_ConcatTransforms target in RenderGuild/effects.
+        // float[4]/float[3][4] mirror vec4_t/the old file-global layout for binary-compatible
+        // call sites (same convention as the buffers above).
+        float boneQuaternion[kArenaMaxBones][4];
+        float parentMatrix[3][4];
     };
 
     // Thread-safe across distinct workers ONLY after InitArenas(>=WorkerCount()); ArenaAt's grow path is startup-only and must not run during ParallelFor.
@@ -62,9 +72,15 @@ namespace Render::Build
 // keep every existing VertexTransform[i][j]-style call site unchanged. Any TU that
 // touched the old file-globals includes this header instead of declaring the
 // matching `extern`.
-// NOTE: The 5 macros below are intentional global macros (zero call-site churn) and
+// NOTE: The macros below are intentional global macros (zero call-site churn) and
 // must not be shadowed or #undef'd. g_chrome is a deliberately global name — it
 // mirrors the old file-global and must remain unchanged for binary-compatible call sites.
+// RESIDUAL RISK: because these are object-like macros, the arena identifiers
+// VertexTransform / NormalTransform / IntensityTransform / LightTransform / g_chrome /
+// g_BoneTransformScratch / BoneQuaternion / ParentMatrix (and the ZzzBMD.cpp-local
+// g_chromeage/up/right) are effectively RESERVED tree-wide for any TU that includes this
+// header: declaring a local variable, parameter, or member with one of these names will be
+// silently rewritten by the preprocessor. Pick a different name if you need one of these.
 #define VertexTransform     (Render::Build::CurrentArena().vertexTransform)
 #define NormalTransform     (Render::Build::CurrentArena().normalTransform)
 #define IntensityTransform  (Render::Build::CurrentArena().intensityTransform)
@@ -79,3 +95,10 @@ namespace Render::Build
 // (effects / map props / pet fallback). The durable per-entity palette stays on
 // OBJECT::BoneTransform and is NOT touched by this macro.
 #define g_BoneTransformScratch  (Render::Build::CurrentArena().boneScratch)
+
+// Task 3 (review follow-up): ParentMatrix is referenced cross-TU (ZzzBMD.cpp +
+// ZzzCharacter.cpp's RenderGuild/effect-attach as a throwaway concat target), so its macro
+// lives here (a global macro), mirroring g_BoneTransformScratch. The old `extern float
+// ParentMatrix[3][4];` declarations are dropped; those TUs include this header instead.
+// BoneQuaternion is ZzzBMD.cpp-only and is macro-mapped there (like g_chromeage/up/right).
+#define ParentMatrix            (Render::Build::CurrentArena().parentMatrix)

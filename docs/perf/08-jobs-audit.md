@@ -43,6 +43,10 @@ and to isolate the chrome caches + `g_smodels_total` + the cloaking cross-entity
 | `g_chromeup[MAX_BONES]` | `ZzzBMD.cpp:746` (file-local) | `BMD::Chrome` reads it (`DotProduct(normal, g_chromeup[bone])`). Per-bone chrome cache. | **per-worker** → `WorkerArena::chromeUp`. |
 | `g_chromeright[MAX_BONES]` | `ZzzBMD.cpp:747` (file-local) | `BMD::Chrome` reads it. Per-bone chrome cache. | **per-worker** → `WorkerArena::chromeRight`. |
 | `g_smodels_total` | `ZzzBMD.cpp:743` (file-local) | Monotonic "frame id" cookie meant to invalidate the chrome cache; **read** in `BMD::Chrome` (`g_chromeage[bone] = g_smodels_total`). **Never incremented anywhere** (grep confirms one def + one read in the whole tree; it is a constant `1`, the original cache-invalidation was dead). | **read-only** snapshot. Kept as a single read-only `int` (never written in the build path). No per-entity build path mutates it, so no relocation is needed; documented here so Task 6 does not reintroduce a write. |
+| `BoneQuaternion[MAX_BONES]` (`vec4_t`) | `ZzzBMD.cpp:32` (file-global, no extern; ZzzBMD.cpp-only) | `BMD::Animation`'s per-bone slerp workspace: written via `QuaternionSlerp`/`QuaternionCopy` (~:118,:122) then consumed by `QuaternionMatrix` (~:126) in the same bone loop. Transient per-bone scratch, never read across calls. | **per-worker** → `WorkerArena::boneQuaternion[][4]` (`vec4_t == float[4]`, guarded by `static_assert`). Macro-mapped file-locally in ZzzBMD.cpp (like the chrome caches). |
+| `ParentMatrix[3][4]` | `ZzzBMD.cpp:55` (file-global) + `extern` in `ZzzCharacter.cpp:6513` | `BMD::Animation` root-bone branch (`AngleMatrix`/scale/origin then `R_ConcatTransforms(ParentMatrix, Matrix, BoneMatrix[i])`, ~:147-163), `BMD::RotationPosition` (~:477 copies `Matrix` into it — write-only sink, never read back), and `RenderGuild`/effect bone-attach in ZzzCharacter.cpp as a throwaway `R_ConcatTransforms` target then immediate read. Transient scratch, no cross-call carry. | **per-worker** → `WorkerArena::parentMatrix[3][4]`. Cross-TU, so the macro lives in `WorkerArena.h` (global macro, like `g_BoneTransformScratch`); the `extern` in ZzzCharacter.cpp is dropped (header is already pulled in via ZzzBMD.h). |
+| `g_vright` (`vec3_t`) | `ZzzBMD.cpp:749` (file-global, no extern) | Written to the invariant constant `(0,0,1)` at the top of `BMD::Chrome` (~:760), read within the same function (`CrossProduct(tmp, g_vright, …)`, ~:770). Benign (write-then-read of a constant) but still a shared mutable global. | **read-only/benign → made function-local.** Demoted to a `vec3_t` local in `BMD::Chrome` (set per call to the same constant). Used nowhere else, so it is no longer a global at all — no shared state, no race. |
+| `g_chromeage[bone] = g_smodels_total` (the *write*, `BMD::Chrome` ~:775) | `ZzzBMD.cpp` | The only access to `g_chromeage` in the whole tree is this write; **no branch reads it** (grep). Since `g_smodels_total` is `const 1`, it stores a constant nothing consumes. | **vestigial — retained with a comment.** Left in place (serial-identical safety) with an inline note that the chrome-cache invalidation it keyed is dead; Task 6 must not reintroduce a reader. The arena member `chromeAge` stays so the write target exists. |
 | `Hero->TargetCharacter = -1` | `ZzzCharacter.cpp:11360-11391` | Cloaking block in `RenderCharactersClient`'s per-entity loop: clears the Hero's lock-on if the now-hidden (battle-castle cloaked) entity was the target, then `continue`s (skips rendering that entity). **Cross-entity mutation** of a *different* object (`Hero`) from inside the per-entity loop body → cannot run in parallel Phase B. | **moved to Phase G** (extracted now): pulled into a named helper `ClearCloakedTarget(CHARACTER* c)` returning whether to skip the entity. Called serially from the same place now (behavior-neutral); Task 5 relocates the call to Phase G (the serial gather), Task 6 keeps it out of parallel Phase B. |
 
 ## Globals touched during the build that are already safe (no change)
@@ -65,18 +69,54 @@ so Task 6's race-audit pass can tick them off:
   so per-worker arena is the natural home) OR the skin-skip path must be disabled under
   `MU_JOBS`. Recorded here so the Task 6 race-audit does not miss them. *(Out of Task 3
   scope — Task 3 covers the explicitly-named `BoneTransform`/chrome/`g_smodels_total`/cloak.)*
-- `BMD` instance members written during Transform (`BodyScale`, `BodyOrigin`, `BodyLight`,
-  `CurrentAction`, `BoneScale`, `ContrastEnable`, …) are written on the **shared
+- `BMD` instance members written during `Animation`/`Transform` on the **shared
   `Models[Type]` BMD** — `Models[]` is shared across all entities of the same type, so two
-  entities of the same model built in parallel would race on these. **Flagged for Task 6:**
-  Phase B parallelism requires either copying the per-build BMD scalar state into the
-  arena/visible-entry (Task 5's `VisibleChar` is the place) or keying the partition so no
-  two same-type entities run concurrently. *(Out of Task 3 scope; this is the primary
-  Phase-B hazard Task 5/6 must resolve.)*
+  entities of the same model built in parallel would race on these. Explicit list of the
+  most-written members (no elision):
+  - **`CurrentAnimation`, `CurrentAnimationFrame`, `CurrentAction`, `PriorAction`, `BodyAngle`**
+    — all written at the top of `BMD::Animation` (~:64-70: `VectorCopy(Angle, BodyAngle)`,
+    `CurrentAnimation = AnimationFrame`, `CurrentAnimationFrame = (int)…`, plus the
+    `PriorAction`/`CurrentAction` clamps).
+  - **`BodyScale`, `BodyOrigin`, `BodyLight`, `BoneScale`** (the BMD member, distinct from the
+    *file-global* `BoneScale` below), **`ContrastEnable`** — set by the Transform/Animation
+    setup before the bone loop / chrome.
+  **Flagged for Task 6:** Phase B parallelism requires either copying the per-build BMD
+  scalar state into the arena/visible-entry (Task 5's `VisibleChar` is the place) or keying
+  the partition so no two same-type entities run concurrently. *(Out of Task 3 scope; this
+  is the primary Phase-B hazard Task 5/6 must resolve.)*
+- **`BoneScale` (file-global, `ZzzBMD.cpp:187`)** — NEW find during the chain re-walk; not
+  previously listed. Written **on the per-entity build path** in `Calc_RenderObject`
+  (`ZzzObject.cpp:296-360`, right after `b->Animation(...)`, branching on the entity's edge
+  /select scale) and read later in `BMD::SkinMesh` (`ZzzBMD.cpp:223`) and the instanced-skin
+  gates (`:1553`, `:2874`). A genuine shared mutable scalar driven per-entity → two entities
+  of different scale built in parallel would race. **Flagged for Task 6** (same resolution as
+  the `Models[Type]` scalars: hoist into the per-entity visible-entry/arena, or partition by
+  type+scale). *(Out of Task 3 scope — Task 3 covers only the named `BoneQuaternion`/
+  `ParentMatrix`/`g_vright`/chrome/`g_smodels_total`/`BoneTransform`/cloak.)*
+- `s_skinScratchMin`, `s_skinScratchMax` (`ZzzBMD.cpp:211`, file-scope statics) — the bounding
+  sink for `BMD::SkinMesh`'s lazy-skin call at `:288`; commented "unused in gameplay". Written
+  but their result is discarded. Benign today (dead output), but still shared mutable statics:
+  **Flagged for Task 6** to confirm-dead-and-drop or make per-worker, so the race audit is
+  exhaustive. *(Out of Task 3 scope.)*
+- `g_vright` (`BMD::Chrome`) — was a file-global; **resolved in this task** (demoted to a
+  function-local, see the enumeration table above). No longer shared state.
 
 ## Acceptance grep
 
-After this task, a write to a *file-global* `BoneTransform`/`g_chrome*`/`g_smodels_total`
-during the build path no longer exists: the global scratch is renamed to
-`g_BoneTransformScratch` (macro → per-worker arena), the chrome caches are arena members,
-and `g_smodels_total` is read-only. See the commit for the verifying grep.
+After this task, a write to a *file-global* `BoneTransform`/`BoneQuaternion`/`ParentMatrix`/
+`g_chrome*`/`g_vright`/`g_smodels_total` during the build path no longer exists: the
+hierarchy-concat scratch is renamed to `g_BoneTransformScratch`, `BoneQuaternion` and
+`ParentMatrix` are arena members (macro-mapped), the chrome caches are arena members,
+`g_vright` is now a function-local, and `g_smodels_total` is read-only. See the commit for
+the verifying grep.
+
+> **Chain re-walk (review follow-up).** The full
+> `RenderCharacter`→`Calc_RenderObject`→`BMD::Animation`→`BMD::Transform`→`BMD::Chrome`→
+> `RenderMesh`/`InstAdd` chain was re-walked for this commit. Beyond the three globals the
+> review flagged (`BoneQuaternion`, `ParentMatrix`, `g_vright`), the re-walk surfaced **one
+> additional genuine Phase-B hazard not previously listed — the file-global `BoneScale`**
+> (`ZzzObject.cpp` writes it per-entity, `SkinMesh`/instanced gates read it) — plus the dead
+> `s_skinScratchMin/Max` sinks. Both are now documented in the "already-safe / Task-6" section.
+> The remaining shared mutable state on the per-entity path is the per-`Transform` statics
+> (`s_lastBoneMatrix`, `s_transformSerial`, `s_meshSkinned[]`, …) and the shared `Models[Type]`
+> scalar members (now fully enumerated) — all owned by Task 4/5/6, not Task 3.
