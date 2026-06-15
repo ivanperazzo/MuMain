@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "UI/NewUI/Events/NewUICursedTempleSystem.h"
 #include "UI/NewUI/Dialogs/NewUICommonMessageBox.h"
 #include "UI/NewUI/Dialogs/NewUICustomMessageBox.h"
@@ -118,7 +119,7 @@ namespace
                     Position[2] += rand() % 200 + 100;
 
                     Vector(0.f, 0.f, 0.f, vRelativePos);
-                    VectorCopy(o->Position, b->BodyOrigin);
+                    VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                     b->TransformPosition(o->BoneTransform[rand() % 50], vRelativePos, vtaWorldPos, true);
 
@@ -149,7 +150,7 @@ namespace
 
                 Vector(150.f, 0.f, 0.f, vRelativePos);
                 Vector(0.8f, 0.3f, 0.3f, vLight);
-                VectorCopy(o->Position, b->BodyOrigin);
+                VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                 b->TransformPosition(o->BoneTransform[20], vRelativePos, vtaWorldPos, true);
                 CreateParticle(BITMAP_CURSEDTEMPLE_EFFECT_MASKER, vtaWorldPos, o->Angle, vLight, 0, 1.5f);
@@ -192,7 +193,7 @@ namespace
                 Vector(0.3f, 0.3f, 0.8f, vLight);
                 CreateEffect(BITMAP_SHOCK_WAVE, o->Position, o->Angle, vLight, 5, o);
 
-                VectorCopy(o->Position, b->BodyOrigin);
+                VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                 Vector(0.6f, 0.0f, 0.0f, vLight);
                 b->TransformPosition(o->BoneTransform[31], vRelativePos, vtaWorldPos, true);

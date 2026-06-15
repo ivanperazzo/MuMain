@@ -25,6 +25,7 @@
 #include "Render/GL/GLLoader.h"
 #include "Core/Utilities/FrameProfiler.h"   // bottleneck profiling (Anim slot)
 #include "Render/Build/WorkerArena.h"   // Task 2: per-vertex skin scratch moved per-worker (accessor macros)
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state moved to per-worker ctx
 
 BMD* Models;
 BMD* ModelsDump;
@@ -52,6 +53,19 @@ static_assert(sizeof(vec4_t) == sizeof(float[4]), "BoneQuaternion arena layout d
 // VertexTransform/NormalTransform/IntensityTransform/LightTransform/g_chrome moved
 // to the per-worker Render::Build::WorkerArena (Task 2); accessor macros in
 // WorkerArena.h keep every call site unchanged.
+
+// Etapa 3b 6.2: the placement state (BodyScale/BodyOrigin/BodyHeight) was per-render
+// mutable state living on the shared Models[type] BMD; it now lives in the per-worker
+// Render::Build::BmdRenderContext, reached by CurrentRenderCtx(). The file-global
+// BoneScale (per-entity edge/select scale, set in ZzzObject/ZzzCharacter, read in
+// SkinMesh + instanced gates here) joins it. Bare references inside BMD methods here
+// (and the b->/pModel-> setters in other TUs) are repointed onto the ctx slot;
+// signatures are unchanged. The set->use sequence is contiguous within a worker, so
+// the per-worker single slot reproduces the old shared-member semantics byte-for-byte.
+#define BodyScale   (Render::Build::CurrentRenderCtx().bodyScale)
+#define BodyOrigin  (Render::Build::CurrentRenderCtx().bodyOrigin)
+#define BodyHeight  (Render::Build::CurrentRenderCtx().bodyHeight)
+#define BoneScale   (Render::Build::CurrentRenderCtx().boneScale)
 
 vec3_t RenderArrayVertices[MAX_VERTICES * 3];
 vec4_t RenderArrayColors[MAX_VERTICES * 3];
@@ -184,7 +198,8 @@ extern EGameScene SceneFlag;
 extern int EditFlag;
 
 bool HighLight = true;
-float BoneScale = 1.f;
+// Etapa 3b 6.2: the file-global BoneScale moved to Render::Build::BmdRenderContext::boneScale
+// (per-worker). Bare references below are macro-mapped to CurrentRenderCtx().boneScale.
 
 // P-bmd-gpu: context of the last BMD::Transform call, consumed by the next
 // RenderMesh's GPU path. File-scope statics (NOT BMD members) so the feature does

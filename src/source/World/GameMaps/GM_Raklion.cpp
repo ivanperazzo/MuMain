@@ -2,6 +2,7 @@
 // GM_Raklion.cpp: implementation of the CGM_Raklion class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -1943,7 +1944,7 @@ bool CGM_Raklion::RenderMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
             fAnimationFrame += fSpeedPerFrame;
         }
 
-        VectorCopy(o->Position, b->BodyOrigin);
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         Vector(0.0f, 0.0f, 0.0f, vRelative);
 
         float fLumi1 = (sinf(WorldTime * 0.004f) + 1.f) * 0.25f;

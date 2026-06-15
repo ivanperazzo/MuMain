@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "w_PetActionCollecter.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -226,7 +227,7 @@ bool PetActionCollecter::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, do
     BMD* b = &Models[obj->Type];
     vec3_t Position, vRelativePos, Light;
 
-    VectorCopy(obj->Position, b->BodyOrigin);
+    VectorCopy(obj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Vector(0.f, 0.f, 0.f, vRelativePos);
 
     b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);

@@ -4,6 +4,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "Engine/Object/ZzzInfomation.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
@@ -1600,7 +1601,7 @@ void RenderBoids(bool bAfterCharacter)
                     {
                         VectorCopy(o->Position, Position);
                         Position[2] = RequestTerrainHeight(o->Position[0], o->Position[1]);
-                        VectorCopy(Position, b->BodyOrigin);
+                        VectorCopy(Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                         b->RenderBodyShadow();
                     }
@@ -1645,7 +1646,7 @@ void RenderFishs()
                         vec3_t Position;
                         VectorCopy(o->Position, Position);
                         Position[2] = RequestTerrainHeight(o->Position[0], o->Position[1]);
-                        VectorCopy(Position, b->BodyOrigin);
+                        VectorCopy(Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                         b->RenderBodyShadow();
                     }
                 }

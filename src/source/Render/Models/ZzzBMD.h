@@ -186,10 +186,10 @@ public:
     int           BoneHead;
 
     int           BoneFoot[4];
-    float         BodyScale;
-    vec3_t        BodyOrigin;
+    // Etapa 3b 6.2: BodyScale / BodyOrigin / BodyHeight moved off the shared BMD into the
+    // per-worker Render::Build::BmdRenderContext (CurrentRenderCtx()). They were per-render
+    // mutable scalars that raced across same-type entities under the job system.
     vec3_t        BodyAngle;
-    float         BodyHeight;
     char          StreamMesh;
     vec3_t        ShadowAngle;
     char          Skin;

@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "UI/Legacy/UIWindows.h"
 #include "UI/Legacy/UIManager.h"
 #include "Audio/DSPlaySound.h"
@@ -1930,17 +1931,17 @@ namespace battleCastle
             OBB_t   OBB;
             vec3_t  Temp, p, Position;
             BMD* linkBmd = &Models[MODEL_FLY_BIG_STONE1];
-            linkBmd->BodyHeight = 0.f;
+            Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
             linkBmd->ContrastEnable = o->ContrastEnable;
             BodyLight(o, linkBmd);
-            linkBmd->BodyScale = 1.3f;
+            Render::Build::CurrentRenderCtx().bodyScale = 1.3f;
             linkBmd->CurrentAction = 0;
 
             if (o->CurrentAction == 0 || o->AnimationFrame < 2.f || o->AnimationFrame >= 22.f)
             {
                 Vector(0.f, 0.f, 0.f, p);
                 b->TransformPosition(o->BoneTransform[12], p, Position, true);
-                VectorCopy(Position, linkBmd->BodyOrigin);
+                VectorCopy(Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 linkBmd->Animation(g_BoneTransformScratch, 0.f, 0.f, 0, o->Angle, o->Angle, true);
                 linkBmd->Transform(g_BoneTransformScratch, Temp, Temp, &OBB, true);
                 linkBmd->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
@@ -1950,7 +1951,7 @@ namespace battleCastle
             {
                 Vector(0.f, 0.f, 0.f, p);
                 b->TransformPosition(o->BoneTransform[44], p, Position, true);
-                VectorCopy(Position, linkBmd->BodyOrigin);
+                VectorCopy(Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 linkBmd->Animation(g_BoneTransformScratch, 0.f, 0.f, 0, o->Angle, o->Angle, true);
                 linkBmd->Transform(g_BoneTransformScratch, Temp, Temp, &OBB, true);
                 linkBmd->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);

@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "w_PetActionStand.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -77,7 +78,7 @@ bool PetActionStand::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, double
     float fRad2 = ((Q_PI / 3000.0f) * fmodf((tick + 1500), 3000));
     float tempLight;
 
-    VectorCopy(obj->Position, b->BodyOrigin);
+    VectorCopy(obj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Vector(0.f, 0.f, 0.f, vRelativePos);
 
     b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);

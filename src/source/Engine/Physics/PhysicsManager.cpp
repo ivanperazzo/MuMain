@@ -944,8 +944,6 @@ void CPhysicsClothMesh::Clear(void)
     CPhysicsCloth::Destroy();
 }
 
-extern float BoneScale;
-
 BOOL CPhysicsClothMesh::Create(OBJECT* o, int iMesh, int iBone, DWORD dwType, int iBMDType)
 {
     m_oOwner = o;

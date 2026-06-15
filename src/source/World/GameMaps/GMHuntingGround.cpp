@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "UI/Legacy/UIWindows.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Render/Models/ZzzBMD.h"
@@ -774,7 +775,7 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         if (ExtraMon)
         {
             pModel->RenderMesh(2, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_CHROME);
-            pObject->Scale = pModel->BodyScale;
+            pObject->Scale = Render::Build::CurrentRenderCtx().bodyScale;
         }
         pModel->StreamMesh = -1;
         pModel->EndRender();

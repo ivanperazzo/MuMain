@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 
 #ifdef PJH_ADD_PANDA_PET
 
@@ -225,7 +226,7 @@ bool PetActionCollecterAdd::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey,
     BMD* b = &Models[obj->Type];
     vec3_t Position, vRelativePos, Light;
 
-    VectorCopy(obj->Position, b->BodyOrigin);
+    VectorCopy(obj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Vector(0.f, 0.f, 0.f, vRelativePos);
 
     b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
@@ -524,7 +525,7 @@ bool PetActionCollecterSkeleton::Effect(OBJECT* obj, CHARACTER* Owner, int targe
     BMD* b = &Models[obj->Type];
     vec3_t vPosition, vLight;
 
-    b->BodyScale = obj->Scale;
+    Render::Build::CurrentRenderCtx().bodyScale = obj->Scale;
     b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle, false, false);
 
     float fLumi = (sinf(WorldTime * 0.003f) + 1.0f) * 0.5f + 0.5f;

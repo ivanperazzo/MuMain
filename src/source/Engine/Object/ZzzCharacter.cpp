@@ -6,6 +6,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "UI/Chat/Chat.h"
 #include "Core/Globals/_enum.h"
 #ifdef _WIN32
@@ -4053,8 +4054,8 @@ void MoveCharacter(CHARACTER* c, OBJECT* o)
     }
 
     BMD* b = &Models[o->Type];
-    VectorCopy(o->Position, b->BodyOrigin);
-    b->BodyScale = o->Scale;
+    VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
+    Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
     b->CurrentAction = o->CurrentAction;
 
     CalcStopTime();
@@ -5597,8 +5598,8 @@ void MoveCharacterVisual(CHARACTER* c, OBJECT* o)
         o->OBB.ZAxis[1] = 0.f;
         return;
     }
-    VectorCopy(o->Position, b->BodyOrigin);
-    b->BodyScale = o->Scale;
+    VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
+    Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
     b->CurrentAction = o->CurrentAction;
 
     if (o->Visible)
@@ -6591,9 +6592,9 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
 
     //CopyShadowAngle(f,b);
     b->ContrastEnable = o->ContrastEnable;
-    b->BodyScale = o->Scale;
+    Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
     b->CurrentAction = f->CurrentAction;
-    b->BodyHeight = 0.f;
+    Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
 
     OBJECT* Object = &g_ItemObject[Type];
 
@@ -6866,7 +6867,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         {
             Matrix[1][3] += 10.0f;
             Matrix[2][3] += 25.0f;
-            b->BodyScale = 0.9f;
+            Render::Build::CurrentRenderCtx().bodyScale = 0.9f;
         }
 
         if (bRightHandItem == false && !(Type >= MODEL_SHIELD && Type < MODEL_SHIELD + MAX_ITEM_INDEX) && Type != MODEL_ARROW_VIPER_BOW)
@@ -6889,7 +6890,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         }
 
         R_ConcatTransforms(o->BoneTransform[f->LinkBone], Matrix, ParentMatrix);
-        VectorCopy(c->Object.Position, b->BodyOrigin);
+        VectorCopy(c->Object.Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         Vector(0.f, 0.f, 0.f, Object->Angle);
     }
     else
@@ -6897,12 +6898,12 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         Vector(x, y, z, p);
         BMD* Owner = &Models[o->Type];
         Owner->RotationPosition(o->BoneTransform[f->LinkBone], p, Position);
-        VectorAdd(c->Object.Position, Position, b->BodyOrigin);
+        VectorAdd(c->Object.Position, Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         Vector(0.f, 0.f, 0.f, Object->Angle);
     }
     if (Type == MODEL_BOSS_HEAD)
     {
-        VectorAdd(b->BodyOrigin, BossHeadPosition, b->BodyOrigin);
+        VectorAdd(Render::Build::CurrentRenderCtx().bodyOrigin, BossHeadPosition, Render::Build::CurrentRenderCtx().bodyOrigin);
         b->BoneHead = 0;
         Vector(0.f, 0.f, WorldTime, Object->Angle);
     }
@@ -6936,7 +6937,7 @@ void RenderLinkObject(float x, float y, float z, CHARACTER* c, PART_t* f, int Ty
         }
     }
 
-    VectorCopy(b->BodyOrigin, Object->Position);
+    VectorCopy(Render::Build::CurrentRenderCtx().bodyOrigin, Object->Position);
 
     vec3_t Temp;
     b->Animation(g_BoneTransformScratch, f->AnimationFrame, f->PriorAnimationFrame, f->PriorAction, Object->Angle, Object->Angle, true);
@@ -9035,7 +9036,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
 
         if (rand_fps_check(2))
         {
-            VectorCopy(o->Position, b->BodyOrigin);
+            VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
             b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
             b->TransformPosition(g_BoneTransformScratch[43], vRelativePos, vtaWorldPos, false);
             vtaWorldPos[2] += 20.f;
@@ -9043,7 +9044,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
             CreateParticle(BITMAP_CHERRYBLOSSOM_EVENT_PETAL, vtaWorldPos, o->Angle, rand_fps_check(3) ? vLight : vLight1, 1, 0.3f);
         }
 
-        VectorCopy(o->Position, b->BodyOrigin);
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
         b->TransformPosition(g_BoneTransformScratch[43], vRelativePos, vtaWorldPos, false);
         vtaWorldPos[2] += 20.f;
@@ -9058,7 +9059,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
         CreateSprite(BITMAP_LIGHT, vtaWorldPos, 2.f, vLight, o, 0.f);
 
         Vector(0.7f, 0.2f, 0.6f, vLight);
-        VectorCopy(o->Position, b->BodyOrigin);
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
         b->TransformPosition(g_BoneTransformScratch[3], vRelativePos, vtaWorldPos, false);
         CreateSprite(BITMAP_LIGHT, vtaWorldPos, 5.f, vLight, o, 0.f);
@@ -9066,7 +9067,7 @@ void RenderCharacter(CHARACTER* c, OBJECT* o, int Select)
         int iRedFlarePos[] = { 53, 56, 59, 62 };
         for (int i = 0; i < 4; ++i) {
             Vector(0.9f, 0.4f, 0.8f, vLight);
-            VectorCopy(o->Position, b->BodyOrigin);
+            VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
             b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
             b->TransformPosition(g_BoneTransformScratch[iRedFlarePos[i]], vRelativePos, vtaWorldPos, false);
 

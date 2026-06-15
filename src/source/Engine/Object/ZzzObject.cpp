@@ -1,6 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "Camera/CameraMove.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
@@ -182,9 +183,9 @@ OBJECT* CollisionDetectObjects(OBJECT* PickObject)
                         //if(o != PickObject)
                         {
                             BMD* b = &Models[o->Type];
-                            b->BodyScale = o->Scale;
+                            Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
                             b->CurrentAction = o->CurrentAction;
-                            VectorCopy(o->Position, b->BodyOrigin);
+                            VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                             b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
                             b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, true);
                             if (CollisionDetectLineToOBB(MousePosition, MouseTarget, o->OBB))
@@ -237,7 +238,6 @@ void BodyLight(OBJECT* o, BMD* b)
     }
 }
 
-extern float BoneScale;
 
 bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
 {
@@ -252,12 +252,12 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     }
 
     BMD* b = &Models[o->Type];
-    b->BodyHeight = 0.f;
+    Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
     b->ContrastEnable = o->ContrastEnable;
     BodyLight(o, b);
-    b->BodyScale = o->Scale;
+    Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
     b->CurrentAction = o->CurrentAction;
-    VectorCopy(o->Position, b->BodyOrigin);
+    VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
     if (o->Type == MODEL_CASTLE_GATE)
     {
@@ -265,7 +265,7 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
         VectorCopy(o->Position, Position);
 
         Position[1] += 60.f;
-        VectorCopy(Position, b->BodyOrigin);
+        VectorCopy(Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     }
     else if (o->Type == MODEL_STATUE_OF_SAINT)
     {
@@ -273,7 +273,7 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
         VectorCopy(o->Position, Position);
 
         Position[1] += 120.f;
-        VectorCopy(Position, b->BodyOrigin);
+        VectorCopy(Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     }
 
     if (o->Owner != NULL)
@@ -293,14 +293,14 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
         b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
     }
 
-    BoneScale = 1.f;
+    Render::Build::CurrentRenderCtx().boneScale = 1.f;
     if (3 == Select)
     {
-        BoneScale = 1.4f;
+        Render::Build::CurrentRenderCtx().boneScale = 1.4f;
     }
     else if (2 == Select)
     {
-        BoneScale = 1.2f;
+        Render::Build::CurrentRenderCtx().boneScale = 1.2f;
     }
     else if (1 == Select)
     {
@@ -311,24 +311,24 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
             Vector(0.1f, 0.01f, 0.f, b->BodyLight);
             if (o->Type == MODEL_BALI)
             {
-                BoneScale = 1.2f;
+                Render::Build::CurrentRenderCtx().boneScale = 1.2f;
             }
             else
             {
-                BoneScale = 1.f + (0.1f / o->Scale);
+                Render::Build::CurrentRenderCtx().boneScale = 1.f + (0.1f / o->Scale);
             }
             if (o->m_fEdgeScale != 1.2f)
             {
-                BoneScale = o->m_fEdgeScale;
+                Render::Build::CurrentRenderCtx().boneScale = o->m_fEdgeScale;
             }
         }
         else
         {
             Vector(0.02f, 0.1f, 0.f, b->BodyLight);
-            BoneScale = 1.2f;
-            BoneScale = o->m_fEdgeScale;
+            Render::Build::CurrentRenderCtx().boneScale = 1.2f;
+            Render::Build::CurrentRenderCtx().boneScale = o->m_fEdgeScale;
         }
-        float Scale = BoneScale;
+        float Scale = Render::Build::CurrentRenderCtx().boneScale;
         RenderPartObjectEdge(b, o, RENDER_BRIGHT, Translate, Scale);
 
         if (gMapManager.InChaosCastle() == true || o->Kind != KIND_NPC)
@@ -336,28 +336,28 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
             Vector(0.7f, 0.07f, 0.f, b->BodyLight);
             if (o->Type == MODEL_BALI)
             {
-                BoneScale = 1.08f;
+                Render::Build::CurrentRenderCtx().boneScale = 1.08f;
             }
             else
             {
-                BoneScale = 1.f + (0.04f / o->Scale);
+                Render::Build::CurrentRenderCtx().boneScale = 1.f + (0.04f / o->Scale);
             }
             if (o->m_fEdgeScale != 1.2f)
             {
-                BoneScale = maxf(o->m_fEdgeScale - 0.04f, 1.01f);
+                Render::Build::CurrentRenderCtx().boneScale = maxf(o->m_fEdgeScale - 0.04f, 1.01f);
             }
         }
         else
         {
             Vector(0.16f, 0.7f, 0.f, b->BodyLight);
-            BoneScale = 1.08f;
-            BoneScale = maxf(o->m_fEdgeScale - 0.12f, 1.01f);
+            Render::Build::CurrentRenderCtx().boneScale = 1.08f;
+            Render::Build::CurrentRenderCtx().boneScale = maxf(o->m_fEdgeScale - 0.12f, 1.01f);
         }
 
-        Scale = BoneScale;
+        Scale = Render::Build::CurrentRenderCtx().boneScale;
         RenderPartObjectEdge(b, o, RENDER_BRIGHT, Translate, Scale);
         BodyLight(o, b);
-        BoneScale = 1.f;
+        Render::Build::CurrentRenderCtx().boneScale = 1.f;
     }
 
     if (o->EnableBoneMatrix)
@@ -382,12 +382,12 @@ bool Calc_ObjectAnimation(OBJECT* o, bool Translate, int Select)
     if (o->Alpha < 0.01f) return false;
 
     BMD* b = &Models[o->Type];
-    b->BodyHeight = 0.f;
+    Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
     b->ContrastEnable = o->ContrastEnable;
     BodyLight(o, b);
-    b->BodyScale = o->Scale;
+    Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
     b->CurrentAction = o->CurrentAction;
-    VectorCopy(o->Position, b->BodyOrigin);
+    VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
     if (o->EnableBoneMatrix)
     {
@@ -1003,7 +1003,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                         }
                         VectorCopy(o->Position, Position);
                         Position[2] = RequestTerrainHeight(o->Position[0], o->Position[1]);
-                        VectorCopy(Position, b->BodyOrigin);
+                        VectorCopy(Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                         b->RenderBodyShadow();
                     }
                 }
@@ -1069,7 +1069,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                 glColor4f(0.f, 0.f, 0.f, 1.f);
                 VectorCopy(o->Position, Position);
                 Position[2] = RequestTerrainHeight(o->Position[0], o->Position[1]);
-                VectorCopy(Position, b->BodyOrigin);
+                VectorCopy(Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 o->HiddenMesh = 2;
                 b->RenderBodyShadow(o->BlendMesh, o->HiddenMesh);
                 o->HiddenMesh = -1;
@@ -1322,7 +1322,7 @@ void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
                                                         else
                                                             if (ExtraMon == 301)
                                                             {
-                                                                //					b->BodyScale     = o->Scale + (o->Scale/1.0f);
+                                                                //					Render::Build::CurrentRenderCtx().bodyScale     = o->Scale + (o->Scale/1.0f);
                                                                 //					Vector(0.7f,0.5f,0.8f,b->BodyLight);
                                                                 Vector(1.f, 1.f, 1.f, b->BodyLight);
                                                                 b->BeginRender(o->Alpha);
@@ -6348,17 +6348,17 @@ void MoveItems()
 void ItemHeight(int Type, BMD* b)
 {
     if (Type >= MODEL_HELM && Type < MODEL_HELM + MAX_ITEM_INDEX)
-        b->BodyHeight = -160.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = -160.f;
     else if (Type >= MODEL_ARMOR && Type < MODEL_ARMOR + MAX_ITEM_INDEX)
-        b->BodyHeight = -100.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = -100.f;
     else if (Type >= MODEL_GLOVES && Type < MODEL_GLOVES + MAX_ITEM_INDEX)
-        b->BodyHeight = -70.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = -70.f;
     else if (Type >= MODEL_PANTS && Type < MODEL_PANTS + MAX_ITEM_INDEX)
-        b->BodyHeight = -50.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = -50.f;
     else if (Type >= MODEL_BOOTS && Type < MODEL_BOOTS + MAX_ITEM_INDEX)
-        b->BodyHeight = 0.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
     else
-        b->BodyHeight = 0.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
 }
 
 void RenderZen(int itemIndex, ITEM_t* item, vec3_t light)
@@ -6378,9 +6378,9 @@ void RenderZen(int itemIndex, ITEM_t* item, vec3_t light)
     float angleMatrix[3][4];
 
     BMD* b = &Models[MODEL_ZEN];
-    b->BodyScale = o->Scale;
+    Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
 
-    BoneScale = 1.f;
+    Render::Build::CurrentRenderCtx().boneScale = 1.f;
     BodyLight(o, b);
 
     constexpr auto alpha = 1.0f;
@@ -6401,7 +6401,7 @@ void RenderZen(int itemIndex, ITEM_t* item, vec3_t light)
         VectorRotate(randomRadius, angleMatrix, randomPosition);
 
         VectorAdd(tempPosition, randomPosition, o->Position);
-        VectorCopy(o->Position, b->BodyOrigin);
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, true);
 
         target_vertex_index = b->AddToCoinHeap(i, target_vertex_index);
@@ -6453,7 +6453,7 @@ void RenderItems()
                 b->CurrentAction = 0;
                 b->Skin = gCharacterManager.GetBaseClass(Hero->Class); // ???
                 b->CurrentAction = o->CurrentAction;
-                VectorCopy(o->Position, b->BodyOrigin);
+                VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 ItemHeight(o->Type, b);
                 b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
 
@@ -8338,7 +8338,7 @@ void RenderPartObjectBody(BMD* b, OBJECT* o, int Type, float Alpha, int RenderTy
         Vector(1.f, 1.f, 1.f, vLight);
         vec3_t vPos, vRelativePos;
         Vector(6.f, 6.f, 0.f, vRelativePos);
-        VectorCopy(o->Position, b->BodyOrigin);
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         b->TransformPosition(o->BoneTransform[20], vRelativePos, vPos, true);
         vPos[2] += 36.f;
         if (rand_fps_check(2))
@@ -10521,7 +10521,6 @@ void RenderPartObjectEffect(OBJECT* o, int Type, vec3_t Light, float Alpha, int 
     }
 }
 
-extern float BoneScale;
 
 void RenderPartObjectEdge(BMD* b, OBJECT* o, int Flag, bool Translate, float Scale)
 {
@@ -10532,7 +10531,7 @@ void RenderPartObjectEdge(BMD* b, OBJECT* o, int Flag, bool Translate, float Sca
 
     b->LightEnable = false;
 
-    BoneScale = Scale;
+    Render::Build::CurrentRenderCtx().boneScale = Scale;
     if (o->EnableBoneMatrix == 1)
     {
         b->Transform(o->BoneTransform, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, Translate);
@@ -10580,7 +10579,7 @@ void RenderPartObjectEdge(BMD* b, OBJECT* o, int Flag, bool Translate, float Sca
         b->RenderBody(Flag, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
     }
 
-    BoneScale = 1.f;
+    Render::Build::CurrentRenderCtx().boneScale = 1.f;
 }
 
 void RenderPartObjectEdge2(BMD* b, OBJECT* o, int Flag, bool Translate, float Scale, OBB_t* OBB)
@@ -10589,11 +10588,11 @@ void RenderPartObjectEdge2(BMD* b, OBJECT* o, int Flag, bool Translate, float Sc
 
     b->LightEnable = false;
 
-    BoneScale = Scale;
+    Render::Build::CurrentRenderCtx().boneScale = Scale;
     b->Transform(g_BoneTransformScratch, tmp, tmp, OBB, Translate);
     b->RenderBody(Flag, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
 
-    BoneScale = 1.f;
+    Render::Build::CurrentRenderCtx().boneScale = 1.f;
 }
 
 void RenderPartObjectEdgeLight(BMD* b, OBJECT* o, int Flag, bool Translate, float Scale)
@@ -10628,19 +10627,19 @@ void RenderPartObject(OBJECT* o, int Type, void* p2, vec3_t Light, float Alpha, 
 
     BMD* b = &Models[Type];
     b->HideSkin = HideSkin;
-    b->BodyScale = o->Scale;
+    Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
     b->ContrastEnable = o->ContrastEnable;
     b->LightEnable = o->LightEnable;
-    VectorCopy(o->Position, b->BodyOrigin);
+    VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
-    BoneScale = 1.f;
+    Render::Build::CurrentRenderCtx().boneScale = 1.f;
     if (3 == Select)
     {
-        BoneScale = 1.4f;
+        Render::Build::CurrentRenderCtx().boneScale = 1.4f;
     }
     else if (2 == Select)
     {
-        BoneScale = 1.2f;
+        Render::Build::CurrentRenderCtx().boneScale = 1.2f;
     }
     else if (1 == Select)
     {

@@ -2,6 +2,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "UI/Legacy/UIManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
@@ -9253,23 +9254,23 @@ void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancient
     ObjectSelect.PriorAction = 0;
     if (Type >= MODEL_HELM && Type < MODEL_HELM + MAX_ITEM_INDEX)
     {
-        b->BodyHeight = -160.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = -160.f;
 
-        if (Check_LuckyItem(Type - MODEL_ITEM))				b->BodyHeight -= 10.0f;
+        if (Check_LuckyItem(Type - MODEL_ITEM))				Render::Build::CurrentRenderCtx().bodyHeight -= 10.0f;
         if (Type == MODEL_HELM + 65 || Type == MODEL_HELM + 70)	Position[0] += 0.04f;
     }
     else if (Type >= MODEL_ARMOR && Type < MODEL_ARMOR + MAX_ITEM_INDEX)
     {
-        b->BodyHeight = -100.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = -100.f;
 
-        if (Check_LuckyItem(Type - MODEL_ITEM))	b->BodyHeight -= 13.0f;
+        if (Check_LuckyItem(Type - MODEL_ITEM))	Render::Build::CurrentRenderCtx().bodyHeight -= 13.0f;
     }
     else if (Type >= MODEL_GLOVES && Type < MODEL_GLOVES + MAX_ITEM_INDEX)
-        b->BodyHeight = -70.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = -70.f;
     else if (Type >= MODEL_PANTS && Type < MODEL_PANTS + MAX_ITEM_INDEX)
-        b->BodyHeight = -50.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = -50.f;
     else
-        b->BodyHeight = 0.f;
+        Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
     float Scale = 0.f;
 
     if (Type >= MODEL_HELM && Type < MODEL_BOOTS + MAX_ITEM_INDEX)
@@ -10022,7 +10023,7 @@ void RenderObjectScreen(int Type, int ItemLevel, int excellentFlags, int ancient
         }
         else if (Type == MODEL_ARMORINVEN_60 || Type == MODEL_ARMORINVEN_62 || Type == MODEL_ARMORINVEN_61 || Type == MODEL_ARMORINVEN_74)
         {
-            b->BodyHeight = -100.f;
+            Render::Build::CurrentRenderCtx().bodyHeight = -100.f;
             Scale = 0.0039f;
         }
         // LEM_TSET  상승의 보석, 연장의 보석 스케일[lem_2010.9.7]

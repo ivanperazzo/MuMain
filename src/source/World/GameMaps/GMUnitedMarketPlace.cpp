@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -97,8 +98,8 @@ bool GMUnitedMarketPlace::MoveObject(OBJECT* o)
     return true;
     case 30:	// 가로등
     {
-        VectorCopy(o->Position, b->BodyOrigin);
-        b->BodyScale = o->Scale;
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
+        Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
         b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
 
         vec3_t	vLightPosition, vRelativePos;
@@ -114,8 +115,8 @@ bool GMUnitedMarketPlace::MoveObject(OBJECT* o)
     return true;
     case 35:	// 벽가로등
     {
-        VectorCopy(o->Position, b->BodyOrigin);
-        b->BodyScale = o->Scale;
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
+        Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
         b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
 
         vec3_t	vLightPosition, vRelativePos;

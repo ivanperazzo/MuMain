@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "w_CursedTemple.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
@@ -1212,7 +1213,7 @@ void CursedTemple::ReceiveCursedTempleInfo(const BYTE* ReceiveBuffer)
                 vec3_t tempPosition, p;
                 Vector(70.f, 0.f, 0.f, p);
                 BMD* b = &Models[o->Type];
-                VectorCopy(o->Position, b->BodyOrigin);
+                VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                 float fActionSpeed = b->Actions[o->CurrentAction].PlaySpeed * static_cast<float>(FPS_ANIMATION_FACTOR);
 

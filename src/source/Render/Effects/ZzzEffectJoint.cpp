@@ -2,6 +2,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -4406,7 +4407,7 @@ void MoveJoint(JOINT* o, int iIndex)
                 Vector(0, 0, 0, vRelative);
                 BMD* pModel = &Models[o->Target->Type];
                 pModel->TransformPosition(o->Target->BoneTransform[37], vRelative, o->TargetPosition, false);
-                VectorScale(o->TargetPosition, pModel->BodyScale, o->TargetPosition);
+                VectorScale(o->TargetPosition, Render::Build::CurrentRenderCtx().bodyScale, o->TargetPosition);
                 VectorAdd(o->Target->Position, o->TargetPosition, o->TargetPosition);
             }
             else if (o->SubType == 15 || o->SubType == 17)
@@ -6486,7 +6487,7 @@ void MoveJoint(JOINT* o, int iIndex)
                 Vector(0.f, 20.f, 0.f, p);
                 VectorCopy(o->Direction, Direction);
                 BMD* b = &Models[o->Target->Type];
-                VectorCopy(o->Target->Position, b->BodyOrigin);
+                VectorCopy(o->Target->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 b->TransformPosition(o->Target->BoneTransform[(int)o->MultiUse], p, o->StartPosition, true);
                 VectorCopy(o->StartPosition, o->Position);
 
