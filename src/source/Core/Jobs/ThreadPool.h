@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <functional>
 
 namespace Core::Jobs
@@ -13,6 +12,7 @@ namespace Core::Jobs
     public:
         static ThreadPool& Instance();
 
+        // Not reentrant: do not call from inside fn (single-orchestrator). One batch at a time.
         // Run fn(i) for each i in [0,count). Blocks until all complete. An
         // exception from any fn is captured and rethrown after the batch drains.
         void ParallelFor(int count, const std::function<void(int)>& fn);

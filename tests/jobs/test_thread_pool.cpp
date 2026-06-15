@@ -3,8 +3,10 @@
 #include "Core/Jobs/ThreadPool.h"
 
 #include <atomic>
-#include <vector>
+#include <mutex>
+#include <set>
 #include <stdexcept>
+#include <vector>
 
 using Core::Jobs::ThreadPool;
 
@@ -56,4 +58,24 @@ TEST_CASE("worker count is sane")
 {
     CHECK(Core::Jobs::ThreadPool::Instance().WorkerCount() >= 1);
     CHECK(Core::Jobs::ThreadPool::Instance().WorkerCount() <= 16);
+}
+
+TEST_CASE("CurrentWorkerIndex is 0 on main and in-range inside ParallelFor")
+{
+    using Core::Jobs::ThreadPool;
+    ThreadPool& pool = ThreadPool::Instance();
+    CHECK(ThreadPool::CurrentWorkerIndex() == 0);   // main thread outside ParallelFor
+
+    std::mutex m;
+    std::set<int> indices;
+    bool inRange = true;
+    pool.ParallelFor(pool.WorkerCount() * 64, [&](int) {
+        int w = ThreadPool::CurrentWorkerIndex();
+        std::lock_guard<std::mutex> g(m);
+        if (w < 0 || w >= pool.WorkerCount()) inRange = false;
+        indices.insert(w);
+    });
+    CHECK(inRange);
+    CHECK(!indices.empty());
+    CHECK(ThreadPool::CurrentWorkerIndex() == 0);    // back to 0 on main afterward
 }
