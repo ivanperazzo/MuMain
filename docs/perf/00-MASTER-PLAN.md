@@ -50,12 +50,15 @@ Incrementales, alto ROI inmediato. Orden por ROI:
   hit 98–99 %, sin regresión visual; **default ON** (`MU_UITEXTCACHE=0` desactiva).
   Cache string→textura GL propia (key texto+color+HFONT), HIT salta GDI+upload.
   Archivos `UI/Legacy/UITextCache.{h,cpp}` + `UIControls`. → `06-ui-text-cache`.
-- **1.2 — UI hidden-update skip + manager cleanup (H2/H3).** Ventanas ocultas dejan
-  de updatear; CNewUIManager sin 4 sorts + 3 copias/frame. ~0.5-1ms. → `06`.
-- **1.3 — Char RenderMesh-walk: saltar estado GL redundante en collect.** ~2200-3100
-  meshes hacen BindTexture+blend aunque solo se colecten (el flush re-setea). El walk
-  es ~6.8ms de los 7 de chars. Skip GL-state cuando se instancia → chars ~7→~4-5ms.
-  Riesgo medio (hot-path `ZzzBMD::RenderMesh`), A/B harness.
+- **1.2 — UI hidden-update skip + manager cleanup (H2/H3). DESCARTADO ❌** Medido
+  in-game: UI Update total = 0.063ms (update pass 0.022ms). Las ventanas pesadas ya
+  auto-gatean con IsVisible() → ROI nulo. No se implementa. Detalle `06`.
+- **1.3 — Char RenderMesh-walk. HIPÓTESIS DESCARTADA ⚠️** Medido (harness 100ch):
+  chars ~11ms = flush 1.1 + anim 1.4 + collect-walk 8.5ms. Pero el "GL-state
+  redundante" YA está cacheado (ZzzOpenglUtil early-returns) → skip rinde ~0. Skin ya
+  diferido (MU_GPUSKIN), instancing 91% (2100→21 draws), palette/cache baratos. El
+  8.5ms es overhead DIFUSO (per-char + per-mesh), sin palanca clara. Exprimirlo =
+  sub-profiling + refactor hot-path, payoff incierto. Detalle `07-char-collect`.
 - **1.4 — Objects pass (~4ms).** Props del mapa usan el MISMO `BMD::Transform`/
   `RenderMesh`. Aplicar instancing (props repetidos) + rigid-VBO (props estáticos, sin
   transform CPU/frame). → reusa infra de `03/05`.

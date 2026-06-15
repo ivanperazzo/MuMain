@@ -69,7 +69,20 @@ Pendiente menor: validación multi-mapa (cache es agnóstico al mapa, bajo riesg
 - **A/B:** in-game, comparar HUD (texto nítido, sin stale, colores OK) + leer
   `uinew=` del `[frame]`. Esperado: uinew 5.5→~1-2ms.
 
-### Increment 2 — H2: no updatear ventanas ocultas
+### Increment 2 + 3 (H2/H3) — DESCARTADOS (medido, no vale) ❌
+
+**Medido in-game (MAIN_SCENE):** el pass de Update de UI completo (mouse+key+update
+del `CNewUIManager`) = **0.063 ms** (mouse 0.035 + key 0.005 + **update 0.022**).
+El `update` pass (todas las ventanas, ocultas incluidas) = 0.022 ms. Causa: las
+ventanas pesadas **ya auto-gatean** con `if (IsVisible())` en su `Update()`
+(verificado `CNewUIMyInventory::Update` 679, `CNewUIInventoryCtrl::Update` 924,
+`CNewUIStorageInventory::Update` 159) — los devs ya las optimizaron. H2 podría
+rascar < 0.02 ms; H3 (4 sorts + 3 copias + mouse O(N²)) está dentro de esos
+0.063 ms y es μs. **ROI nulo → no se implementa.** El win de UI ya fue 1.1 (texto).
+
+Detalle histórico del plan original (no ejecutado):
+
+#### Increment 2 — H2: no updatear ventanas ocultas
 - Gatear `CNewUIObj::Update` también por `IsVisible()` (o por un flag combinado),
   en `CNewUIManager::Update` (`NewUIManager.cpp:~184-189`).
 - **Riesgo:** ventanas que necesitan update de fondo (timers de evento, cooldowns,
