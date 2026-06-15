@@ -19,10 +19,39 @@ per-worker context.
 
 ## Goal & invariant
 
-Move all per-render mutable state off the shared `BMD` into a **`BmdRenderContext`** threaded
-through the render call chain (and the coupled file-globals/statics into per-worker homes). After
-this, building an entity reads immutable model data from the shared `BMD` and reads/writes only
-its own context → safe to run concurrently for entities of the same type.
+Move all per-render mutable state off the shared `BMD` into a **per-worker `BmdRenderContext`**
+(and the coupled file-globals/statics into per-worker homes). After this, building an entity reads
+immutable model data from the shared `BMD` and reads/writes only its own worker's context → safe
+to run concurrently for entities of the same type.
+
+### Mechanism — per-worker state, NOT param threading (revised 15-jun)
+
+The first implementation attempt threaded a `BmdRenderContext& ctx` parameter through the render
+methods. An implementer measurement killed that approach: the BMD render primitives are called from
+**~3409 sites across 49 files** (`RenderMesh` 1214, `TransformPosition` 1032, `RenderBody` 539,
+`TransformByObjectBone` 405, `Animation` 125, …) — maps, pets, events, quests, AI, effects all use
+them. Threading a param means editing all 3409 sites, contradicting "small serial-identical diff".
+
+The right mechanism is the one **Tasks 2-3 already proved**: a **per-worker instance indexed by
+`ThreadPool::CurrentWorkerIndex()`**, exactly like `Render::Build::WorkerArena`/`CurrentArena()`.
+`BmdRenderContext` lives in a per-worker slot reached by `Render::Build::CurrentRenderCtx()`
+(thread_local indirection); **method signatures DO NOT change**. Migration of a field group =
+repoint its **setter sites** (`b->member = o->…` → `CurrentRenderCtx().field = o->…`, ~80 across
+`ZzzObject`/`ZzzCharacter`/`ZzzEffect`) and its **reader sites** (`this->member` / bare `member`
+inside `ZzzBMD.cpp`, ~40) in lockstep, then delete the BMD member. Total per field-group: dozens of
+sites in 1-3 files, not thousands.
+
+**Why per-worker (single slot) is correct — not per-entity.** Within one worker everything is
+serial and each entity's `set → Transform → RenderMesh` sequence is contiguous (the same
+"Transform precedes RenderMesh, same object, no intervening Transform" invariant the per-Transform
+statics already rely on). Parallelism is **across** entities on **different** workers, each with its
+own slot. This is *exactly* how `g_chrome`/`VertexTransform`/`g_BoneTransformScratch` already behave
+after Tasks 2-3 — they are per-worker single slots and render correctly even for bodies with
+attached links/wings, which **proves** no "set, render a different-type child that clobbers the slot,
+then read" hazard exists on this path. If it did, the Task-2/3 per-worker scratch would already be
+visibly broken. So per-worker single-slot reproduces today's shared-member semantics byte-for-byte.
+Pre-allocate with `InitRenderCtxs(WorkerCount())` at startup (mirrors `InitArenas`) so the grow path
+never runs during `ParallelFor`.
 
 **Hard invariant every sub-task keeps:** serial-identical. `MU_JOBS` stays OFF until the final
 switch; every intermediate commit produces pixel-identical output and identical `[bmd_cov]`
@@ -35,7 +64,7 @@ member-removal steps.
 ## The context object
 
 ```cpp
-// Render/Build/BmdRenderContext.h  (per-entity, lives in the Task-5 VisibleChar / a per-worker slot)
+// Render/Build/BmdRenderContext.h  (per-WORKER slot, reached by CurrentRenderCtx(); mirror WorkerArena)
 struct BmdRenderContext
 {
     // placement
@@ -63,44 +92,52 @@ struct BmdRenderContext
     float  flatColor[4] = {1,1,1,1};
 };
 ```
-The render methods take `BmdRenderContext& ctx` (mutable: a few fields are written mid-pipeline)
-instead of reading `this->`. The shared `BMD` keeps only immutable model data (group (a) in the map).
+The render methods read/write `CurrentRenderCtx().field` (mutable: a few fields are written
+mid-pipeline) instead of `this->member`. **Signatures are unchanged.** The shared `BMD` keeps only
+immutable model data (group (a) in the map). The per-worker slot + accessor + `InitRenderCtxs` live
+in `BmdRenderContext.{h,cpp}`, a self-contained pair mirroring `WorkerArena.{h,cpp}` (header
+self-contained — `float[3]` not engine `vec3_t` — so it can link into the jobs unit test if needed).
 
 ## Surface (from the BMD state map)
 
 ~16 per-render members; **BodyLight is the hot one (~40 reads)**, BodyOrigin ~18, BodyScale ~16,
-LightEnable ~12, anim fields ~3-9 each, StreamMesh/HideSkin ~6-10. ~20 methods change signature
-(`Animation`, `Transform`, `SkinMesh`, `Chrome`, `RenderMesh`, all `RenderBody*`/`RenderMesh*`
-variants, `TransformPosition`/`RotationPosition`/`TransformBy*`, `ComputeInstLitLight`, shadow/coin
-helpers). Setup is scattered: ~80 `b->member = o->…` sites across `ZzzObject.cpp`,
-`ZzzCharacter.cpp`, `ZzzEffect.cpp`. Coupled non-member state: file-global `BoneScale`, the
-per-Transform statics (`s_lastBoneMatrix`/`s_transformSerial`/`s_meshSkinned[]`/…), the `InstSet*`
-collect globals, and the `glGetFloatv(GL_CURRENT_COLOR)` build-path GL read.
+LightEnable ~12, anim fields ~3-9 each, StreamMesh/HideSkin ~6-10. **No method signatures change.**
+Per field group, repoint its reader sites (mostly inside `ZzzBMD.cpp`: `this->member`/bare `member`)
+and its setter sites (~80 `b->member = o->…` total across `ZzzObject.cpp`, `ZzzCharacter.cpp`,
+`ZzzEffect.cpp`) to `CurrentRenderCtx().field`, then delete the BMD member. Coupled non-member
+state: file-global `BoneScale`, the per-Transform statics
+(`s_lastBoneMatrix`/`s_transformSerial`/`s_meshSkinned[]`/…), the `InstSet*` collect globals, and
+the `glGetFloatv(GL_CURRENT_COLOR)` build-path GL read.
 
 ## Decomposition — serial-identical sub-tasks (each its own commit + A/B)
 
-Each step moves one cohesive group from `BMD` member → `BmdRenderContext`, updating ALL write/read
-sites in lockstep (a field can't be half-migrated — 40 read sites must move together). After each
-step: build Release, `run-harness-ab.bat 1 1 <tag>` → `[bmd_cov]` identical, in-game spot-check.
+Each step moves one cohesive group from `BMD` member → `CurrentRenderCtx().field`, updating ALL
+write/read sites in lockstep (a field can't be half-migrated — its ~40 read sites + setters must
+move together). **No method signatures change.** After each step: build Release,
+`run-harness-ab.bat 1 1 <tag>` → `[bmd_cov]` identical, in-game spot-check.
 
-- **6.1 — Plumb `BmdRenderContext` (no field moved yet).** Add the header + a per-worker context
-  instance (and store one in the Task-5 `VisibleChar`/Phase-G entry). Thread `BmdRenderContext& ctx`
-  as a parameter through the render call chain (`Animation`/`Transform`/`RenderBody*`/`RenderMesh*`/
-  `SkinMesh`/`Chrome`/`TransformPosition`/`RotationPosition`/`ComputeInstLitLight`/shadow helpers).
-  The param is UNUSED this step → trivially serial-identical. Establishes the plumbing so later steps
-  only flip read/write sites. (Setup sites populate `ctx` from the OBJECT in Phase G, mirroring
-  today's `b->member = o->…`, but the renderers still read `this->` until each field is migrated.)
+- **6.1 — Add the per-worker `BmdRenderContext` infrastructure (no field moved yet).** Create
+  `Render/Build/BmdRenderContext.{h,cpp}`: the struct (self-contained header, `float[3]`), a
+  per-worker slot vector + `CurrentRenderCtx()` accessor + `InitRenderCtxs(int)`, mirroring
+  `WorkerArena.{h,cpp}` line-for-line (same `std::vector<unique_ptr>` + `CurrentWorkerIndex()` +
+  assert-after-init pattern). Call `InitRenderCtxs(WorkerCount())` at startup right next to the
+  existing `InitArenas(...)` (`Winmain.cpp`). Wire into `src/CMakeLists.txt` if needed (GLOB should
+  pick it up). **Nothing reads or writes the ctx yet** → trivially serial-identical (pure infra).
+  No BMD member removed, no signature touched.
 - **6.2 — Placement group:** `BodyScale`, `BodyOrigin`, `BodyHeight`, file-global `BoneScale` →
-  `ctx`. Update setup (Phase G) + ~50 read sites (SkinMesh, Transform, TransformPosition, lit-build,
-  inst gate `:1553-1581`, shadow). Remove the BMD members + the file-global. A/B.
+  `CurrentRenderCtx()`. Repoint setters + ~50 read sites (SkinMesh, Transform, TransformPosition,
+  lit-build, inst gate `:1553-1581`, shadow). Remove the BMD members + the file-global. A/B.
 - **6.3 — Lighting group:** `BodyLight` (the ~40-read hot one), `LightEnable`, `ContrastEnable`,
-  `ShadowAngle` → `ctx`. Update setup + RenderMesh color path + all Render*Alternative/Translate/
-  Shadow variants + the 4 `InstanceRec` builders. A/B (highest visual-regression risk — lighting).
+  `ShadowAngle` → `CurrentRenderCtx()`. Repoint setters + RenderMesh color path + all
+  Render*Alternative/Translate/Shadow variants + the 4 `InstanceRec` builders. A/B (highest
+  visual-regression risk — lighting).
 - **6.4 — Animation group:** `BodyAngle`, `CurrentAction`, `PriorAction`, `CurrentAnimation`,
-  `CurrentAnimationFrame` → `ctx`. Note the `PriorAction` param-vs-member shadow in `Animation`.
-  Update Animation/PlayAnimation + the effect writers (`ZzzEffect.cpp:15205-15210`). A/B.
-- **6.5 — Mesh-selection group:** `StreamMesh`, `Skin`, `HideSkin`, `fTransformedSize` → `ctx`.
-  Update setup + RenderMesh gates + the cross-TU `HideSkin` reads in `ZzzObject.cpp:7661-8859`. A/B.
+  `CurrentAnimationFrame` → `CurrentRenderCtx()`. Note the `PriorAction` param-vs-member shadow in
+  `Animation`. Repoint Animation/PlayAnimation + the effect writers (`ZzzEffect.cpp:15205-15210`).
+  A/B.
+- **6.5 — Mesh-selection group:** `StreamMesh`, `Skin`, `HideSkin`, `fTransformedSize` →
+  `CurrentRenderCtx()`. Repoint setters + RenderMesh gates + the cross-TU `HideSkin` reads in
+  `ZzzObject.cpp:7661-8859`. A/B.
 - **6.6 — Per-Transform statics → per-worker.** Move `s_lastBoneMatrix`, `s_lastTransformTranslate`,
   `s_lastTransformScale`, `s_transformSerial`, `s_lastLightPosition`, `s_lastLightEnable`,
   `s_skinnedSerial`, `s_meshSkinned[]` into `ctx` (or the per-worker arena) so the "Transform then
@@ -129,11 +166,14 @@ Then the original **Task 7** (objects pass) applies the same to `RenderObjects` 
 1. `PriorAction` param shadows the BMD member in `Animation` — migrate carefully.
 2. `BoneScale`: file-global (the per-entity one) vs the rarely-used BMD member — don't conflate.
 3. Several fields are written MID-pipeline (`BodyAngle`/`CurrentAnimation*` in Animation, `ShadowAngle`/
-   `fTransformedSize` in Transform) → `ctx` must be mutable, not a const setup snapshot.
+   `fTransformedSize` in Transform) → the per-worker ctx is mutable (it is a live slot, not a const snapshot).
 4. Cross-model attach (`AnimationTransformWithAttachHighModel*`) and effect writers write a BMD's
-   per-render state from ANOTHER object's values → route through the correct `ctx`.
+   per-render state from ANOTHER object's values → with the per-worker mechanism these become
+   `CurrentRenderCtx().field = otherObj->…`, which automatically targets the current worker's slot
+   (the contiguous set→use guarantee makes this correct without extra routing).
 5. The per-Transform statics encode a "Transform precedes RenderMesh, same object, no intervening
-   Transform" invariant — moving (b) fields without scoping these breaks skin-skip / inst palette-base.
+   Transform" invariant — this is the SAME invariant that makes the per-worker single-slot ctx
+   correct; 6.6 moves these statics to the same per-worker home so the whole group stays consistent.
 6. Cross-TU reads (`HideSkin` in `ZzzObject.cpp`) widen the blast radius beyond `ZzzBMD.cpp`.
 7. Login-scene crash guard: confirm after the member-removal steps (don't assume `sizeof(BMD)` is
    free to change — verify).
