@@ -24,24 +24,6 @@
 #include "Render/GL/BmdShader.h"
 #include "Render/GL/GLLoader.h"
 #include "Core/Utilities/FrameProfiler.h"   // bottleneck profiling (Anim slot)
-#include <cstdlib>
-
-namespace
-{
-    // P-bmd-blendmesh (Etapa 1.3): route translucent blend meshes (glows / wing
-    // membranes, meshAlphaBlended) through the per-mesh GPU path (RenderMeshGpu)
-    // instead of the legacy CPU-skin + immediate draw. They stay alpha-blended and
-    // keep their draw order (per-mesh, before InstFlush), so only the skinning moves
-    // to the GPU. Excluded from the instanced batch (which is alpha-test/opaque).
-    bool GpuBlendMeshEnabled()
-    {
-        static const bool s_on = [] {
-            char b[8] = {}; size_t n = 0;
-            return getenv_s(&n, b, sizeof(b), "MU_GPUBLENDMESH") == 0 && n > 0 && atoi(b) != 0;
-        }();
-        return s_on;
-    }
-}
 
 BMD* Models;
 BMD* ModelsDump;
@@ -1524,7 +1506,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
         && Render::GL::IsLoaded()
         && (finalRenderFlags == RENDER_TEXTURE || plainChrome || chromeVarOk) && !EnableWave
-        && (!meshAlphaBlended || GpuBlendMeshEnabled())   // blend mesh: legacy unless MU_GPUBLENDMESH (then per-mesh GPU)
+        && (!meshAlphaBlended || Render::Models::GpuBlendMeshEnabled())   // blend mesh: legacy unless MU_GPUBLENDMESH (then per-mesh GPU)
         && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
         && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
     {

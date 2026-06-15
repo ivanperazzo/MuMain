@@ -68,6 +68,13 @@ namespace Render::Models
     void SetGpuInstEnabled(bool on);
     bool GpuInstEnabled();
 
+    // Runtime toggle ("$gpublendmesh on/off", env MU_GPUBLENDMESH, default ON):
+    // route translucent blend meshes (item glows / wing membranes) through the
+    // per-mesh GPU path instead of legacy CPU-skin + immediate draw. Off -> legacy.
+    // Runtime-settable for the planned in-game antilag panel. (Etapa 1.3.)
+    void SetGpuBlendMeshEnabled(bool on);
+    bool GpuBlendMeshEnabled();
+
     // P-bmd-skinskip: production skip-skin (env MU_GPUSKIN=1, default off). When on AND
     // in the instanced Characters pass with GPU shadows on, BMD::Transform DEFERS the
     // per-vertex CPU skin; consumers that read VertexTransform/NormalTransform force-skin

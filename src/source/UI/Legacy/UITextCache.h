@@ -42,6 +42,9 @@ namespace UI::Legacy
         // fall back to the legacy rasterize-every-frame path.
         bool Enabled();
 
+        // Runtime toggle (future in-game antilag panel). Overrides the env default.
+        void SetEnabled(bool on) { m_enabled = on ? 1 : 0; }
+
         // Call once per cache-eligible RenderText. Bumps the frame counter,
         // flushes the whole cache if the screen rate changed (cached sizes would
         // be stale), and periodically logs the hit/miss ratio.

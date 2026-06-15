@@ -37,6 +37,7 @@ namespace Render::Models
         bool s_gpuObjectsPass = false;   // true only during the Objects render pass
         bool s_gpuCharsPass   = false;   // true only during the Characters render pass
         bool s_gpuInstEnabled = false;   // $gpuinst: instanced Characters batching
+        bool s_gpuBlendMesh   = true;    // $gpublendmesh: translucent blend meshes via per-mesh GPU (default ON, Etapa 1.3)
         bool s_skinSkip       = false;   // $skinskip: Transform skips CPU skinning
 
         int  s_charMeshTotal  = 0;       // chars-pass mesh draws this frame
@@ -179,6 +180,21 @@ namespace Render::Models
         static const bool s_envInit = [] { if (EnvFlag("MU_GPUINST")) s_gpuInstEnabled = true; return true; }();
         (void)s_envInit;
         return s_gpuInstEnabled;
+    }
+
+    void SetGpuBlendMeshEnabled(bool on) { s_gpuBlendMesh = on; }
+    bool GpuBlendMeshEnabled()
+    {
+        // Default ON (validated Etapa 1.3). MU_GPUBLENDMESH=0 disables at startup;
+        // SetGpuBlendMeshEnabled() toggles at runtime (future antilag panel).
+        static const bool s_envInit = [] {
+            char b[8] = {}; size_t n = 0;
+            if (getenv_s(&n, b, sizeof(b), "MU_GPUBLENDMESH") == 0 && n > 0)
+                s_gpuBlendMesh = (atoi(b) != 0);
+            return true;
+        }();
+        (void)s_envInit;
+        return s_gpuBlendMesh;
     }
 
     bool GpuSkinDeferEnabled()
