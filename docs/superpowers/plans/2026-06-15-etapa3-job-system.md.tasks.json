@@ -7,119 +7,273 @@
       "subject": "Task 1: Core::Jobs::ThreadPool + ParallelFor",
       "status": "completed",
       "description": "Minimal persistent fork-join ThreadPool + blocking ParallelFor + MU_JOBS flag, doctest-tested.",
-      "metadata": {"files": ["src/source/Core/Jobs/ThreadPool.h","src/source/Core/Jobs/ThreadPool.cpp","tests/jobs/CMakeLists.txt","tests/jobs/test_thread_pool.cpp","tests/CMakeLists.txt","src/CMakeLists.txt"], "verifyCommand": "ctest --test-dir out/build/tests/tests/jobs --output-on-failure"}
+      "metadata": {
+        "files": [
+          "src/source/Core/Jobs/ThreadPool.h",
+          "src/source/Core/Jobs/ThreadPool.cpp",
+          "tests/jobs/CMakeLists.txt",
+          "tests/jobs/test_thread_pool.cpp",
+          "tests/CMakeLists.txt",
+          "src/CMakeLists.txt"
+        ],
+        "verifyCommand": "ctest --test-dir out/build/tests/tests/jobs --output-on-failure"
+      }
     },
     {
       "id": 2,
       "subject": "Task 2: WorkerArena — per-worker per-vertex scratch (serial-identical)",
       "status": "completed",
-      "blockedBy": [1],
+      "blockedBy": [
+        1
+      ],
       "description": "Move ~30MB per-vertex scratch into per-worker WorkerArena via thread_local pointer + accessor macros; serial-identical.",
-      "metadata": {"files": ["src/source/Render/Build/WorkerArena.h","src/source/Render/Build/WorkerArena.cpp","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/App/Platform/Windows/Winmain.cpp","src/CMakeLists.txt","tests/jobs/test_worker_arena.cpp"], "verifyCommand": "ctest --test-dir out/build/tests/tests/jobs --output-on-failure"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Build/WorkerArena.h",
+          "src/source/Render/Build/WorkerArena.cpp",
+          "src/source/Render/Models/ZzzBMD.cpp",
+          "src/source/Render/Models/ZzzBMD.h",
+          "src/source/App/Platform/Windows/Winmain.cpp",
+          "src/CMakeLists.txt",
+          "tests/jobs/test_worker_arena.cpp"
+        ],
+        "verifyCommand": "ctest --test-dir out/build/tests/tests/jobs --output-on-failure"
+      }
     },
     {
       "id": 3,
       "subject": "Task 3: Bone palette per-entity + reentrancy audit (serial-identical)",
       "status": "completed",
-      "blockedBy": [2],
+      "blockedBy": [
+        2
+      ],
       "description": "Build bone matrices into per-entity OBJECT->BoneTransform; move build-time globals to arena/per-entity/read-only/Phase G; audit doc.",
-      "metadata": {"files": ["src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Build/WorkerArena.h","src/source/Engine/Object/ZzzCharacter.cpp","src/source/Engine/Object/ZzzObject.cpp","docs/perf/08-jobs-audit.md"], "verifyCommand": "run-harness-ab.bat 1 1 bone_after; diff [bmd_cov] vs Task2"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Models/ZzzBMD.cpp",
+          "src/source/Render/Build/WorkerArena.h",
+          "src/source/Engine/Object/ZzzCharacter.cpp",
+          "src/source/Engine/Object/ZzzObject.cpp",
+          "docs/perf/08-jobs-audit.md"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 bone_after; diff [bmd_cov] vs Task2"
+      }
     },
     {
       "id": 4,
       "subject": "Task 4: Per-worker instance buckets + merge (serial-identical)",
       "status": "completed",
-      "blockedBy": [3],
+      "blockedBy": [
+        3
+      ],
       "description": "BmdInstanceBatch collects into per-worker bucket sets, merges order-independently at flush; merge unit-tested.",
-      "metadata": {"files": ["src/source/Render/Models/BmdInstanceBatch.cpp","src/source/Render/Models/BmdInstanceBatch.h","src/source/Render/GL/BonePaletteTBO.h","src/source/Render/GL/BonePaletteTBO.cpp","tests/jobs/test_bucket_merge.cpp"], "verifyCommand": "ctest --test-dir out/build/tests/tests/jobs --output-on-failure"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Models/BmdInstanceBatch.cpp",
+          "src/source/Render/Models/BmdInstanceBatch.h",
+          "src/source/Render/GL/BonePaletteTBO.h",
+          "src/source/Render/GL/BonePaletteTBO.cpp",
+          "tests/jobs/test_bucket_merge.cpp"
+        ],
+        "verifyCommand": "ctest --test-dir out/build/tests/tests/jobs --output-on-failure"
+      }
     },
     {
       "id": 5,
       "subject": "Task 5: Phase G/B/F restructure of the char pass (serial)",
       "status": "completed",
-      "blockedBy": [4],
+      "blockedBy": [
+        4
+      ],
       "description": "Restructure RenderCharactersClient into Gather/Build/Flush, serial, identical output.",
-      "metadata": {"files": ["src/source/Render/Build/VisibleList.h","src/source/Engine/Object/ZzzCharacter.cpp","src/source/Scenes/MainScene.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 phase_after; diff [bmd_cov]/[frame] vs Task4"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Build/VisibleList.h",
+          "src/source/Engine/Object/ZzzCharacter.cpp",
+          "src/source/Scenes/MainScene.cpp"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 phase_after; diff [bmd_cov]/[frame] vs Task4"
+      }
     },
     {
       "id": 8,
       "subject": "Task 6.1: Add per-worker BmdRenderContext infra (no field moved)",
       "status": "completed",
-      "blockedBy": [5],
+      "blockedBy": [
+        5
+      ],
       "description": "Create BmdRenderContext.{h,cpp} per-worker (CurrentRenderCtx()/InitRenderCtxs, mirror WorkerArena); call InitRenderCtxs at startup. No field moved, no signature change, nothing reads it. Serial-identical infra. REVISED MECHANISM: per-worker slot, NOT param threading (3409 call sites killed that). Commit 8a2a7071.",
-      "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Build/BmdRenderContext.cpp","src/source/App/Platform/Windows/Winmain.cpp","src/CMakeLists.txt"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_infra; [bmd_cov] inst=2300 identical"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Build/BmdRenderContext.h",
+          "src/source/Render/Build/BmdRenderContext.cpp",
+          "src/source/App/Platform/Windows/Winmain.cpp",
+          "src/CMakeLists.txt"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 ctx_infra; [bmd_cov] inst=2300 identical"
+      }
     },
     {
       "id": 9,
       "subject": "Task 6.2: Migrate placement group to CurrentRenderCtx()",
       "status": "completed",
-      "blockedBy": [8],
+      "blockedBy": [
+        8
+      ],
       "description": "BodyScale/BodyOrigin/BodyHeight + file-global BoneScale -> CurrentRenderCtx(). Repoint setters + ~50 read sites (SkinMesh, Transform, TransformPosition, lit-build, inst gate :1553-1581, shadow). Remove BMD members + file-global. No signature change. A/B.",
-      "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzObject.cpp","src/source/Engine/Object/ZzzCharacter.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_placement; [bmd_cov] inst=2300 identical; login scene ok"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Build/BmdRenderContext.h",
+          "src/source/Render/Models/ZzzBMD.cpp",
+          "src/source/Render/Models/ZzzBMD.h",
+          "src/source/Engine/Object/ZzzObject.cpp",
+          "src/source/Engine/Object/ZzzCharacter.cpp"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 ctx_placement; [bmd_cov] inst=2300 identical; login scene ok"
+      }
     },
     {
       "id": 10,
       "subject": "Task 6.3: Migrate lighting group to CurrentRenderCtx() (HIGH visual risk)",
       "status": "completed",
-      "blockedBy": [9],
+      "blockedBy": [
+        9
+      ],
       "description": "DONE commit dfee77f6. BodyLight/LightEnable/ContrastEnable/ShadowAngle -> CurrentRenderCtx(). CRITICAL FIX: do NOT delete BMD members — RETAIN as reserved layout padding (also re-added 6.2's). Deleting shrinks sizeof(BMD), shifts Models[] rand-offset base onto a pre-existing heap overflow -> silent crash in char render (crash-login). bmd_cov=2300 + login crowd visual OK.",
-      "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzObject.cpp","src/source/Engine/Object/ZzzCharacter.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_lighting; [bmd_cov] identical; in-game lighting pixel-identical"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Build/BmdRenderContext.h",
+          "src/source/Render/Models/ZzzBMD.cpp",
+          "src/source/Render/Models/ZzzBMD.h",
+          "src/source/Engine/Object/ZzzObject.cpp",
+          "src/source/Engine/Object/ZzzCharacter.cpp"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 ctx_lighting; [bmd_cov] identical; in-game lighting pixel-identical"
+      }
     },
     {
       "id": 11,
       "subject": "Task 6.4: Migrate animation group to CurrentRenderCtx()",
       "status": "completed",
-      "blockedBy": [10],
+      "blockedBy": [
+        10
+      ],
       "description": "BodyAngle, CurrentAction, PriorAction, CurrentAnimation, CurrentAnimationFrame -> CurrentRenderCtx(). Mind PriorAction param-vs-member shadow in Animation. Repoint Animation/PlayAnimation + effect writers (ZzzEffect.cpp:15205-15210). RETAIN BMD members as reserved layout padding (do NOT delete — sizeof(BMD) must stay byte-identical, crash-login). A/B + login crowd harness (crash is silent in bmd_cov).",
-      "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzEffect.cpp","src/source/Engine/Object/ZzzObject.cpp","src/source/Engine/Object/ZzzCharacter.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_anim; [bmd_cov] identical; in-game animation identical"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Build/BmdRenderContext.h",
+          "src/source/Render/Models/ZzzBMD.cpp",
+          "src/source/Render/Models/ZzzBMD.h",
+          "src/source/Engine/Object/ZzzEffect.cpp",
+          "src/source/Engine/Object/ZzzObject.cpp",
+          "src/source/Engine/Object/ZzzCharacter.cpp"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 ctx_anim; [bmd_cov] identical; in-game animation identical"
+      }
     },
     {
       "id": 12,
       "subject": "Task 6.5: Migrate mesh-selection group to CurrentRenderCtx()",
       "status": "completed",
-      "blockedBy": [11],
+      "blockedBy": [
+        11
+      ],
       "description": "StreamMesh, Skin, HideSkin, fTransformedSize -> CurrentRenderCtx(). Repoint setters + RenderMesh gates + cross-TU HideSkin reads in ZzzObject.cpp:7661-8859. RETAIN BMD members as reserved layout padding (do NOT delete — sizeof(BMD) must stay byte-identical, crash-login). A/B + login crowd harness (crash is silent in bmd_cov).",
-      "metadata": {"files": ["src/source/Render/Build/BmdRenderContext.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Models/ZzzBMD.h","src/source/Engine/Object/ZzzObject.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_mesh; [bmd_cov] identical"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Build/BmdRenderContext.h",
+          "src/source/Render/Models/ZzzBMD.cpp",
+          "src/source/Render/Models/ZzzBMD.h",
+          "src/source/Engine/Object/ZzzObject.cpp"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 ctx_mesh; [bmd_cov] identical"
+      }
     },
     {
       "id": 13,
       "subject": "Task 6.6: Per-Transform statics -> per-worker",
       "status": "completed",
-      "blockedBy": [12],
+      "blockedBy": [
+        12
+      ],
       "description": "Move s_lastBoneMatrix/s_lastTransformTranslate/s_lastTransformScale/s_transformSerial/s_lastLightPosition/s_lastLightEnable/s_skinnedSerial/s_meshSkinned[] into per-worker home (ctx or arena) so the 'Transform then RenderMesh same object' correlation holds per-worker. Confirm-dead-and-drop s_skinScratchMin/Max. A/B.",
-      "metadata": {"files": ["src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Build/BmdRenderContext.h","src/source/Render/Build/WorkerArena.h"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_statics; [bmd_cov] identical; skin-skip path intact"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Models/ZzzBMD.cpp",
+          "src/source/Render/Build/BmdRenderContext.h",
+          "src/source/Render/Build/WorkerArena.h"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 ctx_statics; [bmd_cov] identical; skin-skip path intact"
+      }
     },
     {
       "id": 14,
       "subject": "Task 6.7: Collect globals -> per-bucket/instance + kill GL read (HIGH visual risk)",
       "status": "completed",
-      "blockedBy": [13],
+      "blockedBy": [
+        13
+      ],
       "description": "Move s_instLight/s_instWave/s_chromeWave2/s_chromeL/s_chromeLightVec into InstanceRec/per-bucket data OR compute frame-global outside parallel region; precompute flatColor into ctx to replace glGetFloatv(GL_CURRENT_COLOR) at ZzzBMD.cpp:1649. A/B (chrome/wave/flat-color).",
-      "metadata": {"files": ["src/source/Render/Models/BmdInstanceBatch.cpp","src/source/Render/Models/BmdInstanceBatch.h","src/source/Render/Models/ZzzBMD.cpp","src/source/Render/Build/BmdRenderContext.h"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_collect; [bmd_cov] identical; chrome/wave/flat visuals identical"}
+      "metadata": {
+        "files": [
+          "src/source/Render/Models/BmdInstanceBatch.cpp",
+          "src/source/Render/Models/BmdInstanceBatch.h",
+          "src/source/Render/Models/ZzzBMD.cpp",
+          "src/source/Render/Build/BmdRenderContext.h"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 ctx_collect; [bmd_cov] identical; chrome/wave/flat visuals identical"
+      }
     },
     {
       "id": 15,
       "subject": "Task 6.8: Phase-B side-effects -> Phase G + cross-model attach",
       "status": "completed",
-      "blockedBy": [14],
+      "blockedBy": [
+        14
+      ],
       "description": "Relocate CreateBattleCastleCharacter_Visual (CreateGuardStoneHealingVisual particle/global writes) to Phase G or serial post-pass; keep editor pickbox GL on GL thread. Handle cross-model attach writers (AnimationTransformWithAttachHighModel* this->BodyScale=otherObj->Scale) via CurrentRenderCtx() routing. A/B.",
-      "metadata": {"files": ["src/source/Engine/Object/ZzzCharacter.cpp","src/source/Engine/Object/ZzzObject.cpp","src/source/World/GMBattleCastle.cpp","src/source/Render/Models/ZzzBMD.cpp"], "verifyCommand": "run-harness-ab.bat 1 1 ctx_sideeffects; [bmd_cov] identical; battle-castle heal visual identical"}
+      "metadata": {
+        "files": [
+          "src/source/Engine/Object/ZzzCharacter.cpp",
+          "src/source/Engine/Object/ZzzObject.cpp",
+          "src/source/World/GMBattleCastle.cpp",
+          "src/source/Render/Models/ZzzBMD.cpp"
+        ],
+        "verifyCommand": "run-harness-ab.bat 1 1 ctx_sideeffects; [bmd_cov] identical; battle-castle heal visual identical"
+      }
     },
     {
       "id": 16,
       "subject": "Task 6.9: TURN ON ParallelFor + AppendPalette lock-free + measure (the payoff)",
-      "status": "pending",
-      "blockedBy": [15],
+      "status": "completed",
+      "blockedBy": [
+        15
+      ],
       "description": "Phase B via ThreadPool::ParallelFor under MU_JOBS (serial below min-entity threshold). Make BonePaletteTBO::AppendPalette lock-free (atomic reserve + memcpy). Add [jobs] profiling (worker count + G/B/F ms). Full race audit (TSan if available). Measure 100ch+200ch: build wall-time/workers, [bmd_cov] identical ON and OFF, in-game multi-map pixel-identical.",
-      "metadata": {"files": ["src/source/Engine/Object/ZzzCharacter.cpp","src/source/Render/Models/BmdGpuCache.cpp","src/source/Render/GL/BonePaletteTBO.cpp","src/source/Core/Utilities/FrameProfiler.h"], "verifyCommand": "harness MU_JOBS=0 vs 1 at 100ch+200ch; [jobs] build ms parallel<<serial; [bmd_cov] identical; in-game multi-map"}
+      "metadata": {
+        "files": [
+          "src/source/Engine/Object/ZzzCharacter.cpp",
+          "src/source/Render/Models/BmdGpuCache.cpp",
+          "src/source/Render/GL/BonePaletteTBO.cpp",
+          "src/source/Core/Utilities/FrameProfiler.h"
+        ],
+        "verifyCommand": "harness MU_JOBS=0 vs 1 at 100ch+200ch; [jobs] build ms parallel<<serial; [bmd_cov] identical; in-game multi-map"
+      }
     },
     {
       "id": 7,
       "subject": "Task 7: Extend to the objects pass (props) — optional, if ROI remains",
       "status": "pending",
-      "blockedBy": [16],
+      "blockedBy": [
+        16
+      ],
       "description": "Apply G/B/F + ParallelFor to RenderObjects/RenderObjects_AfterCharacter reusing infra; if ROI negligible, document and stop.",
-      "metadata": {"files": ["src/source/Engine/Object/ZzzObject.cpp"], "verifyCommand": "harness at prop-dense map; [frame] objects parallel<serial; visual identical"}
+      "metadata": {
+        "files": [
+          "src/source/Engine/Object/ZzzObject.cpp"
+        ],
+        "verifyCommand": "harness at prop-dense map; [frame] objects parallel<serial; visual identical"
+      }
     }
   ],
   "lastUpdated": "2026-06-15"
