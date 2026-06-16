@@ -111,6 +111,25 @@ namespace Render::Models
         s_instCount = 0;
     }
 
+    ObjectsInstScope::ObjectsInstScope()
+        : active(GpuInstObjEnabled() && GpuBmdEnabled())
+    {
+        if (active)
+            InstBegin();
+    }
+
+    ObjectsInstScope::~ObjectsInstScope()
+    {
+        if (active)
+        {
+            InstFlush();
+            static int s_objDiag = 0;
+            if ((++s_objDiag % 30) == 0)
+                Render::GL::Log("[obj_inst] objects pass: %d draws / %d instances",
+                                InstDrawCount(), InstInstanceCount());
+        }
+    }
+
     int InstAppendPalette(const float (*boneMatrix)[3][4], int boneCount)
     {
         return Render::GL::GetBonePaletteTBO().AppendPalette(boneMatrix, boneCount);

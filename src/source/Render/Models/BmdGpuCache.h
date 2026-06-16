@@ -68,6 +68,14 @@ namespace Render::Models
     void SetGpuInstEnabled(bool on);
     bool GpuInstEnabled();
 
+    // Runtime toggle ("$gpuinstobj on/off", env MU_GPUINSTOBJ=1, default off, Task 7):
+    // extend instanced batching to the Objects (props) pass. Repeated props
+    // (same model+mesh+tex+mode+blend) collapse to one glDrawArraysInstanced.
+    // Requires GpuBmdEnabled() too; the objects pass is bracketed with its own
+    // InstBegin()/InstFlush() so its draw order stays before the characters pass.
+    void SetGpuInstObjEnabled(bool on);
+    bool GpuInstObjEnabled();
+
     // Runtime toggle ("$gpublendmesh on/off", env MU_GPUBLENDMESH, default ON):
     // route translucent blend meshes (item glows / wing membranes) through the
     // per-mesh GPU path instead of legacy CPU-skin + immediate draw. Off -> legacy.

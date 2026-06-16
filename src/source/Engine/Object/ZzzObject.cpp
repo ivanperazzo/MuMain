@@ -5,6 +5,7 @@
 #include "Camera/CameraMove.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Models/BmdGpuCache.h"   // GpuInstObjEnabled() — props Translate-mode flip for objects instancing
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -3443,7 +3444,13 @@ void RenderObjects()
                                                     Success = true;
                                                 if (Success)
                                                 {
-                                                    RenderObject(o);
+                                                    // Task 7: render generic town props in Translate=true mode when
+                                                    // objects-instancing is on, so the world matrix's rotation rides in the
+                                                    // per-instance bone palette and BodyOrigin/BodyScale become per-instance
+                                                    // attributes (instead of baked into the root bone matrix). That makes
+                                                    // repeated props collapse to one glDrawArraysInstanced. Flag OFF (default)
+                                                    // -> Translate=false, byte-identical legacy path. A/B gated by MU_GPUINSTOBJ.
+                                                    RenderObject(o, Render::Models::GpuInstObjEnabled());
                                                     RenderObjectVisual(o);
                                                 }
                                             }

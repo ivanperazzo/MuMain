@@ -446,7 +446,7 @@ bool NewRenderLogInScene(HDC hDC)
             FRAME_PROFILE(Objects);
             RenderMount();
             Render::Models::SetGpuObjectsPass(true);
-            RenderObjects();
+            { Render::Models::ObjectsInstScope _objInst; RenderObjects(); }   // Task 7
             Render::Models::SetGpuObjectsPass(false);
         }
         {
@@ -460,7 +460,7 @@ bool NewRenderLogInScene(HDC hDC)
         {
             FRAME_PROFILE(Objects);
             Render::Models::SetGpuObjectsPass(true);
-            RenderObjects_AfterCharacter();
+            { Render::Models::ObjectsInstScope _objInst; RenderObjects_AfterCharacter(); }   // Task 7
             Render::Models::SetGpuObjectsPass(false);
             ThePetProcess().RenderPets();
         }

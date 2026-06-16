@@ -40,6 +40,22 @@ namespace Render::Models
     };
 
     void InstBegin();
+
+    // RAII bracket for the Objects (props) pass (Task 7). On construction, if objects
+    // instancing is enabled (GpuInstObjEnabled() && GpuBmdEnabled()), calls InstBegin();
+    // on destruction calls InstFlush(). When disabled it is a pure no-op, so props keep
+    // the per-mesh GPU path and the call sites read identically with or without the flag.
+    // Each objects pass gets its OWN scope so its draws flush at the right point in the
+    // frame (before characters for RenderObjects, after them for RenderObjects_AfterCharacter).
+    struct ObjectsInstScope
+    {
+        bool active;
+        ObjectsInstScope();
+        ~ObjectsInstScope();
+        ObjectsInstScope(const ObjectsInstScope&) = delete;
+        ObjectsInstScope& operator=(const ObjectsInstScope&) = delete;
+    };
+
     int  InstAppendPalette(const float (*boneMatrix)[3][4], int boneCount);
     // mode:  0 = textured (sample aUV), 1 = chrome (sphere-map UV from normal + scroll).
     // blend: 0 = opaque (alpha-test, depth write), 1 = additive (RENDER_BRIGHT, GL_ONE/ONE,

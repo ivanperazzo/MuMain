@@ -472,6 +472,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
                 {
                     FRAME_PROFILE(Objects);
                     Render::Models::SetGpuObjectsPass(true);
+                    Render::Models::ObjectsInstScope _objInst;   // Task 7: instance repeated props (no-op unless MU_GPUINSTOBJ)
                     RenderObjects();
                     Render::Models::SetGpuObjectsPass(false);
                 }
@@ -480,7 +481,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
     }
 
     if (!gMapManager.IsPKField() && !IsDoppelGanger2() && renderStatic)
-        { FRAME_PROFILE(Objects); Render::Models::SetGpuObjectsPass(true); RenderObjects(); Render::Models::SetGpuObjectsPass(false); }
+        { FRAME_PROFILE(Objects); Render::Models::SetGpuObjectsPass(true); Render::Models::ObjectsInstScope _objInst; RenderObjects(); Render::Models::SetGpuObjectsPass(false); }
 
     if (renderEffects)
     {
@@ -520,7 +521,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         RenderBoids(true);
 
     if (renderStatic)
-        { FRAME_PROFILE(Objects); Render::Models::SetGpuObjectsPass(true); RenderObjects_AfterCharacter(); Render::Models::SetGpuObjectsPass(false); }
+        { FRAME_PROFILE(Objects); Render::Models::SetGpuObjectsPass(true); Render::Models::ObjectsInstScope _objInst; RenderObjects_AfterCharacter(); Render::Models::SetGpuObjectsPass(false); }
 
     RenderJoints(byWaterMap);
 

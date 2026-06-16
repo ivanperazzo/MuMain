@@ -1319,6 +1319,14 @@ namespace
     std::atomic<long long> g_diagInstByMesh[MAX_MESH];
     inline void DiagEntryMesh(int mi) { if (JobsDiagEnabled() && mi >= 0 && mi < MAX_MESH) g_diagEntryByMesh[mi].fetch_add(1, std::memory_order_relaxed); }
     inline void DiagInstMesh(int mi)  { if (JobsDiagEnabled() && mi >= 0 && mi < MAX_MESH) g_diagInstByMesh[mi].fetch_add(1, std::memory_order_relaxed); }
+
+    // Task 7 objects-instancing diag (gated by JobsDiagEnabled() && GpuObjectsPass()).
+    // Tells, per objects pass, how many prop meshes entered, reached the GPU outer gate,
+    // were rejected from the instance batch for being non-translate-only (rotated/scaled
+    // world matrix) vs blend, and how many actually appended. Answers "do town props
+    // instance, or does rotation exclude them?" without guessing.
+    std::atomic<long long> g_objEntry{0}, g_objOuterGate{0}, g_objNoTranslate{0}, g_objBlendExcl{0}, g_objInstAdd{0};
+    inline void ObjDiag(std::atomic<long long>& c) { c.fetch_add(1, std::memory_order_relaxed); }
 }
 void JobsDiagDumpAndReset();   // fwd; called from LogAndResetGpuStats-adjacent site
 
@@ -1344,6 +1352,14 @@ void JobsDiagDumpAndReset()
         if (off > (int)sizeof(buf) - 32) break;
     }
     Render::GL::Log("%s", buf);
+
+    // Task 7 objects-pass instancing breakdown.
+    Render::GL::Log("[objdiag] entry=%lld outerGate=%lld notranslate=%lld blendExcl=%lld instAdd=%lld",
+                    g_objEntry.exchange(0, std::memory_order_relaxed),
+                    g_objOuterGate.exchange(0, std::memory_order_relaxed),
+                    g_objNoTranslate.exchange(0, std::memory_order_relaxed),
+                    g_objBlendExcl.exchange(0, std::memory_order_relaxed),
+                    g_objInstAdd.exchange(0, std::memory_order_relaxed));
 }
 
 void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshIndex, float blendMeshAlpha, float blendMeshTextureCoordU, float blendMeshTextureCoordV, int explicitTextureIndex)
@@ -1358,6 +1374,8 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
 
     const bool diagCharsPass = JobsDiagEnabled() && Render::Models::GpuCharsPass();
     if (diagCharsPass) { DiagHit(DIAG_ENTRY); DiagEntryMesh(meshIndex); }
+    const bool diagObjPass = JobsDiagEnabled() && Render::Models::GpuObjectsPass();
+    if (diagObjPass) ObjDiag(g_objEntry);
 
     if (meshIndex >= NumMeshs || meshIndex < 0) { if (diagCharsPass) DiagHit(DIAG_RET_BOUNDS); return; }
 
@@ -1724,6 +1742,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
     {
         if (diagCharsPass) DiagHit(DIAG_REACH_GATE);
+        if (diagObjPass) ObjDiag(g_objOuterGate);
         // enableLight true -> per-normal lit (props); false -> flat glColor (chars).
         const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
         if (diagCharsPass && (gpu == nullptr || !gpu->eligible)) DiagHit(DIAG_GATE_GPUNULL);
@@ -1741,7 +1760,15 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
             // instanced flush has a dedicated additive (GL_ONE/ONE) pass. Other blended
             // (textured BRIGHT/DARK) meshes still keep the legacy/per-mesh path.
             const bool blended = (renderFlags & (RENDER_BRIGHT | RENDER_DARK)) != 0;
-            if (Render::Models::GpuCharsPass() && Render::Models::GpuInstEnabled()
+            if (diagObjPass && Render::Models::GpuInstObjEnabled())
+            {
+                if (!s_lastTransformTranslate) ObjDiag(g_objNoTranslate);
+                else if (!(!meshAlphaBlended || blendMeshAdditive)
+                         || !(!blended || chromeAdditive || chromeVarAdditive || blendMeshAdditive || waveAdditive))
+                    ObjDiag(g_objBlendExcl);
+            }
+            if (((Render::Models::GpuCharsPass() && Render::Models::GpuInstEnabled())
+                 || (Render::Models::GpuObjectsPass() && Render::Models::GpuInstObjEnabled()))
                 && s_lastTransformTranslate
                 && (!meshAlphaBlended || blendMeshAdditive)   // opaque batch excludes blend meshes; additive blend meshes (wings) go to the additive bucket below
                 && (!blended || chromeAdditive || chromeVarAdditive || blendMeshAdditive || waveAdditive))
@@ -1835,6 +1862,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
                 if (blendMeshAdditive)
                     instBlend = 1;
                 if (diagCharsPass) { DiagHit(DIAG_INSTADD); DiagInstMesh(meshIndex); }
+                if (diagObjPass) ObjDiag(g_objInstAdd);
                 Render::Models::InstAdd(this, meshIndex, instTex, rec, instMode, instBlend);
                 wentGpu = true;
                 instanced = true;

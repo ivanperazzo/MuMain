@@ -43,6 +43,7 @@ namespace Render::Models
         bool s_gpuObjectsPass = false;   // true only during the Objects render pass
         bool s_gpuCharsPass   = false;   // true only during the Characters render pass
         bool s_gpuInstEnabled = false;   // $gpuinst: instanced Characters batching
+        bool s_gpuInstObj     = false;   // $gpuinstobj: instanced Objects (props) batching (Etapa 1.4 / Task 7, default off)
         bool s_gpuBlendMesh   = true;    // $gpublendmesh: translucent blend meshes via per-mesh GPU (default ON, Etapa 1.3)
         bool s_gpuBlendInst   = true;    // $gpublendinst: additive translucent blend meshes (wings) -> instanced additive bucket (Etapa 1.4a, default ON, validado in-game 15-jun)
         bool s_gpuWaveInst    = true;    // $gpuwaveinst: textured BRIGHT + UV-scroll (wave) meshes -> instanced additive bucket w/ shader UV offset (Etapa 1.4b, default ON, validado in-game 15-jun)
@@ -248,6 +249,13 @@ namespace Render::Models
         static const bool s_envInit = [] { if (EnvFlag("MU_GPUINST")) s_gpuInstEnabled = true; return true; }();
         (void)s_envInit;
         return s_gpuInstEnabled;
+    }
+    void SetGpuInstObjEnabled(bool on) { s_gpuInstObj = on; }
+    bool GpuInstObjEnabled()
+    {
+        static const bool s_envInit = [] { if (EnvFlag("MU_GPUINSTOBJ")) s_gpuInstObj = true; return true; }();
+        (void)s_envInit;
+        return s_gpuInstObj;
     }
 
     void SetGpuBlendMeshEnabled(bool on) { s_gpuBlendMesh = on; }
