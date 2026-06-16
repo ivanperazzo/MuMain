@@ -133,3 +133,10 @@ en FPS. Opciones: (a) seguir Etapa 1 (wins baratos, bajo riesgo) y parar antes d
 threading; (b) ir full a threading por el target; (c) cerrar perf y volver a
 server-authority. Recomendación: **Etapa 1 completa** (mejor relación esfuerzo/ganancia),
 luego reevaluar threading vs server-authority.
+
+## Plan de modernización post-threading
+
+Ver **`09-modernization-plan.md`** — análisis estratégico completo (diagnóstico,
+hipótesis priorizadas H1-H12, profiling, quick wins, ruta GL3.3/VBO/shaders/GPU-skin,
+RAM/VRAM, estructuras de datos, roadmap, entregables). PR inicial propuesto:
+profiler+overlay → Terrain VBO (`MU_TERRAINVBO`). Iterar una vez cerrado threading.
