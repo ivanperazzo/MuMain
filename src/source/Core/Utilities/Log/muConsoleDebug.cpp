@@ -175,6 +175,16 @@ bool CmuConsoleDebug::CheckCommand(const std::wstring& strCommand)
         Render::Models::SetGpuInstObjEnabled(false);
         return true;
     }
+    else if (strCommand.compare(L"$gpulog on") == 0)
+    {
+        Render::Models::SetGpuStatsLogEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpulog off") == 0)
+    {
+        Render::Models::SetGpuStatsLogEnabled(false);
+        return true;
+    }
     else if (strCommand.compare(L"$skinskip on") == 0)
     {
         Render::Models::SetSkinSkip(true);

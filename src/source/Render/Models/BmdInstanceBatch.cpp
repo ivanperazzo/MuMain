@@ -124,7 +124,7 @@ namespace Render::Models
         {
             InstFlush();
             static int s_objDiag = 0;
-            if ((++s_objDiag % 30) == 0)
+            if (GpuStatsLogEnabled() && (++s_objDiag % 30) == 0)
                 Render::GL::Log("[obj_inst] objects pass: %d draws / %d instances",
                                 InstDrawCount(), InstInstanceCount());
         }

@@ -68,13 +68,21 @@ namespace Render::Models
     void SetGpuInstEnabled(bool on);
     bool GpuInstEnabled();
 
-    // Runtime toggle ("$gpuinstobj on/off", env MU_GPUINSTOBJ=1, default off, Task 7):
+    // Runtime toggle ("$gpuinstobj on/off", env MU_GPUINSTOBJ, default ON, Task 7):
     // extend instanced batching to the Objects (props) pass. Repeated props
     // (same model+mesh+tex+mode+blend) collapse to one glDrawArraysInstanced.
     // Requires GpuBmdEnabled() too; the objects pass is bracketed with its own
     // InstBegin()/InstFlush() so its draw order stays before the characters pass.
+    // A/B validado in-game 16-jun (~43% off objects pass). MU_GPUINSTOBJ=0 disables.
     void SetGpuInstObjEnabled(bool on);
     bool GpuInstObjEnabled();
+
+    // Periodic perf-stat logging ("$gpulog on/off", env MU_GPULOG, default OFF):
+    // gates the every-~30-frames [bmd_gpu]/[bmd_cov]/[bmd_shadow]/[obj_inst] lines.
+    // Each Render::GL::Log is a fopen+write+flush, so leaving these on costs I/O
+    // every second; off by default, turn on only when measuring.
+    void SetGpuStatsLogEnabled(bool on);
+    bool GpuStatsLogEnabled();
 
     // Runtime toggle ("$gpublendmesh on/off", env MU_GPUBLENDMESH, default ON):
     // route translucent blend meshes (item glows / wing membranes) through the

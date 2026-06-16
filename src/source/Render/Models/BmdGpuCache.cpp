@@ -43,7 +43,8 @@ namespace Render::Models
         bool s_gpuObjectsPass = false;   // true only during the Objects render pass
         bool s_gpuCharsPass   = false;   // true only during the Characters render pass
         bool s_gpuInstEnabled = false;   // $gpuinst: instanced Characters batching
-        bool s_gpuInstObj     = false;   // $gpuinstobj: instanced Objects (props) batching (Etapa 1.4 / Task 7, default off)
+        bool s_gpuInstObj     = true;    // $gpuinstobj: instanced Objects (props) batching (Task 7, default ON, A/B validado in-game 16-jun ~43% off objects pass)
+        bool s_gpuStatsLog    = false;   // $gpulog / MU_GPULOG: periodic perf stat logging ([bmd_gpu]/[bmd_cov]/[bmd_shadow]/[obj_inst]). Default OFF — each Log() is a fopen+write+flush, so per-frame logging adds I/O. Turn on for measurement.
         bool s_gpuBlendMesh   = true;    // $gpublendmesh: translucent blend meshes via per-mesh GPU (default ON, Etapa 1.3)
         bool s_gpuBlendInst   = true;    // $gpublendinst: additive translucent blend meshes (wings) -> instanced additive bucket (Etapa 1.4a, default ON, validado in-game 15-jun)
         bool s_gpuWaveInst    = true;    // $gpuwaveinst: textured BRIGHT + UV-scroll (wave) meshes -> instanced additive bucket w/ shader UV offset (Etapa 1.4b, default ON, validado in-game 15-jun)
@@ -253,7 +254,15 @@ namespace Render::Models
     void SetGpuInstObjEnabled(bool on) { s_gpuInstObj = on; }
     bool GpuInstObjEnabled()
     {
-        static const bool s_envInit = [] { if (EnvFlag("MU_GPUINSTOBJ")) s_gpuInstObj = true; return true; }();
+        // Default ON (Task 7, A/B validado in-game 16-jun — props repetidos colapsan al batch
+        // instanced, ~43% off objects pass). MU_GPUINSTOBJ=0 disables at startup;
+        // SetGpuInstObjEnabled() / "$gpuinstobj on|off" toggles at runtime.
+        static const bool s_envInit = [] {
+            char b[8] = {}; size_t n = 0;
+            if (getenv_s(&n, b, sizeof(b), "MU_GPUINSTOBJ") == 0 && n > 0)
+                s_gpuInstObj = (atoi(b) != 0);
+            return true;
+        }();
         (void)s_envInit;
         return s_gpuInstObj;
     }
@@ -338,10 +347,22 @@ namespace Render::Models
 
     void NoteVisibleChar() { s_visibleChars.fetch_add(1, std::memory_order_relaxed); }
 
+    void SetGpuStatsLogEnabled(bool on) { s_gpuStatsLog = on; }
+    bool GpuStatsLogEnabled()
+    {
+        // Default OFF. MU_GPULOG=1 enables at startup; "$gpulog on|off" toggles at runtime.
+        static const bool s_envInit = [] { if (EnvFlag("MU_GPULOG")) s_gpuStatsLog = true; return true; }();
+        (void)s_envInit;
+        return s_gpuStatsLog;
+    }
+
     void LogAndResetGpuStats()
     {
         if (++s_statFrameCtr >= 30)    // ~ every 1-2s depending on FPS
         {
+            s_statFrameCtr = 0;
+          if (GpuStatsLogEnabled())    // gate only the logging (each Log() = fopen+write+flush); counters still reset below
+          {
             const int vis = s_visibleChars.load(std::memory_order_relaxed);
             const int tot = s_charMeshTotal.load(std::memory_order_relaxed);
             const int gpu = s_charMeshGpu.load(std::memory_order_relaxed);
@@ -360,7 +381,7 @@ namespace Render::Models
             Render::GL::Log("[bmd_shadow] gpu: %d draws / %d instances (MU_GPUSHADOW=%d)",
                 ShadowDrawCount(), ShadowInstanceCount(), (int)GpuShadowEnabled());
             ::JobsDiagDumpAndReset();   // 3b-diag: chars-pass RenderMesh collect tracer (global scope)
-            s_statFrameCtr = 0;
+          }
         }
         s_charMeshTotal.store(0, std::memory_order_relaxed);
         s_charMeshGpu.store(0, std::memory_order_relaxed);
