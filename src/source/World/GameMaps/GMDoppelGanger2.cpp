@@ -1,6 +1,7 @@
 ﻿// GMDoppelGanger2.cpp: implementation of the GMDoppelGanger2 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -216,12 +217,12 @@ void CGMDoppelGanger2::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BM
         float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
         for (int i = 0; i < 10; i++)
         {
-            pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+            pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
             Vector(0.f, 0.f, 0.f, StartRelative);
             Vector(0.f, 0.f, 0.f, EndRelative);
-            pModel->TransformPosition(BoneTransform[33], StartRelative, StartPos, false);
-            pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[33], StartRelative, StartPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
             CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 0);
 
             fAnimationFrame += fSpeedPerFrame;
@@ -249,9 +250,9 @@ bool CGMDoppelGanger2::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         return true;
     case 15:
     {
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         return true;
     }
     case 16:
@@ -262,24 +263,24 @@ bool CGMDoppelGanger2::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     }
     case 67:
     {
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         vec3_t light;
         Vector(1.0f, 0.0f, 0.0f, light);
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        VectorCopy(light, b->BodyLight);
+        VectorCopy(light, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME, 0.5f, 0, 0.5f, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
         vec3_t vLightFire, Position, vPos;
         Vector(1.0f, 0.0f, 0.0f, vLightFire);
         Vector(0.0f, 0.0f, 0.0f, vPos);
 
-        b->TransformPosition(BoneTransform[6], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, o->Scale * 5.0f, vLightFire, o);
 
         Vector(0.0f, 0.0f, -350.0f, vPos);
-        b->TransformPosition(BoneTransform[6], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, o->Scale * 5.0f, vLightFire, o);
 
         if (o->AnimationFrame >= 35 && o->AnimationFrame <= 37)
@@ -305,39 +306,39 @@ bool CGMDoppelGanger2::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         Vector(0.4f, 0.1f, 0.1f, Light);
         //Vector(rand()%20-30.0f, rand()%20-30.0f, 0.0f, p);
         Vector(-150.0f, 0.0f, 0.0f, p);
-        b->TransformPosition(BoneTransform[4], p, Pos, false);
+        b->TransformPosition(g_BoneTransformScratch[4], p, Pos, false);
         if (o->AnimationFrame >= 35.0f && o->AnimationFrame < 50.0f)
             CreateParticleFpsChecked(BITMAP_SMOKE, Pos, o->Angle, Light, 24, o->Scale * 1.5f);
         return true;
     }
     case 68:
     {
-        b->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
         vec3_t light;
         Vector(1.0f, 0.0f, 0.0f, light);
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        VectorCopy(light, b->BodyLight);
+        VectorCopy(light, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME, 0.5f, 0, 0.5f, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
         vec3_t vLightFire, Position, vPos;
         Vector(1.0f, 0.0f, 0.0f, vLightFire);
         Vector(0.0f, 0.0f, 0.0f, vPos);
 
-        b->TransformPosition(BoneTransform[6], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, o->Scale * 5.0f, vLightFire, o);
 
         Vector(0.0f, 0.0f, -350.0f, vPos);
-        b->TransformPosition(BoneTransform[6], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, o->Scale * 5.0f, vLightFire, o);
 
         vec3_t p, Pos, Light;
         //Vector(0.08f, 0.08f, 0.08f, Light);
         Vector(0.3f, 0.1f, 0.1f, Light);
         Vector(rand() % 20 - 30.0f, rand() % 20 - 30.0f, 0.0f, p);
-        b->TransformPosition(BoneTransform[4], p, Pos, false);
+        b->TransformPosition(g_BoneTransformScratch[4], p, Pos, false);
         if (o->AnimationFrame >= 7.0f && o->AnimationFrame < 13.0f)
             CreateParticleFpsChecked(BITMAP_SMOKE, Pos, o->Angle, Light, 18, o->Scale * 1.5f);
         return true;
@@ -621,9 +622,9 @@ void CGMDoppelGanger2::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 33:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     default:
         break;

@@ -3,6 +3,7 @@
 //*****************************************************************************
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 
 #ifdef ASG_ADD_MAP_KARUTAN
 
@@ -79,10 +80,10 @@ bool CGMKarutan1::RenderObjectVisual(OBJECT* o, BMD* b)
         Vector(flumi * 1.9f, flumi * 1.1f, flumi * 1.1f, vLight0);
 
         Vector(10.f, 0.f, -6.f, vRelativePos);
-        b->TransformPosition(BoneTransform[13], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[13], vRelativePos, vPos);
         CreateSprite(BITMAP_SHINY + 5, vPos, 1.2f, vLight0, o);
         Vector(10.f, 0.f, 6.f, vRelativePos);
-        b->TransformPosition(BoneTransform[14], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[14], vRelativePos, vPos);
         CreateSprite(BITMAP_SHINY + 5, vPos, 1.2f, vLight0, o);
     }
     return true;
@@ -95,10 +96,10 @@ bool CGMKarutan1::RenderObjectVisual(OBJECT* o, BMD* b)
         Vector(flumi * 1.3f, flumi * 1.3f, flumi * 1.9f, vLight0);
         Vector(0.15f, 0.15f, 0.15f, vLight1);
 
-        b->TransformPosition(BoneTransform[11], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[11], vRelativePos, vPos);
         CreateSprite(BITMAP_LIGHT, vPos, 2.0f, vLight0, o);
         CreateSprite(BITMAP_SPARK + 1, vPos, 1.5f, vLight1, o);
-        b->TransformPosition(BoneTransform[7], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[7], vRelativePos, vPos);
         CreateSprite(BITMAP_SPARK + 1, vPos, 4.0f, vLight0, o);
         CreateSprite(BITMAP_SPARK + 1, vPos, 1.5f, vLight1, o);
     }
@@ -223,7 +224,7 @@ bool CGMKarutan1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(2, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight,
             o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-        Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+        Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderMesh(3, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 0, o->BlendMeshLight,
             o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         return true;
@@ -243,7 +244,7 @@ bool CGMKarutan1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
 
             b->RenderMesh(3, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 3, o->BlendMeshLight * 0.9f,
                 WorldTime * 0.0010f, o->BlendMeshTexCoordV);
-            Vector(0.4f, 0.95f, 1.0f, b->BodyLight);
+            Vector(0.4f, 0.95f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(2, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 2, o->BlendMeshLight * 0.3f,
                 WorldTime * 0.0015f, o->BlendMeshTexCoordV);
         }
@@ -266,14 +267,14 @@ bool CGMKarutan1::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 1, fLumi,
                 o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, BITMAP_NARCONDRA_SKIN_EFFECT3);
 
-            Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+            Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 0, o->BlendMeshLight,
                 o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-            Vector(1.0f, 0.1f, 1.0f, b->BodyLight);
+            Vector(1.0f, 0.1f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(4, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 4, o->BlendMeshLight * 0.9f,
                 WorldTime * 0.0010f, o->BlendMeshTexCoordV);
-            Vector(0.7f, 0.4f, 1.0f, b->BodyLight);
+            Vector(0.7f, 0.4f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(5, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, 5, o->BlendMeshLight * 0.7f,
                 WorldTime * 0.0015f, o->BlendMeshTexCoordV);
         }
@@ -310,9 +311,9 @@ void CGMKarutan1::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     break;
     case 55:
     case 57:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 58:
     {
@@ -636,13 +637,13 @@ void CGMKarutan1::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BMD* pM
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; ++i)
             {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                pModel->TransformPosition(BoneTransform[56], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[57], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[56], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[57], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 0);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -669,26 +670,26 @@ void CGMKarutan1::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BMD* pM
             int i;
             for (i = 0; i < 10; ++i)
             {
-                pModel->Animation(BoneTransform, fAnimationFrame,
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame,
                     pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle,
                     pObject->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                Vector(2.f, 2.f, 2.f, pModel->BodyLight);
+                Vector(2.f, 2.f, 2.f, Render::Build::CurrentRenderCtx().bodyLight);
 
                 pModel->TransformPosition(
-                    BoneTransform[156], StartRelative, StartPos, false);
+                    g_BoneTransformScratch[156], StartRelative, StartPos, false);
                 pModel->TransformPosition(
-                    BoneTransform[153], EndRelative, EndPos, false);
+                    g_BoneTransformScratch[153], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 1, false, 0);
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 1, false, 2);
 
                 pModel->TransformPosition(
-                    BoneTransform[149], StartRelative, StartPos, false);
+                    g_BoneTransformScratch[149], StartRelative, StartPos, false);
                 pModel->TransformPosition(
-                    BoneTransform[146], EndRelative, EndPos, false);
+                    g_BoneTransformScratch[146], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 1, false, 1);
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 1, false, 3);
 

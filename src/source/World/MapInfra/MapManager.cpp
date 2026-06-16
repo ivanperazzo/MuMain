@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "World/MapInfra/MapManager.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.5: mesh-selection state -> per-worker ctx
 #include "Camera/CameraMove.h"
 #include "GameLogic/Events/Cinematic/CDirection.h"
 #include "Audio/DSPlaySound.h"
@@ -1134,12 +1135,12 @@ void CMapManager::Load() // OK
         }
         else if (this->WorldActive == WD_8TARKAN)
         {
-            Models[11].StreamMesh = 0;
-            Models[12].StreamMesh = 0;
-            Models[13].StreamMesh = 0;
-            Models[73].StreamMesh = 0;
-            Models[75].StreamMesh = 0;
-            Models[79].StreamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
         }
         if (this->WorldActive == WD_51HOME_6TH_CHAR
             )

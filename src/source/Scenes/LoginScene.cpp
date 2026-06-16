@@ -11,6 +11,11 @@
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
+#include "Render/Models/BmdGpuCache.h"
+#include "Render/Models/BmdInstanceBatch.h"
+#include "Render/Models/ShadowInstanceBatch.h"
+#include "Core/Diagnostics/RenderHarness.h"
+#include "Core/Utilities/FrameProfiler.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Engine/Object/ZzzInterface.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -399,25 +404,67 @@ bool NewRenderLogInScene(HDC hDC)
 
     BeginOpengl(0, 25, REFERENCE_WIDTH, 430);
 
-    // LoginScene doesn't call CreateFrustrum (DefaultCamera tour mode angles differ from
-    // legacy hardcoded values). Instead, TestFrustrum2D is bypassed for LOG_IN_SCENE and
-    // we reset iteration bounds to cover the full terrain so stale bounds from other scenes
-    // don't restrict the render loop.
-    ResetFrustrumBoundsFullTerrain();
+    // LoginScene historically rendered the FULL 256x256 terrain (ResetFrustrumBounds-
+    // FullTerrain + TestFrustrum2D bypassed) -> ~65k tiles/frame in immediate mode for a
+    // throne room that shows ~256 (~25ms, 52% of the frame). Build the camera frustum so
+    // only the visible iteration window is walked: terrain ~25ms -> ~9ms, login FPS ~2.4x,
+    // visually identical (verified). MU_LOGIN_FULLTERRAIN=1 restores the old behaviour.
+    {
+        static const bool s_full = [] {
+            char b[8] = {}; size_t n = 0;
+            return getenv_s(&n, b, sizeof(b), "MU_LOGIN_FULLTERRAIN") == 0 && n > 0 && b[0] == '1';
+        }();
+        if (s_full)
+            ResetFrustrumBoundsFullTerrain();
+        else
+            CreateFrustrum((float)Width / (float)REFERENCE_WIDTH, (float)Height / (float)REFERENCE_HEIGHT, pos);
+        // Enable per-tile/per-object frustum culling for login only when we built a real
+        // frustum above (otherwise TestFrustrum2D has no valid hull and must pass all).
+        g_LoginFrustumValid = !s_full;
+    }
 
     if (!CUIMng::Instance().m_CreditWin.IsShow())
     {
-        RenderTerrain(false);
-        RenderCharactersClient();
-        RenderMount();
-        RenderObjects();
-        RenderJoints();
-        RenderEffects();
-        CheckSprites();
-        RenderLeaves();
-        RenderBoids();
-        RenderObjects_AfterCharacter();
-        ThePetProcess().RenderPets();
+        { FRAME_PROFILE(Terrain); RenderTerrain(false); }
+        // P-bmd-gpu/instance (A0): exercise the GPU/instancing path in the login
+        // town too, so autonomous cdb smoke-tests render characters+props without
+        // needing to enter the world. Same $gpubmd/$gpuinst gating applies.
+        {
+            FRAME_PROFILE(Characters);
+            Core::Diagnostics::RenderHarness::ApplyTestCharsIfRequested();  // MU_TEST_CHARS=N
+            Render::Models::SetGpuCharsPass(true);
+            Render::Models::InstBegin();
+            Render::Models::ShadowBegin();    // P-bmd-shadow: collect instanced shadows
+            RenderCharactersClient();
+            { FRAME_PROFILE(Flush);
+              Render::Models::InstFlush();
+              Render::Models::ShadowFlush(); }  // draw shadows after bodies (palette uploaded)
+            Render::Models::InstSelfTest();   // env-gated; exercises glDrawArraysInstanced
+            Render::Models::SetGpuCharsPass(false);
+        }
+        {
+            FRAME_PROFILE(Objects);
+            RenderMount();
+            Render::Models::SetGpuObjectsPass(true);
+            { Render::Models::ObjectsInstScope _objInst; RenderObjects(); }   // Task 7
+            Render::Models::SetGpuObjectsPass(false);
+        }
+        {
+            FRAME_PROFILE(Effects);
+            RenderJoints();
+            RenderEffects();
+            CheckSprites();
+            RenderLeaves();
+            RenderBoids();
+        }
+        {
+            FRAME_PROFILE(Objects);
+            Render::Models::SetGpuObjectsPass(true);
+            { Render::Models::ObjectsInstScope _objInst; RenderObjects_AfterCharacter(); }   // Task 7
+            Render::Models::SetGpuObjectsPass(false);
+            ThePetProcess().RenderPets();
+        }
+        Render::Models::LogAndResetGpuStats();   // A0: GPU/instancing stats in the login town
     }
 
     BeginSprite();

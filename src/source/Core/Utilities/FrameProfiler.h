@@ -21,12 +21,19 @@ namespace FrameProfiler
         Characters,
         Items,
         Effects,
-        Other,
+        Sim,        // MainSceneFixedUpdate (UpdateGameEntities), outside the render pass
+        Cloth,      // g_PhysicsManager.Move (cloth/cape sim), once per frame
+        Flush,      // Inst/Shadow flush (GPU buffer build+upload+draw); subset of Chars
+        Anim,       // BMD::Animation+Transform (bone keyframe build); subset of Chars/Objects
+        Sprites,    // post-effect sprites/particles/leaves/points (RenderSprites etc)
+        UILegacy,   // RenderInterface (legacy HUD: bars/inventory/skill/chat); subset of Other
+        UINew,      // g_pNewUISystem->Render() (new UI); subset of Other
+        Other,      // RenderMainSceneUI total (HUD/interface/cursor)
         Count_
     };
 
     inline constexpr const char* kPassNames[(int)Pass::Count_] = {
-        "Terrain", "Objects", "Chars", "Items", "Effects", "Other"
+        "Terrain", "Objects", "Chars", "Items", "Effects", "Sim", "Cloth", "Flush", "Anim", "Sprites", "UILeg", "UINew", "Other"
     };
 
     inline float& AccumulatorMs(Pass p)
@@ -39,6 +46,27 @@ namespace FrameProfiler
     {
         for (int i = 0; i < (int)Pass::Count_; i++)
             AccumulatorMs((Pass)i) = 0.f;
+    }
+
+    // Last completed frame's per-pass ms (snapshot taken before the reset). Lets
+    // an always-run consumer (e.g. the CSV logger) read the breakdown even when
+    // the $details overlay is off, without racing the live accumulators.
+    inline float& LastMs(Pass p)
+    {
+        static float s_last[(int)Pass::Count_] = {};
+        return s_last[(int)p];
+    }
+
+    // Copy the live accumulators into LastMs(), then zero them for the next
+    // frame. Call once per frame in the always-run render path (not inside the
+    // $details-gated overlay, or the breakdown is lost when the overlay is off).
+    inline void SnapshotAndReset()
+    {
+        for (int i = 0; i < (int)Pass::Count_; i++)
+        {
+            LastMs((Pass)i) = AccumulatorMs((Pass)i);
+            AccumulatorMs((Pass)i) = 0.f;
+        }
     }
 
     // RAII timer. Constructor stamps the start, destructor accumulates elapsed

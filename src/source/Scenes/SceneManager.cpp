@@ -7,6 +7,7 @@
 #include <vector>
 #include <algorithm>
 #include <numeric>
+#include <cstdlib>      // getenv_s (MU_FPS overlay toggle)
 #include "SceneManager.h"
 #include "Core/Utilities/FrameProfiler.h"
 
@@ -30,7 +31,16 @@ FrameTimingState g_frameTiming;
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Engine/Physics/PhysicsManager.h"
 #include "Core/Time/Timer.h"
+#include "Core/Time/SimulationClock.h"
 #include "Core/Input/Input.h"
+#include "Core/Diagnostics/TemporalCsvLogger.h"
+#include "Render/Interpolation.h"
+#include "Render/AnimInterp.h"
+#include "Render/EffectTiming.h"
+#include "Render/FrameProfiler.h"
+#include "Core/Diagnostics/RenderHarness.h"
+#include "Render/GL/GLLog.h"
+#include "Render/HeroInterpolation.h"
 #include "UI/Legacy/UIMng.h"
 #include "Network/Server/WSclient.h"
 #include "Network/Reconnect/ReconnectManager.h"
@@ -65,13 +75,18 @@ extern CHARACTER* Hero;
 extern int HeroTile;
 extern bool Destroy;
 extern double WorldTime;
+extern double FPS;
 extern float FPS_ANIMATION_FACTOR;
 
 static bool g_bShowDebugInfo =
 #ifdef _DEBUG
     true;
 #else
-    false;
+    // Release: off by default, but MU_FPS=1 turns on the debug overlay (FPS / avg / 1%%
+    // low / frame ms + the per-pass "Frame ms T/O/C/I/E" breakdown) so perf can be read
+    // in a Release build without a debug toggle. Also toggleable in-game via the key.
+    [] { char b[8] = {}; size_t n = 0;
+         return getenv_s(&n, b, sizeof(b), "MU_FPS") == 0 && n > 0 && b[0] == '1'; }();
 #endif
 
 static bool g_bShowFpsCounter = false;
@@ -326,7 +341,7 @@ static void UpdateWaterAnimation()
  */
 static void UpdateCoreSystems()
 {
-    g_PhysicsManager.Move(0.025f * FPS_ANIMATION_FACTOR);
+    { FRAME_PROFILE(Cloth); g_PhysicsManager.Move(0.025f * FPS_ANIMATION_FACTOR); }
     Bitmaps.Manage();
     Set3DSoundPosition();
 }
@@ -575,7 +590,8 @@ static void RenderDebugInfo()
              FrameProfiler::AccumulatorMs(FP::Items),
              FrameProfiler::AccumulatorMs(FP::Effects));
     g_pRenderText->RenderText((int)DEBUG_TEXT_X, y, szLine); y += DEBUG_TEXT_LINE_HEIGHT;
-    FrameProfiler::ResetFrame();
+    // Reset moved to SnapshotAndReset() in the always-run path (MainScene), so the
+    // per-pass breakdown is captured for the CSV even when this overlay is off.
 
     // Frame time graph below text
     RenderFrameGraph(DEBUG_TEXT_X, (float)y + DEBUG_GRAPH_Y_OFFSET, DEBUG_GRAPH_WIDTH, DEBUG_GRAPH_HEIGHT);
@@ -1006,8 +1022,12 @@ void MainScene(HDC hDC)
 
     try
     {
+        Render::FrameProfiler::BeginRender();   // P0: CPU build/submit time
         Success = RenderCurrentScene(hDC);
         RenderDebugInfo();
+        // Snapshot the per-pass breakdown (Terrain/Objects/Chars/Items/Effects)
+        // and reset for next frame -- always-run so the CSV gets it overlay-off.
+        FrameProfiler::SnapshotAndReset();
         RenderFpsCounter();
         UI::Reconnect::RenderDialog();
 
@@ -1026,7 +1046,33 @@ void MainScene(HDC hDC)
                 EndBitmap();
             }
 #endif
+            Render::FrameProfiler::EndRender();   // all CPU draw submission done
+            Core::Diagnostics::RenderHarness::CaptureShotIfRequested();  // MU_TEST_SHOT
+            Render::FrameProfiler::BeginSwap();
             PlatformSwapBuffers();
+            Render::FrameProfiler::EndSwap();      // present (VSync wait / GPU catch-up)
+
+            // Frame-cost split for ALL scenes (login included): is the ~180ms in CPU
+            // draw submission or in the present/VSync/GPU wait? Logged every 30 frames.
+            {
+                static int s_frameSplitCtr = 0;
+                if (++s_frameSplitCtr >= 30)
+                {
+                    s_frameSplitCtr = 0;
+                    using FP = FrameProfiler::Pass;
+                    Render::GL::Log("[frame] scene=%d cpuRender=%.1fms swap=%.1fms | terrain=%.1f objects=%.1f chars=%.1f items=%.1f effects=%.1f sim=%.1f cloth=%.1f flush=%.1f anim=%.1f sprites=%.1f uileg=%.1f uinew=%.1f ui=%.1f",
+                        (int)SceneFlag,
+                        Render::FrameProfiler::LastCpuRenderMs(),
+                        Render::FrameProfiler::LastSwapMs(),
+                        FrameProfiler::LastMs(FP::Terrain), FrameProfiler::LastMs(FP::Objects),
+                        FrameProfiler::LastMs(FP::Characters), FrameProfiler::LastMs(FP::Items),
+                        FrameProfiler::LastMs(FP::Effects), FrameProfiler::LastMs(FP::Sim),
+                        FrameProfiler::LastMs(FP::Cloth), FrameProfiler::LastMs(FP::Flush),
+                        FrameProfiler::LastMs(FP::Anim), FrameProfiler::LastMs(FP::Sprites),
+                        FrameProfiler::LastMs(FP::UILegacy), FrameProfiler::LastMs(FP::UINew),
+                        FrameProfiler::LastMs(FP::Other));
+                }
+            }
         }
 
         CheckServerConnection();
@@ -1046,12 +1092,121 @@ void RenderScene(HDC hDC)
     CalcFPS();
     UpdateSceneState();
 
+    // Stage 1b: advance the main-scene world at a fixed 25 tps, decoupled from
+    // the render frame rate. The number of steps comes from real elapsed wall
+    // time (WorldTime delta), so raising or lowering FPS no longer speeds up or
+    // slows down the game. Input/UI already ran once in UpdateSceneState above;
+    // only the world (MainSceneFixedUpdate) is stepped here. SimulationClock
+    // clamps stalls and caps steps to avoid the spiral of death.
+    int    simSteps   = 0;
+    float  simAlpha   = 0.0f;
+    double simFrameMs = 0.0;
+    if (SceneFlag == MAIN_SCENE)
+    {
+        static Core::Time::SimulationClock s_simClock;
+        static double s_prevWorldMs = WorldTime;   // first frame -> 0 delta
+        const double frameMs = WorldTime - s_prevWorldMs;
+        s_prevWorldMs = WorldTime;
+
+        const auto step = s_simClock.Advance(frameMs);
+        {
+            FRAME_PROFILE(Sim);
+            for (int i = 0; i < step.steps; ++i)
+            {
+                MainSceneFixedUpdate();
+            }
+        }
+
+        simSteps   = step.steps;
+        simAlpha   = step.alpha;   // render interpolation factor, consumed in Stage 2
+        simFrameMs = frameMs;      // real frame duration, consumed in Stage 4 (anim)
+    }
+
+    // Stage 2/3: shared render interpolation alpha for this frame (read by the
+    // Hero and remote-entity renderers).
+    Render::Interpolation::SetFrameAlpha(simAlpha);
+    // Stage 4a: real frame duration for render-path animation advance (0 outside
+    // MAIN_SCENE -> AnimTiming falls back to raw per-frame speed).
+    Render::Interpolation::SetFrameMs(simFrameMs);
+
+    // Compute the Hero's interpolated render position once: used both for the CSV
+    // log (raw vs rendered) and the draw override below.
+    float heroSaved[3] = {0.f, 0.f, 0.f};
+    float heroRender[3] = {0.f, 0.f, 0.f};
+    const bool heroInterp = (SceneFlag == MAIN_SCENE && Hero != nullptr);
+    if (heroInterp)
+    {
+        heroSaved[0] = Hero->Object.Position[0];
+        heroSaved[1] = Hero->Object.Position[1];
+        heroSaved[2] = Hero->Object.Position[2];
+        Render::HeroInterp::RenderPos(heroSaved, heroRender);
+    }
+
+    // Stage 0 instrumentation: log RAW (sim) and RENDERED (interpolated) hero
+    // position per frame so the smoothing can be verified from logs — at high FPS
+    // the rendered position should move in small smooth steps while the raw one
+    // jumps at 25 Hz. Off (and free) unless MU_TEMPORAL_CSV is set.
+    if (auto& csv = Core::Diagnostics::TemporalCsvLogger::Instance();
+        csv.Enabled() && heroInterp)
+    {
+        // Stage 4b: log the Hero body animation frame raw vs interpolated, computed
+        // with the same helper the renderer uses, so the smoothing is provable.
+        // Prev state comes from the parallel store; when $poseinterp is off (or no
+        // snapshot yet) render == raw.
+        float          hpPrev = 0.f, hpPriorFrame = 0.f;
+        unsigned short hpPriorAction = 0;
+        const bool     hpValid = Render::Interpolation::HeroAnimPrev(hpPrev, hpPriorFrame, hpPriorAction);
+        const auto heroPose = Render::AnimInterp::Interpolate(
+            hpPrev, hpPriorFrame, hpPriorAction,
+            Hero->Object.AnimationFrame, Hero->Object.PriorAnimationFrame, Hero->Object.PriorAction,
+            simAlpha, Render::Interpolation::Enabled() && Render::Interpolation::PoseEnabled(),
+            hpValid);
+
+        // Stage 6a: sample the REAL effect-timing glue this frame (MAIN_SCENE,
+        // FrameMs() live) so the runtime dt-substitution is provable from logs,
+        // not just the pure math. eff_step is what `x -= k*EffectStep()` advances
+        // by per frame; over 1 s it must sum to ~25 at any FPS. eff_decay is the
+        // per-frame exp-decay factor `pow(0.8, dt)`.
+        const float effStep  = Render::EffectTiming::EffectStep();
+        const float effDecay = Render::EffectTiming::EffectDecayExp(0.8f);
+
+        // P0 (GPU track): previous frame's CPU build vs swap split. LogFrame runs
+        // before this frame's draw/swap, so these are the prior frame's timings.
+        const double cpuRenderMs = Render::FrameProfiler::LastCpuRenderMs();
+        const double swapMs      = Render::FrameProfiler::LastSwapMs();
+
+        // P0/P2: per-pass breakdown of the previous frame (Terrain/Objects/Chars/
+        // Effects). Pinpoints which subsystem owns the CPU time and measures the
+        // terrain-VBO win directly.
+        using FP = FrameProfiler::Pass;
+        const double terrainMs = FrameProfiler::LastMs(FP::Terrain);
+        const double objectsMs = FrameProfiler::LastMs(FP::Objects);
+        const double charsMs   = FrameProfiler::LastMs(FP::Characters);
+        const double effectsMs = FrameProfiler::LastMs(FP::Effects);
+
+        csv.LogFrame(WorldTime, FPS, heroSaved[0], heroSaved[1],
+                     heroRender[0], heroRender[1], simSteps, simAlpha, simFrameMs,
+                     Hero->Object.AnimationFrame, heroPose.frame, effStep, effDecay,
+                     cpuRenderMs, swapMs, terrainMs, objectsMs, charsMs, effectsMs);
+    }
+
     // Drive auto-reconnect after the scene loops have advanced this frame. It
     // runs across all scenes because reconnect passes through the login,
     // character and loading scenes on its way back into the game.
     ReconnectManager::Instance().Update();
 
     g_frameTiming.MarkFrameRendered();
+
+    // Stage 2: render the Hero at the interpolated position for the WHOLE draw —
+    // both the camera follow and the model read Hero->Object.Position, so the
+    // scene is smooth at any FPS even though the sim advances in 25 Hz jumps.
+    // Restored to the true sim position after the draw, before the next tick.
+    if (heroInterp)
+    {
+        Hero->Object.Position[0] = heroRender[0];
+        Hero->Object.Position[1] = heroRender[1];
+        Hero->Object.Position[2] = heroRender[2];
+    }
 
     try
     {
@@ -1082,5 +1237,13 @@ void RenderScene(HDC hDC)
         char errorMsg[256];
         sprintf_s(errorMsg, sizeof(errorMsg), "Exception in RenderScene: %s", e.what());
         OutputDebugStringA(errorMsg);
+    }
+
+    if (heroInterp)
+    {
+        // Restore the true sim position so the next fixed tick integrates from it.
+        Hero->Object.Position[0] = heroSaved[0];
+        Hero->Object.Position[1] = heroSaved[1];
+        Hero->Object.Position[2] = heroSaved[2];
     }
 }

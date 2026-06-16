@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 
 #ifdef PJH_ADD_PANDA_PET
 
@@ -225,10 +226,10 @@ bool PetActionCollecterAdd::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey,
     BMD* b = &Models[obj->Type];
     vec3_t Position, vRelativePos, Light;
 
-    VectorCopy(obj->Position, b->BodyOrigin);
+    VectorCopy(obj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Vector(0.f, 0.f, 0.f, vRelativePos);
 
-    b->Animation(BoneTransform, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
+    b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
 
     float fRad1 = ((Q_PI / 3000.0f) * fmodf(tick, 3000));
     float fSize = sinf(fRad1) * 0.2f;
@@ -237,7 +238,7 @@ bool PetActionCollecterAdd::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey,
     VectorCopy(obj->Position, Position);
 
     Vector(0.f, 0.f, 0.f, vRelativePos);
-    b->TransformPosition(BoneTransform[7], vRelativePos, Position, false);
+    b->TransformPosition(g_BoneTransformScratch[7], vRelativePos, Position, false);
 
     //CreateParticle(BITMAP_LIGHT+3, Position, obj->Angle, Light, 7 );
     if (rand_fps_check(3))
@@ -247,7 +248,7 @@ bool PetActionCollecterAdd::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey,
     }
 
     Vector(0.f, 0.f, 0.f, vRelativePos);
-    b->TransformPosition(BoneTransform[4], vRelativePos, Position, false);
+    b->TransformPosition(g_BoneTransformScratch[4], vRelativePos, Position, false);
     Vector(0.9f, 0.9f, 0.0f, Light);
     CreateSprite(BITMAP_LIGHT, Position, (1.5f + fSize), Light, obj);
     Vector(0.6f, 1.0f, 0.2f, Light);
@@ -524,24 +525,24 @@ bool PetActionCollecterSkeleton::Effect(OBJECT* obj, CHARACTER* Owner, int targe
     BMD* b = &Models[obj->Type];
     vec3_t vPosition, vLight;
 
-    b->BodyScale = obj->Scale;
-    b->Animation(BoneTransform, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle, false, false);
+    Render::Build::CurrentRenderCtx().bodyScale = obj->Scale;
+    b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle, false, false);
 
     float fLumi = (sinf(WorldTime * 0.003f) + 1.0f) * 0.5f + 0.5f;
     Vector(0.0f * fLumi, 1.0f * fLumi, 0.5f * fLumi, vLight);
 
-    b->TransformByBoneMatrix(vPosition, BoneTransform[12], obj->Position);
+    b->TransformByBoneMatrix(vPosition, g_BoneTransformScratch[12], obj->Position);
     CreateSprite(BITMAP_LIGHTNING + 1, vPosition, 0.05f, vLight, obj);
-    b->TransformByBoneMatrix(vPosition, BoneTransform[11], obj->Position);
+    b->TransformByBoneMatrix(vPosition, g_BoneTransformScratch[11], obj->Position);
     CreateSprite(BITMAP_LIGHTNING + 1, vPosition, 0.05f, vLight, obj);
 
-    b->TransformByBoneMatrix(vPosition, BoneTransform[44], obj->Position);
+    b->TransformByBoneMatrix(vPosition, g_BoneTransformScratch[44], obj->Position);
     CreateSprite(BITMAP_LIGHT, vPosition, 0.3f, vLight, obj);
-    b->TransformByBoneMatrix(vPosition, BoneTransform[46], obj->Position);
+    b->TransformByBoneMatrix(vPosition, g_BoneTransformScratch[46], obj->Position);
     CreateSprite(BITMAP_LIGHT, vPosition, 0.6f, vLight, obj);
-    b->TransformByBoneMatrix(vPosition, BoneTransform[45], obj->Position);
+    b->TransformByBoneMatrix(vPosition, g_BoneTransformScratch[45], obj->Position);
     CreateSprite(BITMAP_LIGHT, vPosition, 0.4f, vLight, obj);
-    b->TransformByBoneMatrix(vPosition, BoneTransform[62], obj->Position);
+    b->TransformByBoneMatrix(vPosition, g_BoneTransformScratch[62], obj->Position);
     CreateSprite(BITMAP_LIGHT, vPosition, 0.3f, vLight, obj);
 
     m_bIsMoving = !(
@@ -560,7 +561,7 @@ bool PetActionCollecterSkeleton::Effect(OBJECT* obj, CHARACTER* Owner, int targe
     if (m_bIsMoving == TRUE)
     {
         Vector(0.0f, 1.0f, 0.5f, vLight);
-        b->TransformByBoneMatrix(vPosition, BoneTransform[13], obj->Position);
+        b->TransformByBoneMatrix(vPosition, g_BoneTransformScratch[13], obj->Position);
 
         vec3_t vAngle;
         VectorCopy(obj->Angle, vAngle);

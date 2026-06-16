@@ -1,6 +1,7 @@
 ﻿#include "stdafx.h"
 #include "UI/Legacy/UIControls.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.5: mesh-selection state -> per-worker ctx
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -3602,7 +3603,7 @@ void OpenMonsterModel(EMonsterModelType Type)
         LoadWaveFile(SOUND_MONSTER_BALROGDIE, L"Data\\Sound\\mBalrogDie.wav", Channel, Enable);
         SetMonsterSound(static_cast<int>(MODEL_MONSTER01) + Type, 108, 109, 110, 111, 112);
         Models[static_cast<int>(MODEL_MONSTER01) + Type].BoneHead = 6;
-        Models[static_cast<int>(MODEL_MONSTER01) + Type].StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         break;
     case MONSTER_MODEL_SHADOW:
         LoadWaveFile(SOUND_MONSTER_SHADOW1, L"Data\\Sound\\mShadow1.wav", Channel, Enable);

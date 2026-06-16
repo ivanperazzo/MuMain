@@ -524,7 +524,7 @@ bool RenderChaosCastleVisual(OBJECT* o, BMD* b)
         if (o->PKKey && o->HiddenMesh != -2)
         {
             Vector(0.f, 0.f, 0.f, p);
-            b->TransformPosition(BoneTransform[1], p, Position);
+            b->TransformPosition(g_BoneTransformScratch[1], p, Position);
             if ((int)o->LifeTime == 10)
             {
                 CreateJoint(BITMAP_JOINT_THUNDER + 1, Position, Position, o->Angle, 2, NULL, 60.f + Random::RangeFloat(0, 9));

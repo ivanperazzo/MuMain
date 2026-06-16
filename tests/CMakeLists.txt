@@ -52,4 +52,16 @@ endfunction()
 
 add_subdirectory(text)
 
+add_subdirectory(diagnostics)
+
+add_subdirectory(time)
+
+add_subdirectory(motion)
+
+add_subdirectory(anim)
+
+add_subdirectory(effects)
+
 add_subdirectory(editor)
+
+add_subdirectory(jobs)

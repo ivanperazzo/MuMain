@@ -1,6 +1,7 @@
 ﻿// GMDoppelGanger4.cpp: implementation of the CGMDoppelGanger4 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -263,12 +264,12 @@ void CGMDoppelGanger4::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BM
         float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
         for (int i = 0; i < 10; i++)
         {
-            pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+            pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
             Vector(0.f, 0.f, 0.f, StartRelative);
             Vector(0.f, 0.f, 0.f, EndRelative);
-            pModel->TransformPosition(BoneTransform[33], StartRelative, StartPos, false);
-            pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[33], StartRelative, StartPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
             CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 0);
 
             fAnimationFrame += fSpeedPerFrame;
@@ -422,7 +423,7 @@ bool CGMDoppelGanger4::RenderObjectVisual(OBJECT* o, BMD* b)
         return true;
     case 70:
         Vector(0.0f, 0.0f, 0.0f, p);
-        b->TransformPosition(BoneTransform[6], p, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[6], p, Position, false);
         Luminosity = (float)sinf(WorldTime * 0.002f) + 1.8f;
         Vector(0.8f, 0.4f, 0.2f, Light);
         CreateSprite(BITMAP_SPARK + 1, Position, Luminosity * 7.0f, Light, o);
@@ -453,21 +454,21 @@ bool CGMDoppelGanger4::RenderObjectVisual(OBJECT* o, BMD* b)
     {
         vec3_t EndRelative, StartPos, EndPos;
         Vector(0.f, 0.f, 0.f, EndRelative);
-        b->TransformPosition(BoneTransform[1], EndRelative, StartPos, false);
-        b->TransformPosition(BoneTransform[2], EndRelative, EndPos, false);
+        b->TransformPosition(g_BoneTransformScratch[1], EndRelative, StartPos, false);
+        b->TransformPosition(g_BoneTransformScratch[2], EndRelative, EndPos, false);
         if (rand() % 30 == 1)
             CreateJointFpsChecked(BITMAP_JOINT_THUNDER, StartPos, EndPos, o->Angle, 8, NULL, 50.f);
     }
     return true;
     case 96:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         glAlphaFunc(GL_GREATER, 0.0f);
         b->RenderMesh(
             0, RENDER_TEXTURE, 1.0f, o->BlendMesh,
             o->BlendMeshLight, o->BlendMeshTexCoordU,
             -(int)WorldTime % 20000 * 0.00005f);
         glAlphaFunc(GL_GREATER, 0.25f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         return true;
     case 98:
     {
@@ -475,7 +476,7 @@ bool CGMDoppelGanger4::RenderObjectVisual(OBJECT* o, BMD* b)
         {
             vec3_t vPos;
             Vector(0.0f, 0.0f, 0.0f, vPos);
-            b->TransformPosition(BoneTransform[1], vPos, Position, false);
+            b->TransformPosition(g_BoneTransformScratch[1], vPos, Position, false);
             Vector(0.5f, 0.6f, 0.1f, Light);
             CreateParticle(BITMAP_TWINTAIL_WATER, Position, o->Angle, Light, 2);
         }
@@ -487,7 +488,7 @@ bool CGMDoppelGanger4::RenderObjectVisual(OBJECT* o, BMD* b)
         vec3_t vPos;
         Vector(0.0f, 0.0f, 0.0f, vPos);
         Vector(fLumi, fLumi, fLumi, Light);
-        b->TransformPosition(BoneTransform[4], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[4], vPos, Position, false);
         CreateParticle(BITMAP_ENERGY, Position, o->Angle, Light, 0, 1.5f);
         CreateSprite(BITMAP_SPARK + 1, Position, 10.0f, Light, o);
         vec3_t StartPos, EndPos;
@@ -530,7 +531,7 @@ bool CGMDoppelGanger4::RenderObjectVisual(OBJECT* o, BMD* b)
         Vector(fLumi * 0.6f, fLumi * 1.0f, fLumi * 0.8f, Light);
         vec3_t vPos;
         Vector(0.0f, 0.0f, 0.0f, vPos);
-        b->TransformPosition(BoneTransform[1], vPos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[1], vPos, Position, false);
         CreateSprite(BITMAP_LIGHT, Position, 1.1f, Light, o);
     }
     return true;
@@ -623,21 +624,21 @@ void CGMDoppelGanger4::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 33:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 76:
     {
-        b->BodyLight[0] = 0.52f;
-        b->BodyLight[1] = 0.52f;
-        b->BodyLight[2] = 0.52f;
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(
             0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh,
             o->BlendMeshLight, -(int)WorldTime % 100000 * 0.00001f,
             o->BlendMeshTexCoordV);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
     }
     break;
     case 95:
@@ -652,7 +653,7 @@ void CGMDoppelGanger4::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         for (int i = 0; i < 10; ++i)
         {
             Vector(0.0f, 0.0f, 0.0f, p);
-            b->TransformPosition(BoneTransform[i], p, Position, false);
+            b->TransformPosition(g_BoneTransformScratch[i], p, Position, false);
             Vector(0.1f, 0.1f, 0.3f, Light);
             CreateSprite(BITMAP_SPARK + 1, Position, 7.5f, Light, o);
         }

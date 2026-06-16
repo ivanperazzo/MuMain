@@ -58,6 +58,8 @@ void AddTerrainHeight(float xf, float yf, float Height, int Range, float* Buffer
 
 void InitTerrainRay(int HeroX, int HeroY);
 void InitTerrainLight();
+void ResetTerrainDynamicLight();   // dynamic-light grid reset; run at sim-tick cadence
+void UpdateTerrainGrassWind();     // grass sway; safe per render frame
 void InitTerrainShadow();
 void SetTerrainLight(float xf, float yf, vec3_t Light, int Range, vec3_t* Buffer);
 void AddTerrainLight(float xf, float yf, vec3_t Light, int Range, vec3_t* Buffer);
@@ -71,6 +73,7 @@ void CreateFrustrum(float xAspect, float yAspect, vec3_t position);
 void CreateFrustrum2D(vec3_t Position);
 bool TestFrustrum(vec3_t Position, float Range);
 bool TestFrustrum2D(float x, float y, float Range);
+extern bool g_LoginFrustumValid;   // LoginScene sets per frame (see ZzzLodTerrain.cpp)
 void CacheActiveFrustum();   // Call once per frame after camera update
 void UpdateFrustrumBounds();
 void ResetFrustrumBoundsFullTerrain();  // Set bounds to cover entire terrain (for scenes without CreateFrustrum)

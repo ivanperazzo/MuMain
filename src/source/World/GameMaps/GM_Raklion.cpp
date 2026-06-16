@@ -2,6 +2,7 @@
 // GM_Raklion.cpp: implementation of the CGM_Raklion class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -16,8 +17,9 @@
 
 using namespace SEASON4A;
 
+#include "Render/Build/WorkerArena.h"   // Task 2: IntensityTransform accessor macro
+
 extern int g_iLimitAttackTime;
-extern float IntensityTransform[MAX_MESH][MAX_VERTICES];
 
 CGM_RaklionPtr CGM_Raklion::Make()
 {
@@ -983,13 +985,13 @@ void CGM_Raklion::MoveBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[35], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[36], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[35], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[36], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 0);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -1041,13 +1043,13 @@ void CGM_Raklion::MoveBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[35], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[36], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[35], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[36], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 0);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -1143,33 +1145,33 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             {
                 for (int i = 0; i < b->NumBones; ++i)
                 {
-                    b->TransformPosition(BoneTransform[i], vRelativePos, vWorldPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[i], vRelativePos, vWorldPos, false);
                     CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
                 }
             }
             else if (o->AnimationFrame >= 11 && o->AnimationFrame <= 12)
             {
-                b->TransformPosition(BoneTransform[6], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[6], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
-                b->TransformPosition(BoneTransform[7], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[7], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
-                b->TransformPosition(BoneTransform[8], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[8], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
             }
             else if (o->AnimationFrame >= 13 && o->AnimationFrame <= 14)
             {
-                b->TransformPosition(BoneTransform[9], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[9], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
-                b->TransformPosition(BoneTransform[10], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[10], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
-                b->TransformPosition(BoneTransform[11], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[11], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
             }
             else if (o->AnimationFrame >= 15 && o->AnimationFrame <= 17)
             {
                 for (int i = 12; i < 20; ++i)
                 {
-                    b->TransformPosition(BoneTransform[i], vRelativePos, vWorldPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[i], vRelativePos, vWorldPos, false);
                     CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
                 }
             }
@@ -1180,7 +1182,7 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
 
             for (int i = 0; i < b->NumBones; ++i)
             {
-                b->TransformPosition(BoneTransform[i], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[i], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_3, vWorldPos, o->Angle, vLight, 8, 1.5f);
             }
         }
@@ -1210,13 +1212,13 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             Vector(1.f, 1.f, 1.f, vLight);
 
             // 머리
-            b->TransformPosition(BoneTransform[5], vRelativePos, vWorldPos, false);
+            b->TransformPosition(g_BoneTransformScratch[5], vRelativePos, vWorldPos, false);
             CreateParticle(BITMAP_WATERFALL_3, vWorldPos, o->Angle, vLight, 8, 2.f);
 
             if (o->AnimationFrame <= 8)
             {
                 // 머리
-                b->TransformPosition(BoneTransform[6], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[6], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_3, vWorldPos, o->Angle, vLight, 8, 1.5f);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7, 0.1f);
             }
@@ -1224,7 +1226,7 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             if (o->AnimationFrame >= 12)
             {
                 // 입가
-                b->TransformPosition(BoneTransform[6], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[6], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_3, vWorldPos, o->Angle, vLight, 8, 2.f);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7, 0.1f);
             }
@@ -1232,11 +1234,11 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             if (o->AnimationFrame <= 15)
             {
                 // 날개
-                b->TransformPosition(BoneTransform[8], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[8], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_3, vWorldPos, o->Angle, vLight, 9, 2.f);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7, 0.1f);
 
-                b->TransformPosition(BoneTransform[11], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[11], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_3, vWorldPos, o->Angle, vLight, 9, 2.f);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7, 0.1f);
             }
@@ -1267,28 +1269,28 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
                 Vector(0, 0, 0, vRelativePos);
                 Vector(1.f, 1.f, 1.f, vLight);
                 // 입앞 본
-                b->TransformPosition(BoneTransform[7], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[7], vRelativePos, vWorldPos, false);
                 // 물 이펙트
                 CreateParticle(BITMAP_WATERFALL_3, vWorldPos, o->Angle, vLight, 9, 0.5f);
                 CreateParticle(BITMAP_WATERFALL_5, vWorldPos, o->Angle, vLight, 7);
 
                 // 7, 16, 17, 21, 22
                 // 연기 이펙트
-                b->TransformPosition(BoneTransform[7], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[7], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_2, vWorldPos, o->Angle, vLight, 5, 1.f);
-                b->TransformPosition(BoneTransform[16], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[16], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_2, vWorldPos, o->Angle, vLight, 5, 0.5f);
-                b->TransformPosition(BoneTransform[17], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[17], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_2, vWorldPos, o->Angle, vLight, 5, 0.7f);
-                b->TransformPosition(BoneTransform[20], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[20], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_2, vWorldPos, o->Angle, vLight, 5, 0.3f);
-                b->TransformPosition(BoneTransform[21], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[21], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_2, vWorldPos, o->Angle, vLight, 5, 0.3f);
-                b->TransformPosition(BoneTransform[22], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[22], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_2, vWorldPos, o->Angle, vLight, 5, 0.5f);
-                b->TransformPosition(BoneTransform[23], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[23], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_2, vWorldPos, o->Angle, vLight, 5, 0.3f);
-                b->TransformPosition(BoneTransform[24], vRelativePos, vWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[24], vRelativePos, vWorldPos, false);
                 CreateParticle(BITMAP_WATERFALL_2, vWorldPos, o->Angle, vLight, 5, 0.3f);
             }
 
@@ -1319,7 +1321,7 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     {
         vec3_t vRelativePos, vWorldPos;
         Vector(0, 0, 0, vRelativePos);
-        b->TransformPosition(BoneTransform[1], vRelativePos, vWorldPos, false);
+        b->TransformPosition(g_BoneTransformScratch[1], vRelativePos, vWorldPos, false);
         vec3_t vLight;
         Vector(1.0f, 1.0f, 1.0f, vLight);
         //CreateEffect(BITMAP_GATHERING,vWorldPos,o->Angle,vLight,3,o);
@@ -1337,9 +1339,9 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
     }
     else if (o->Type == MODEL_WARP || o->Type == MODEL_WARP2 || o->Type == MODEL_WARP3)
     {
-        b->BodyLight[0] = 1.0f;
-        b->BodyLight[1] = 1.0f;
-        b->BodyLight[2] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 1.0f;
         o->BlendMeshLight = 1.0f;
 
         if (o->Type == MODEL_WARP)
@@ -1364,9 +1366,9 @@ bool CGM_Raklion::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
             return true;
         }
 
-        b->BodyLight[0] = 0.5f;
-        b->BodyLight[1] = 0.6f;
-        b->BodyLight[2] = 1.0f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.5f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.6f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 1.0f;
         o->BlendMeshLight = 0.8f;
 
         if (o->Type == MODEL_WARP4)
@@ -1440,7 +1442,7 @@ bool CGM_Raklion::RenderMonster(OBJECT* o, BMD* b, bool ExtraMon)
     case MODEL_ICE_GIANT:
         if (o->CurrentAction != MONSTER01_DIE)
         {
-            Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+            Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
@@ -1639,7 +1641,7 @@ bool CGM_Raklion::RenderMonster(OBJECT* o, BMD* b, bool ExtraMon)
     {
         if (o->CurrentAction != MONSTER01_DIE)
         {
-            Vector(1.0f, 1.0f, 1.0f, b->BodyLight);
+            Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
             b->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
@@ -1804,13 +1806,13 @@ bool CGM_Raklion::RenderMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
         float fAnimationFrame = o->AnimationFrame - fActionSpeed;
         for (int i = 0; i < 10; i++)
         {
-            b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+            b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
             Vector(0.f, 0.f, 0.f, StartRelative);
             Vector(0.f, 0.f, 0.f, EndRelative);
 
-            b->TransformPosition(BoneTransform[35], StartRelative, StartPos, false);
-            b->TransformPosition(BoneTransform[36], EndRelative, EndPos, false);
+            b->TransformPosition(g_BoneTransformScratch[35], StartRelative, StartPos, false);
+            b->TransformPosition(g_BoneTransformScratch[36], EndRelative, EndPos, false);
             CreateBlur(c, StartPos, EndPos, Light, 3);
 
             fAnimationFrame += fSpeedPerFrame;
@@ -1930,19 +1932,19 @@ bool CGM_Raklion::RenderMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
         float fAnimationFrame = o->AnimationFrame - fActionSpeed;
         for (int i = 0; i < 10; i++)
         {
-            b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+            b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
             Vector(0.f, 0.f, 0.f, StartRelative);
             Vector(0.f, 0.f, 0.f, EndRelative);
 
-            b->TransformPosition(BoneTransform[69], StartRelative, StartPos, false);
-            b->TransformPosition(BoneTransform[73], EndRelative, EndPos, false);
+            b->TransformPosition(g_BoneTransformScratch[69], StartRelative, StartPos, false);
+            b->TransformPosition(g_BoneTransformScratch[73], EndRelative, EndPos, false);
             CreateBlur(c, StartPos, EndPos, Light, 0);
 
             fAnimationFrame += fSpeedPerFrame;
         }
 
-        VectorCopy(o->Position, b->BodyOrigin);
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         Vector(0.0f, 0.0f, 0.0f, vRelative);
 
         float fLumi1 = (sinf(WorldTime * 0.004f) + 1.f) * 0.25f;
@@ -2057,13 +2059,13 @@ bool CGM_Raklion::RenderMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
         float fAnimationFrame = o->AnimationFrame - fActionSpeed;
         for (int i = 0; i < 10; i++)
         {
-            b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+            b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
             Vector(0.f, 0.f, 0.f, StartRelative);
             Vector(0.f, 0.f, 0.f, EndRelative);
 
-            b->TransformPosition(BoneTransform[35], StartRelative, StartPos, false);
-            b->TransformPosition(BoneTransform[36], EndRelative, EndPos, false);
+            b->TransformPosition(g_BoneTransformScratch[35], StartRelative, StartPos, false);
+            b->TransformPosition(g_BoneTransformScratch[36], EndRelative, EndPos, false);
             CreateBlur(c, StartPos, EndPos, Light, 3);
 
             fAnimationFrame += fSpeedPerFrame;

@@ -12,12 +12,14 @@
 #include <iostream>
 #include "Engine/Object/ZzzInterface.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
+#include "Render/Interpolation.h"
 #include "WindowsConsole.h"
 
 #include "Render/Sprites/GlobalBitmap.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Scenes/SceneCore.h"
 #include "Scenes/SceneManager.h"
+#include "Render/Models/BmdGpuCache.h"
 
 #ifdef _EDITOR
 #include "../MuEditor/UI/Console/MuEditorConsoleUI.h"
@@ -110,6 +112,26 @@ bool CmuConsoleDebug::CheckCommand(const std::wstring& strCommand)
         SetTargetFps(target_fps);
         return true;
     }
+    else if (strCommand.compare(L"$interp on") == 0)
+    {
+        Render::Interpolation::SetEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$interp off") == 0)
+    {
+        Render::Interpolation::SetEnabled(false);
+        return true;
+    }
+    else if (strCommand.compare(L"$poseinterp on") == 0)
+    {
+        Render::Interpolation::SetPoseEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$poseinterp off") == 0)
+    {
+        Render::Interpolation::SetPoseEnabled(false);
+        return true;
+    }
     else if (strCommand.compare(L"$vsync on") == 0)
     {
         EnableVSync();
@@ -121,6 +143,56 @@ bool CmuConsoleDebug::CheckCommand(const std::wstring& strCommand)
     {
         DisableVSync();
         ResetFrameStats();
+        return true;
+    }
+    else if (strCommand.compare(L"$gpubmd on") == 0)
+    {
+        Render::Models::SetGpuBmdEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpubmd off") == 0)
+    {
+        Render::Models::SetGpuBmdEnabled(false);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpuinst on") == 0)
+    {
+        Render::Models::SetGpuInstEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpuinst off") == 0)
+    {
+        Render::Models::SetGpuInstEnabled(false);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpuinstobj on") == 0)
+    {
+        Render::Models::SetGpuInstObjEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpuinstobj off") == 0)
+    {
+        Render::Models::SetGpuInstObjEnabled(false);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpulog on") == 0)
+    {
+        Render::Models::SetGpuStatsLogEnabled(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$gpulog off") == 0)
+    {
+        Render::Models::SetGpuStatsLogEnabled(false);
+        return true;
+    }
+    else if (strCommand.compare(L"$skinskip on") == 0)
+    {
+        Render::Models::SetSkinSkip(true);
+        return true;
+    }
+    else if (strCommand.compare(L"$skinskip off") == 0)
+    {
+        Render::Models::SetSkinSkip(false);
         return true;
     }
     else if (strCommand.compare(0, 7, L"$winmsg") == 0)

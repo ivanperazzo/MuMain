@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Engine/Object/ZzzInfomation.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Terrain/ZzzLodTerrain.h"
@@ -261,9 +262,9 @@ bool SEASON3A::CGM3rdChangeUp::RenderObjectMesh(OBJECT* o, BMD* b, bool ExtraMon
         switch (o->Type)
         {
         case 79:
-            b->StreamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, -(int)WorldTime % 10000 * 0.0001f);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
             return true;
         case 81:
         {
@@ -302,22 +303,22 @@ void SEASON3A::CGM3rdChangeUp::RenderAfterObjectMesh(OBJECT* o, BMD* b)
             o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 78:
-        b->BodyLight[0] = 0.52f;
-        b->BodyLight[1] = 0.52f;
-        b->BodyLight[2] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[0] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] = 0.52f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] = 0.52f;
 
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(
             0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh,
             o->BlendMeshLight, -(int)WorldTime % 100000 * 0.00001f,
             o->BlendMeshTexCoordV);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 84:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         float fLumi = (sinf(WorldTime * 0.001f) + 1.f) * 0.5f;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, 0, fLumi, (int)WorldTime % 10000 * 0.0001f, o->BlendMeshTexCoordV, o->HiddenMesh);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     }
@@ -604,12 +605,12 @@ void SEASON3A::CGM3rdChangeUp::MoveBalgasBarrackBlurEffect(CHARACTER* c, OBJECT*
 
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 250.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                b->TransformPosition(BoneTransform[27], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[27], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[27], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[27], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 80);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -651,10 +652,10 @@ void SEASON3A::CGM3rdChangeUp::MoveBalgasBarrackBlurEffect(CHARACTER* c, OBJECT*
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; ++i)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 100.f, -150.f, EndRelative);
-                b->TransformPosition(BoneTransform[16], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[16], EndRelative, EndPos, false);
 
                 if (o->AnimationFrame > 5.0f && o->AnimationFrame < 7.0f && rand_fps_check(1))
                 {
@@ -695,12 +696,12 @@ void SEASON3A::CGM3rdChangeUp::MoveBalgasBarrackBlurEffect(CHARACTER* c, OBJECT*
 
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, -60.f, StartRelative);
                 Vector(0.f, 0.f, -150.f, EndRelative);
-                b->TransformPosition(BoneTransform[c->Weapon[0].LinkBone], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[c->Weapon[0].LinkBone], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[c->Weapon[0].LinkBone], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[c->Weapon[0].LinkBone], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 80);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -750,7 +751,7 @@ bool SEASON3A::CGM3rdChangeUp::RenderMonsterObjectMesh(OBJECT* o, BMD* b, int Ex
                 o->BlendMesh = -2;
                 b->EndRender();
                 b->BeginRender(o->Alpha);
-                Models[o->Type].StreamMesh = i;
+                Render::Build::CurrentRenderCtx().streamMesh = i;
             }
             else
                 o->BlendMesh = -1;
@@ -765,7 +766,7 @@ bool SEASON3A::CGM3rdChangeUp::RenderMonsterObjectMesh(OBJECT* o, BMD* b, int Ex
     break;
     case MODEL_SORAM:
     {
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, 5);
         b->EndRender();

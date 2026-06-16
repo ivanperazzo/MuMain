@@ -1,5 +1,6 @@
 ﻿#include "stdafx.h"
 #include "UI/Legacy/UIWindows.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Render/Models/ZzzBMD.h"
@@ -138,7 +139,7 @@ bool M31HuntingGround::RenderHuntingGroundObjectVisual(OBJECT* pObject, BMD* pMo
     {
         vec3_t Relative, Position;
         Vector(0.f, -10.f, 0.f, Relative);
-        pModel->TransformPosition(BoneTransform[3], Relative, Position, false);
+        pModel->TransformPosition(g_BoneTransformScratch[3], Relative, Position, false);
 
         Vector(1.f, 0.f, 0.f, Light);
         float Luminosity = (float)sinf((WorldTime) * 0.002f) * 0.35f + 0.65f;
@@ -159,31 +160,31 @@ bool M31HuntingGround::RenderHuntingGroundObjectMesh(OBJECT* pObject, BMD* pMode
         if (pObject->Type == 27 || pObject->Type == 54)
         {
             vec3_t LightBackup;
-            VectorCopy(pModel->BodyLight, LightBackup);		//. backup
+            VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, LightBackup);		//. backup
             float Luminosity = sinf(pObject->Timer + WorldTime * 0.0012f) * 0.5f + 0.9f;
-            pModel->BodyLight[0] *= Luminosity;
-            pModel->BodyLight[1] *= Luminosity;
-            pModel->BodyLight[2] *= Luminosity;
+            Render::Build::CurrentRenderCtx().bodyLight[0] *= Luminosity;
+            Render::Build::CurrentRenderCtx().bodyLight[1] *= Luminosity;
+            Render::Build::CurrentRenderCtx().bodyLight[2] *= Luminosity;
             pModel->RenderBody(RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, pObject->HiddenMesh);
 
-            VectorCopy(LightBackup, pModel->BodyLight);		//. restore
+            VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
 
             return true;
         }
         if (pObject->Type == 10)
         {
-            pModel->BodyLight[0] = 0.56f;
-            pModel->BodyLight[1] = 0.80f;
-            pModel->BodyLight[2] = 0.81f;
+            Render::Build::CurrentRenderCtx().bodyLight[0] = 0.56f;
+            Render::Build::CurrentRenderCtx().bodyLight[1] = 0.80f;
+            Render::Build::CurrentRenderCtx().bodyLight[2] = 0.81f;
             pModel->RenderBody(RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, pObject->HiddenMesh);
             return true;
         }
         if (pObject->Type == 52)
         {
             float Luminosity = sinf(pObject->Timer + WorldTime * 0.0009f) * 0.5f + 0.9f;
-            pModel->BodyLight[0] *= Luminosity;
-            pModel->BodyLight[1] *= Luminosity;
-            pModel->BodyLight[2] *= Luminosity;
+            Render::Build::CurrentRenderCtx().bodyLight[0] *= Luminosity;
+            Render::Build::CurrentRenderCtx().bodyLight[1] *= Luminosity;
+            Render::Build::CurrentRenderCtx().bodyLight[2] *= Luminosity;
             pModel->RenderBody(RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, pObject->HiddenMesh);
         }
     }
@@ -333,19 +334,19 @@ void M31HuntingGround::MoveHuntingGroundBlurEffect(CHARACTER* pCharacter, OBJECT
             float fSpeedPerFrame = fActionSpeed / 10.f;
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++) {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, -10.f, -80.f, StartRelative);
                 Vector(30.f, -30.f, -230.f, EndRelative);
-                pModel->TransformPosition(BoneTransform[23], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[23], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[23], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[23], EndRelative, EndPos, false);
 
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 3, true, 23);
 
                 Vector(30.f, 10.f, 80.f, StartRelative);
                 Vector(30.f, -65.f, 230, EndRelative);
-                pModel->TransformPosition(BoneTransform[34], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[34], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
 
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 3, true, 34);
 
@@ -678,10 +679,10 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         pModel->RenderBody(RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, 1);
         pModel->BeginRender(1.f);
         vec3_t LightBackup;
-        VectorCopy(pModel->BodyLight, LightBackup);		//. backup
-        Vector(0.6f, 0.4f, 0.4f, pModel->BodyLight);
+        VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, LightBackup);		//. backup
+        Vector(0.6f, 0.4f, 0.4f, Render::Build::CurrentRenderCtx().bodyLight);
         pModel->RenderMesh(1, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
-        VectorCopy(LightBackup, pModel->BodyLight);		//. restore
+        VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
         pModel->EndRender();
         return true;
     }
@@ -690,21 +691,21 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
     {
         pModel->BeginRender(1.f);
         vec3_t LightBackup;
-        VectorCopy(pModel->BodyLight, LightBackup);		//. backup
+        VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, LightBackup);		//. backup
         float Luminosity = sinf(WorldTime * 0.0012f) * 0.8f + 1.3f;
         if (Luminosity > 1.3f)
             Luminosity = 1.3f;
 
-        pModel->BodyLight[0] *= Luminosity;
-        pModel->BodyLight[1] *= Luminosity;
-        pModel->BodyLight[2] *= Luminosity;
+        Render::Build::CurrentRenderCtx().bodyLight[0] *= Luminosity;
+        Render::Build::CurrentRenderCtx().bodyLight[1] *= Luminosity;
+        Render::Build::CurrentRenderCtx().bodyLight[2] *= Luminosity;
 
-        pModel->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, (int)WorldTime % 10000 * 0.0002f, (int)WorldTime % 10000 * 0.0002f);
         pModel->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
-        pModel->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
-        VectorCopy(LightBackup, pModel->BodyLight);		//. restore
+        VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
 
         pModel->RenderMesh(1, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         pModel->EndRender();
@@ -718,16 +719,16 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         pModel->RenderBody(RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, 0);
 
         vec3_t LightBackup;
-        VectorCopy(pModel->BodyLight, LightBackup);		//. backup
+        VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, LightBackup);		//. backup
 
-        //Vector ( 0.7f, 0.7f, 0.7f, pModel->BodyLight );
-        Vector(1.f, 1.f, 1.f, pModel->BodyLight);
+        //Vector ( 0.7f, 0.7f, 0.7f, Render::Build::CurrentRenderCtx().bodyLight );
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, -1, 1.f, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
-        //Vector ( 0.75f, 0.65f, 0.5f, pModel->BodyLight );
-        Vector(0.8f, 0.6f, 1.f, pModel->BodyLight);
+        //Vector ( 0.75f, 0.65f, 0.5f, Render::Build::CurrentRenderCtx().bodyLight );
+        Vector(0.8f, 0.6f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         pModel->RenderMesh(0, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, -1, 1.f, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
 
-        VectorCopy(LightBackup, pModel->BodyLight);		//. restore
+        VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
 
         pModel->EndRender();
         return true;
@@ -739,18 +740,18 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         vec3_t LightBackup;
         if (ExtraMon)
         {
-            Vector(1.f, 1.f, 1.f, pModel->BodyLight);
+            Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         }
-        VectorCopy(pModel->BodyLight, LightBackup);		//. backup
+        VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, LightBackup);		//. backup
         float Luminosity = sinf(WorldTime * 0.0012f) * 0.8f + 1.3f;
         if (Luminosity > 1.3f)
             Luminosity = 1.3f;
 
-        pModel->BodyLight[0] *= (Luminosity * 0.1f);
-        pModel->BodyLight[1] *= Luminosity;
-        pModel->BodyLight[2] *= (Luminosity * 0.1f);
+        Render::Build::CurrentRenderCtx().bodyLight[0] *= (Luminosity * 0.1f);
+        Render::Build::CurrentRenderCtx().bodyLight[1] *= Luminosity;
+        Render::Build::CurrentRenderCtx().bodyLight[2] *= (Luminosity * 0.1f);
 
-        pModel->StreamMesh = 1;
+        Render::Build::CurrentRenderCtx().streamMesh = 1;
         pModel->RenderMesh(1, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, (int)WorldTime % 10000 * 0.0002f, (int)WorldTime % 10000 * 0.0002f);
 
         if (ExtraMon)
@@ -760,23 +761,23 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         else
             pModel->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
 
-        pModel->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
 
-        VectorCopy(LightBackup, pModel->BodyLight);		//. restore
+        VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
 
         pModel->RenderMesh(0, RENDER_TEXTURE, sinf(WorldTime * 0.0012f) * 0.2f + 0.8f, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         if (ExtraMon)
         {
             pModel->RenderMesh(0, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_CHROME);
         }
-        pModel->StreamMesh = 2;
+        Render::Build::CurrentRenderCtx().streamMesh = 2;
         pModel->RenderMesh(2, RENDER_TEXTURE, pObject->Alpha, 2, 0.5f, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         if (ExtraMon)
         {
             pModel->RenderMesh(2, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_CHROME);
-            pObject->Scale = pModel->BodyScale;
+            pObject->Scale = Render::Build::CurrentRenderCtx().bodyScale;
         }
-        pModel->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         pModel->EndRender();
         return true;
     }
@@ -787,24 +788,24 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         vec3_t LightBackup;
         if (ExtraMon)
         {
-            Vector(1.f, 1.f, 1.f, pModel->BodyLight);
+            Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         }
-        VectorCopy(pModel->BodyLight, LightBackup);		//. backup
-        pModel->BodyLight[0] *= 0.5f;
-        pModel->BodyLight[1] *= 0.6f;
-        pModel->BodyLight[2] *= 0.8f;
+        VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, LightBackup);		//. backup
+        Render::Build::CurrentRenderCtx().bodyLight[0] *= 0.5f;
+        Render::Build::CurrentRenderCtx().bodyLight[1] *= 0.6f;
+        Render::Build::CurrentRenderCtx().bodyLight[2] *= 0.8f;
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
 
         if (ExtraMon)
             pModel->RenderMesh(0, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_CHROME);
 
-        Vector(0.5f, 0.8f, 0.6f, pModel->BodyLight);
+        Vector(0.5f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         pModel->RenderMesh(1, RENDER_TEXTURE, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
 
         if (ExtraMon)
             pModel->RenderMesh(1, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_CHROME);
 
-        VectorCopy(LightBackup, pModel->BodyLight);		//. restore
+        VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
         pModel->EndRender();
         return true;
     }
@@ -820,12 +821,12 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         pModel->RenderMesh(5, RENDER_TEXTURE, pObject->Alpha, -1, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
 
         vec3_t LightBackup;
-        VectorCopy(pModel->BodyLight, LightBackup);		//. backup
+        VectorCopy(Render::Build::CurrentRenderCtx().bodyLight, LightBackup);		//. backup
 
-        Vector(1.f, 0.5f, 0.f, pModel->BodyLight);
+        Vector(1.f, 0.5f, 0.f, Render::Build::CurrentRenderCtx().bodyLight);
         pModel->RenderMesh(4, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
 
-        Vector(0.75f, 0.65f, 0.5f, pModel->BodyLight);
+        Vector(0.75f, 0.65f, 0.5f, Render::Build::CurrentRenderCtx().bodyLight);
         pModel->RenderMesh(0, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         pModel->RenderMesh(1, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         pModel->RenderMesh(3, RENDER_CHROME | RENDER_BRIGHT, pObject->Alpha, pObject->BlendMesh, pObject->BlendMeshLight, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
@@ -833,7 +834,7 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
         float Luminosity = sinf(WorldTime * 0.0012f) * 0.3f + 0.6f;
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, 0, Luminosity, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_HGBOSS_PATTERN);
 
-        VectorCopy(LightBackup, pModel->BodyLight);		//. restore
+        VectorCopy(LightBackup, Render::Build::CurrentRenderCtx().bodyLight);		//. restore
 
         pModel->EndRender();
 
@@ -844,7 +845,7 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
     {
         pModel->BeginRender(1.f);
 
-        Vector(1.f, 1.f, 1.f, pModel->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, -1, 1.f, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, 0, 1.f, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, BITMAP_FISSURE_FIRE);
 
@@ -857,7 +858,7 @@ bool M31HuntingGround::RenderHuntingGroundMonsterObjectMesh(OBJECT* pObject, BMD
     {
         pModel->BeginRender(1.f);
 
-        Vector(1.f, 1.f, 1.f, pModel->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
 
         pObject->BlendMeshTexCoordU = sinf(WorldTime * 0.00008f) * 2.5f;
         pModel->RenderMesh(0, RENDER_TEXTURE, pObject->Alpha, 0, 1.f, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV);

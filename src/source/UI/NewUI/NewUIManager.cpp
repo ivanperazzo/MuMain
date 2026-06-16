@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "UI/NewUI/NewUIManager.h"
 #include "UI/Legacy/UIControls.h"  // CUITextInputBox::GetFocusedPortable (issue #447)
+#include "Render/GL/GLLog.h"       // per-window UI profiling
+#include <chrono>
+#include <typeinfo>
 
 
 using namespace SEASON3B;
@@ -203,12 +206,27 @@ bool SEASON3B::CNewUIManager::Render()
     std::sort(m_vecUI.begin(), m_vecUI.end(), CompareLayerDepth);
     auto vecUI = m_vecUI;
 
+    static int s_profCtr = 0;
+    const bool prof = (++s_profCtr % 30) == 0;
+
     auto vi = vecUI.begin();
     for (; vi != vecUI.end(); vi++)
     {
         if ((*vi)->IsVisible())
         {
-            (*vi)->Render();
+            if (prof)
+            {
+                const auto t0 = std::chrono::steady_clock::now();
+                (*vi)->Render();
+                const double ms = std::chrono::duration<double, std::milli>(
+                    std::chrono::steady_clock::now() - t0).count();
+                if (ms > 0.2)
+                    Render::GL::Log("[ui_win] %.2fms %s", ms, typeid(**vi).name());
+            }
+            else
+            {
+                (*vi)->Render();
+            }
         }
     }
 

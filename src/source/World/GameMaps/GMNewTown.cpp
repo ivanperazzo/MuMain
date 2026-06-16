@@ -6,6 +6,7 @@
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Build/WorkerArena.h"   // Task 2: IntensityTransform accessor macro
 #include "Render/Terrain/ZzzLodTerrain.h"
 #include "Scenes/SceneCore.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -294,7 +295,7 @@ bool GMNewTown::RenderObjectVisual(OBJECT* pObject, BMD* pModel)
         Vector(fLumi * 1.0f, fLumi * 1.0f, fLumi * 0.6f, Light);
 
         Vector(-40.0f, -10.0f, 0.0f, vRelative);
-        pModel->TransformPosition(BoneTransform[5], vRelative, vPos, false);
+        pModel->TransformPosition(g_BoneTransformScratch[5], vRelative, vPos, false);
         CreateSprite(BITMAP_LIGHT, vPos, pObject->Scale * 6.f, Light, pObject);
     }
     break;
@@ -305,7 +306,7 @@ bool GMNewTown::RenderObjectVisual(OBJECT* pObject, BMD* pModel)
         {
             p[0] = (float)cosf(WorldTime * 0.03f) * (30.f + rand() % 5);
             p[1] = (float)sinf(WorldTime * 0.03f) * (30.f + rand() % 5);
-            pModel->TransformPosition(BoneTransform[0], p, Position, false);
+            pModel->TransformPosition(g_BoneTransformScratch[0], p, Position, false);
             CreateParticle(BITMAP_LIGHT, Position, pObject->Angle, Light, 11, 0.6f, pObject);
         }
         break;
@@ -321,7 +322,7 @@ bool GMNewTown::RenderObjectVisual(OBJECT* pObject, BMD* pModel)
         Vector(5.0f, -4.0f, -1.0f, vRelative);
         for (int i = 3; i <= 8; ++i)
         {
-            pModel->TransformPosition(BoneTransform[i], vRelative, vPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[i], vRelative, vPos, false);
             CreateSprite(BITMAP_LIGHT, vPos, fScale, Light, pObject);
         }
     }
@@ -720,8 +721,6 @@ bool GMNewTown::RenderObjectVisual(OBJECT* pObject, BMD* pModel)
     return true;
 }
 
-extern float  IntensityTransform[MAX_MESH][MAX_VERTICES];
-
 bool GMNewTown::RenderObject(OBJECT* pObject, BMD* pModel, bool ExtraMon)
 {
     if (!IsCurrentMap())
@@ -835,7 +834,7 @@ void GMNewTown::RenderObjectAfterCharacter(OBJECT* pObject, BMD* pModel, bool Ex
         for (int i = 1; i <= 4; ++i)
         {
             Vector(0.0f, 0.0f, 0.0f, p);
-            pModel->TransformPosition(BoneTransform[i], p, Position, false);
+            pModel->TransformPosition(g_BoneTransformScratch[i], p, Position, false);
             Vector(0.1f, 0.1f, 0.3f, Light);
             CreateSprite(BITMAP_SPARK + 1, Position, 5.5f, Light, pObject);
         }
@@ -849,7 +848,7 @@ void GMNewTown::RenderObjectAfterCharacter(OBJECT* pObject, BMD* pModel, bool Ex
         for (int i = 1; i <= 6; ++i)
         {
             Vector(0.0f, 0.0f, 0.0f, p);
-            pModel->TransformPosition(BoneTransform[i], p, Position, false);
+            pModel->TransformPosition(g_BoneTransformScratch[i], p, Position, false);
             Vector(0.1f, 0.1f, 0.3f, Light);
             CreateSprite(BITMAP_SPARK + 1, Position, 5.5f, Light, pObject);
         }
@@ -976,13 +975,13 @@ void GMNewTown::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BMD* pMod
             float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
                 Vector(0.f, 0.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
 
-                pModel->TransformPosition(BoneTransform[60], StartRelative, StartPos, false);
-                pModel->TransformPosition(BoneTransform[61], EndRelative, EndPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[60], StartRelative, StartPos, false);
+                pModel->TransformPosition(g_BoneTransformScratch[61], EndRelative, EndPos, false);
                 CreateBlur(pCharacter, StartPos, EndPos, Light, 0);
 
                 fAnimationFrame += fSpeedPerFrame;

@@ -2,6 +2,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
+#include "Render/Build/BuildEmitMode.h"       // Etapa 3b 6.8b: suppress effects on the parallel pass
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -331,6 +333,11 @@ void CreateEffectFpsChecked(int Type, vec3_t Position, vec3_t Angle, vec3_t Ligh
 
 void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int SubType, OBJECT* Owner, short PKKey, WORD SkillIndex, WORD Skill, WORD SkillSerialNum, float Scale, short int sTargetIndex)
 {
+    // Etapa 3b 6.8b: suppressed during the parallel (MeshOnly) char build; replayed in
+    // the EffectsOnly serial pass (see BuildEmitMode.h).
+    if (Render::Build::BuildSuppressEffects())
+        return;
+
     for (int icntEffect = 0; icntEffect < MAX_EFFECTS; icntEffect++)
     {
         OBJECT* o = &Effects[icntEffect];
@@ -2041,7 +2048,7 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
                 o->Position[1] = Position[1];
                 o->Position[2] = Position[2] + 12.f;
                 Vector(0.f, 0.f, 0.f, o->Direction);
-                //				Vector(0.1f,0.1f,0.1f,b->BodyLight);
+                //				Vector(0.1f,0.1f,0.1f,Render::Build::CurrentRenderCtx().bodyLight);
                 break;
             case MODEL_CHANGE_UP_CYLINDER:
                 o->BlendMesh = -2;
@@ -4382,29 +4389,29 @@ void CreateEffect(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Sub
 
                     if (irandom >= 1 && irandom <= 2)
                     {
-                        p_b->TransformPosition(BoneTransform[10], vPos, o->Position, false);
+                        p_b->TransformPosition(g_BoneTransformScratch[10], vPos, o->Position, false);
                     }
                     else if (irandom == 3)
                     {
                         o->Scale -= (0.2f) * FPS_ANIMATION_FACTOR;
-                        p_b->TransformPosition(BoneTransform[14], vPos, o->Position, false);
+                        p_b->TransformPosition(g_BoneTransformScratch[14], vPos, o->Position, false);
                     }
                     else if (irandom >= 4 && irandom <= 5)
                     {
-                        p_b->TransformPosition(BoneTransform[2], vPos, o->Position, false);
+                        p_b->TransformPosition(g_BoneTransformScratch[2], vPos, o->Position, false);
                     }
                     else if (irandom >= 6 && irandom <= 7)
                     {
                         o->Scale -= (0.2f) * FPS_ANIMATION_FACTOR;
                         if (rand_fps_check(2))
-                            p_b->TransformPosition(BoneTransform[50], vPos, o->Position, false);
+                            p_b->TransformPosition(g_BoneTransformScratch[50], vPos, o->Position, false);
                         else
-                            p_b->TransformPosition(BoneTransform[51], vPos, o->Position, false);
+                            p_b->TransformPosition(g_BoneTransformScratch[51], vPos, o->Position, false);
                     }
                     else if (irandom == 8)
                     {
                         o->Scale -= (0.2f) * FPS_ANIMATION_FACTOR;
-                        p_b->TransformPosition(BoneTransform[53], vPos, o->Position, false);
+                        p_b->TransformPosition(g_BoneTransformScratch[53], vPos, o->Position, false);
                     }
                     else if (irandom >= 9 && irandom <= 10)
                     {
@@ -7564,7 +7571,7 @@ void MoveEffect(OBJECT* o, int iIndex)
             vec3_t vPos, vRelative;
             Vector(0.0f, 0.0f, 0.0f, vRelative);
             pModel->TransformPosition(pObject->BoneTransform[o->Skill], vRelative, vPos, false);
-            VectorScale(vPos, pModel->BodyScale, vPos);
+            VectorScale(vPos, Render::Build::CurrentRenderCtx().bodyScale, vPos);
             VectorAdd(vPos, pObject->Position, o->Position);
 
             vec3_t vLight;
@@ -7696,11 +7703,11 @@ void MoveEffect(OBJECT* o, int iIndex)
     {
         OBJECT* pObject = o->Owner;
         BMD* pModel = &Models[pObject->Type];
-        //pModel->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+        //pModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
         vec3_t vPos, vRelative;
         Vector(0.0f, 0.0f, 0.0f, vRelative);
         pModel->TransformPosition(pObject->BoneTransform[37], vRelative, vPos, false);
-        VectorScale(vPos, pModel->BodyScale, vPos);
+        VectorScale(vPos, Render::Build::CurrentRenderCtx().bodyScale, vPos);
         VectorAdd(vPos, pObject->Position, o->Position);
 
         if (pObject->Live)
@@ -7977,13 +7984,13 @@ void MoveEffect(OBJECT* o, int iIndex)
         }
 
         BMD* pModel = &Models[o->Type];
-        pModel->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+        pModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
         vec3_t vPos, vRelative, vLight;
         Vector(0.0f, 0.0f, 0.0f, vRelative);
         int iPositions[] = { 13, 23, 39, 49, 3, 4, 5, 61 };
         for (int i = 0; i < 8; ++i)
         {
-            pModel->TransformPosition(BoneTransform[iPositions[i]], vRelative, vPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[iPositions[i]], vRelative, vPos, false);
             VectorAdd(vPos, vTempPosition, vPos);
             Vector(o->Alpha * 0.3f, o->Alpha * 0.3f, o->Alpha * 0.3f, vLight);
             CreateParticleFpsChecked(BITMAP_FIRE_CURSEDLICH, vPos, o->Angle, vLight, 2, 5, o);
@@ -8217,7 +8224,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         {
             BMD* b = &Models[o->Owner->Type];
             Vector(1, 1, 1, Light);
-            VectorCopy(o->StartPosition, b->BodyOrigin);
+            VectorCopy(o->StartPosition, Render::Build::CurrentRenderCtx().bodyOrigin);
             o->BlendMeshLight = (float)(rand() % 10) * 0.1f;
 
             int iIndex;
@@ -8317,7 +8324,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                 if (!pModel->Bones[iBone].Dummy)
                 {
                     pModel->TransformPosition(o->Owner->BoneTransform[iBone], vRelativePos, vWorldPos, false);
-                    VectorScale(vWorldPos, pModel->BodyScale, vWorldPos);
+                    VectorScale(vWorldPos, Render::Build::CurrentRenderCtx().bodyScale, vWorldPos);
                     VectorAdd(vWorldPos, o->Owner->Position, vWorldPos);
                     if (rand_fps_check(2))
                     {
@@ -8390,7 +8397,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                 if (!pModel->Bones[iBone].Dummy)
                 {
                     pModel->TransformPosition(o->Owner->BoneTransform[iBone], vRelativePos, vWorldPos, false);
-                    VectorScale(vWorldPos, pModel->BodyScale, vWorldPos);
+                    VectorScale(vWorldPos, Render::Build::CurrentRenderCtx().bodyScale, vWorldPos);
                     VectorAdd(vWorldPos, o->Owner->Position, vWorldPos);
                     if (rand_fps_check(2))
                     {
@@ -8417,8 +8424,8 @@ void MoveEffect(OBJECT* o, int iIndex)
 
                 if (!pModel->Bones[11].Dummy)
                 {
-                    pModel->BodyScale = Owner->Scale;
-                    pModel->Animation(BoneTransform, Owner->AnimationFrame, Owner->PriorAnimationFrame, Owner->PriorAction, Owner->Angle, Owner->HeadAngle, false, false);
+                    Render::Build::CurrentRenderCtx().bodyScale = Owner->Scale;
+                    pModel->Animation(g_BoneTransformScratch, Owner->AnimationFrame, Owner->PriorAnimationFrame, Owner->PriorAction, Owner->Angle, Owner->HeadAngle, false, false);
                     pModel->TransformByObjectBone(vWorldPos, Owner, 11);
                     VectorCopy(vWorldPos, o->Position);
 
@@ -8467,7 +8474,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         {
             BMD* b = &Models[o->Owner->Type];
             Vector(0.f, 0.f, 10.f * FPS_ANIMATION_FACTOR, p);
-            VectorCopy(o->StartPosition, b->BodyOrigin);
+            VectorCopy(o->StartPosition, Render::Build::CurrentRenderCtx().bodyOrigin);
             b->TransformPosition(o->Owner->BoneTransform[33], p, o->Position, true);
         }
 
@@ -8579,7 +8586,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                 if (iNumBones > 100 && rand() % iNumBones > iNumBones / 10) continue;
                 else if (iNumBones > 50 && rand() % iNumBones > iNumBones / 5) continue;
                 else if (iNumBones > 20 && rand() % iNumBones > iNumBones / 2) continue;
-                VectorCopy(o->Owner->Position, pTargetModel->BodyOrigin);
+                VectorCopy(o->Owner->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 pTargetModel->TransformPosition(o->Owner->BoneTransform[i], vRelativePos, vPos, true);
 
                 Vector(0.2f, 0.2f, 0.8f, vLight);
@@ -8938,7 +8945,7 @@ void MoveEffect(OBJECT* o, int iIndex)
 
             if (o->SubType == 0)
             {
-                VectorCopy(pSourceObj->Position, pSourceModel->BodyOrigin);
+                VectorCopy(pSourceObj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                 Vector(0.4f, 0.4f, 1.0f, vLight);
                 pSourceModel->TransformPosition(pSourceObj->BoneTransform[37], vRelativePos, vPos, true);
@@ -8976,7 +8983,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                 float fRandom;
                 for (int i = 0; i < iNumBones; i++)
                 {
-                    VectorCopy(pTargetObj->Position, pTargetModel->BodyOrigin);
+                    VectorCopy(pTargetObj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                     pTargetModel->TransformPosition(pTargetObj->BoneTransform[i], vRelativePos, vPos, true);
 
                     Vector(0.2f, 0.2f, 0.8f, vLight);
@@ -9084,7 +9091,7 @@ void MoveEffect(OBJECT* o, int iIndex)
             vec3_t vDir;
             for (int i = 0; i < iCnt2; i++)
             {
-                VectorCopy(pSourceObj->Position, pSourceModel->BodyOrigin);
+                VectorCopy(pSourceObj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 pSourceModel->TransformPosition(pSourceObj->BoneTransform[18], vRelativePos, vSourcePos, true);
 
                 AngleMatrix(pSourceObj->Angle, fMatrix);
@@ -9108,14 +9115,14 @@ void MoveEffect(OBJECT* o, int iIndex)
 
         if ((int)o->LifeTime == 64)
         {
-            VectorCopy(pSourceObj->Position, pSourceModel->BodyOrigin);
+            VectorCopy(pSourceObj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
             pSourceModel->TransformPosition(pSourceObj->BoneTransform[18], vRelativePos, vSourcePos, true);
 
             iNumBones = pTargetModel->NumBones;
 
             for (int i = 0; i < iNumBones; i++)
             {
-                VectorCopy(pTargetObj->Position, pTargetModel->BodyOrigin);
+                VectorCopy(pTargetObj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 pTargetModel->TransformPosition(pTargetObj->BoneTransform[i], vRelativePos, vTargetPos, true);
 
                 Vector(0.4f, 0.4f, 0.8f, vLight);
@@ -9276,7 +9283,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                 if (!pModel->Bones[iBone].Dummy)
                 {
                     pModel->TransformPosition(o->Owner->BoneTransform[iBone], vRelativePos, vWorldPos, false);
-                    VectorScale(vWorldPos, pModel->BodyScale, vWorldPos);
+                    VectorScale(vWorldPos, Render::Build::CurrentRenderCtx().bodyScale, vWorldPos);
                     VectorAdd(vWorldPos, o->Owner->Position, vWorldPos);
 
                     if (o->SubType == 3)
@@ -9284,7 +9291,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                         CreateParticleFpsChecked(BITMAP_LIGHT + 2, vWorldPos, o->Angle, o->Light, 6, o->Scale);
                         iBone = rand() % pModel->NumBones;
                         pModel->TransformPosition(o->Owner->BoneTransform[iBone], vRelativePos, vWorldPos, false);
-                        VectorScale(vWorldPos, pModel->BodyScale, vWorldPos);
+                        VectorScale(vWorldPos, Render::Build::CurrentRenderCtx().bodyScale, vWorldPos);
                         VectorAdd(vWorldPos, o->Owner->Position, vWorldPos);
                         CreateParticleFpsChecked(BITMAP_LIGHT + 2, vWorldPos, o->Angle, o->Light, 6, o->Scale);
                     }
@@ -9431,7 +9438,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                 Vector(0.0f, 0.0f, 0.0f, vRelativePos);
                 for (int i = 0; i < iNumBones; i++)
                 {
-                    VectorCopy(o->Owner->Position, pTargetModel->BodyOrigin);
+                    VectorCopy(o->Owner->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                     pTargetModel->TransformPosition(o->Owner->BoneTransform[i], vRelativePos, vPos, true);
 
                     Vector(0.8f, 0.0f, 0.0f, vLight);
@@ -9688,7 +9695,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         {
             o->Scale += (0.04f) * FPS_ANIMATION_FACTOR;
             BMD* b = &Models[o->Type];
-            VectorCopy(o->Light, b->BodyLight);
+            VectorCopy(o->Light, Render::Build::CurrentRenderCtx().bodyLight);
         }
         break;
     case MODEL_MAGIC_CIRCLE1:
@@ -9890,13 +9897,13 @@ void MoveEffect(OBJECT* o, int iIndex)
         }
 
         BMD* pModel = &Models[o->Type];
-        pModel->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
+        pModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
         Vector(1.f, 1.f, 1.f, Light);
         for (int i = 0; i < pModel->NumBones; i++) {
             if (!pModel->Bones[i].Dummy && rand_fps_check(12))
             {
                 Vector(0.f, 0.f, 0.f, p);
-                pModel->TransformPosition(BoneTransform[i], p, Position, true);
+                pModel->TransformPosition(g_BoneTransformScratch[i], p, Position, true);
                 CreateParticleFpsChecked(BITMAP_TRUE_FIRE, Position, o->Angle, Light, 3, 4.f, o);
                 CreateParticleFpsChecked(BITMAP_SMOKE, Position, o->Angle, Light, 21, 1.f);
             }
@@ -10297,7 +10304,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         Vector(Luminosity * 0.3f, Luminosity * 0.6f, Luminosity, Light);
         {
             BMD* b = &Models[o->Type];
-            b->CurrentAction = o->CurrentAction;
+            Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
             b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity * 2.0f, o->Position, o->Angle);
             AddTerrainLight(o->Position[0], o->Position[1], Light, 3, PrimaryTerrainLight);
         }
@@ -11941,7 +11948,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         vec3_t vRelativePos, vWorldPos;
         Vector(70.f, 0.f, 0.f, vRelativePos);
 
-        VectorCopy(o->Owner->Position, b->BodyOrigin);
+        VectorCopy(o->Owner->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         b->TransformPosition(o->Owner->BoneTransform[20], vRelativePos, vWorldPos, true);
 
         //vWorldPos[0] = o->Owner->Position[0];
@@ -11965,7 +11972,7 @@ void MoveEffect(OBJECT* o, int iIndex)
 
         vec3_t RelativePos, Position;
         BMD* herobmd = &Models[o->Owner->Type];
-        VectorCopy(o->Owner->Position, herobmd->BodyOrigin);
+        VectorCopy(o->Owner->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
         Vector(-23.f, 0.f, 0.f, RelativePos);
         herobmd->TransformPosition(o->Owner->BoneTransform[2], RelativePos, Position, true);
 
@@ -11978,7 +11985,7 @@ void MoveEffect(OBJECT* o, int iIndex)
 
         BMD* effbmd = &Models[o->Type];
 
-        effbmd->SetBodyLight(o->Light);
+        VectorCopy(o->Light, Render::Build::CurrentRenderCtx().bodyLight);
         effbmd->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity / 3.f, o->Position, o->Angle);
 
         CreateEffectFpsChecked(BITMAP_SHOCK_WAVE, o->Owner->Position, o->Angle, o->Light, 10, o->Owner);
@@ -12069,7 +12076,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         vec3_t vPos;
 
         Vector(0.6f, 0.7f, 0.9f, Light);
-        pModel->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
+        pModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
         pModel->TransformByObjectBone(vPos, o, 0);
 
         float Matrix[3][4];
@@ -13693,7 +13700,7 @@ void MoveEffect(OBJECT* o, int iIndex)
 
             Vector(1.0f, 1.0f, 1.0f, o->Light);
             Vector(0.0f, 1.5f, 0.0f, p1);
-            b->TransformPosition(BoneTransform[2], p1, p2);
+            b->TransformPosition(g_BoneTransformScratch[2], p1, p2);
             CreateParticleFpsChecked(BITMAP_FIRE + 1, o->Position, o->Angle, o->Light, 8, o->Scale - 0.4f, o);
             CreateParticleFpsChecked(BITMAP_SMOKE, o->Position, o->Angle, o->Light, 38, o->Scale, o);
             Vector(1.0f, 0.4f, 0.0f, o->Light);
@@ -14934,15 +14941,15 @@ void MoveEffect(OBJECT* o, int iIndex)
                 BMD* b = &Models[MODEL_EFFECT_SKURA_ITEM];
 
                 VectorCopy(o->Owner->Position, o->Position);
-                VectorCopy(o->Position, b->BodyOrigin);
+                VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 Vector(0.f, 0.f, 0.f, vRelativePos);
                 Vector(1.f, 0.6f, 0.8f, o->Light);
                 Vector(0.3f, 0.3f, 0.3f, vLight1);
                 Vector(1.f, 0.6f, 0.8f, vLight2);
 
-                b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
-                b->TransformPosition(BoneTransform[1], vRelativePos, vtaWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[1], vRelativePos, vtaWorldPos, false);
                 CreateSprite(BITMAP_SHINY + 1, vtaWorldPos, 1.8f, o->Light, o, +WorldTime * 0.08f);
                 for (int i = 0; i < 7; ++i)
                 {
@@ -14950,7 +14957,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                     CreateParticleFpsChecked(BITMAP_CHERRYBLOSSOM_EVENT_PETAL, vtaWorldPos, o->Angle, rand() % 7 == 3 ? vLight2 : vLight1, 0, 0.5f);
                 }
 
-                b->TransformPosition(BoneTransform[2], vRelativePos, vtaWorldPos, false);
+                b->TransformPosition(g_BoneTransformScratch[2], vRelativePos, vtaWorldPos, false);
                 CreateSprite(BITMAP_SHINY + 1, vtaWorldPos, 1.8f, o->Light, o, -WorldTime * 0.08f);
 
                 for (int i = 0; i < 7; ++i)
@@ -14964,7 +14971,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                     vec3_t vAngle;
 
                     BMD* characterBMD = &Models[o->Owner->Type];
-                    VectorCopy(o->Position, characterBMD->BodyOrigin);
+                    VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
                     characterBMD->Animation(o->Owner->BoneTransform, o->Owner->AnimationFrame,
                         o->Owner->PriorAnimationFrame, o->Owner->PriorAction, o->Owner->Angle, o->Owner->HeadAngle);
@@ -15200,17 +15207,21 @@ void MoveEffect(OBJECT* o, int iIndex)
             {
                 pObject->AnimationFrame = pOwner->AnimationFrame;
 
-                pOwnerModel->BodyScale = pOwner->Scale;
-                pOwnerModel->CurrentAction = pOwner->CurrentAction;
-                VectorCopy(pOwner->Angle, pOwnerModel->BodyAngle);
-                VectorCopy(pOwner->Position, pOwnerModel->BodyOrigin);
+                Render::Build::CurrentRenderCtx().bodyScale = pOwner->Scale;
+                Render::Build::CurrentRenderCtx().currentAction = pOwner->CurrentAction;
+                VectorCopy(pOwner->Angle, Render::Build::CurrentRenderCtx().bodyAngle);
+                VectorCopy(pOwner->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
-                pModel->BodyScale = pObject->Scale;
-                pModel->CurrentAction = pObject->CurrentAction;
-                VectorCopy(pObject->Angle, pModel->BodyAngle);
-                VectorCopy(pObject->Position, pModel->BodyOrigin);
-                pModel->CurrentAnimation = pObject->AnimationFrame;
-                pModel->CurrentAnimationFrame = (int)pObject->AnimationFrame;
+                Render::Build::CurrentRenderCtx().bodyScale = pObject->Scale;
+                // Etapa 3b 6.4: pOwnerModel and pModel are distinct shared BMDs; with the per-worker
+                // single-slot ctx their currentAction must be (re)set at point of use, not both up
+                // front, or pModel's value would clobber pOwner's. currentAction for pObject is set
+                // inside the loop right before pModel->Animation; pOwner's (above) stays live for the
+                // PlaySpeed read + pOwnerModel->Animation below.
+                VectorCopy(pObject->Angle, Render::Build::CurrentRenderCtx().bodyAngle);
+                VectorCopy(pObject->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
+                Render::Build::CurrentRenderCtx().currentAnimation = pObject->AnimationFrame;
+                Render::Build::CurrentRenderCtx().currentAnimationFrame = (int)pObject->AnimationFrame;
 
                 vec3_t  vLight;
                 Vector(1.0f, 1.0f, 1.0f, vLight);
@@ -15218,7 +15229,8 @@ void MoveEffect(OBJECT* o, int iIndex)
                 vec3_t StartPos, StartRelative;
                 vec3_t EndPos, EndRelative;
 
-                float fOwnerActionSpeed = pOwnerModel->Actions[pOwnerModel->CurrentAction].PlaySpeed * FPS_ANIMATION_FACTOR;
+                // ctx.currentAction == pOwner->CurrentAction here (set above; pObject's set moved into the loop).
+                float fOwnerActionSpeed = pOwnerModel->Actions[Render::Build::CurrentRenderCtx().currentAction].PlaySpeed * FPS_ANIMATION_FACTOR;
                 float fOwnerSpeedPerFrame = fOwnerActionSpeed / 10.f;
                 float fOwnerAnimationFrame = pOwner->AnimationFrame - fOwnerActionSpeed;
 
@@ -15228,26 +15240,30 @@ void MoveEffect(OBJECT* o, int iIndex)
 
                 for (int i = 0; i < 10; i++)
                 {
-                    pOwnerModel->Animation(BoneTransform,
+                    // Etapa 3b 6.4: set ctx.currentAction per-model right before each use so the
+                    // single-slot ctx reproduces the old distinct-BMD-member semantics.
+                    Render::Build::CurrentRenderCtx().currentAction = pOwner->CurrentAction;
+                    pOwnerModel->Animation(g_BoneTransformScratch,
                         fOwnerAnimationFrame, (int)fOwnerAnimationFrame - 1,
                         pOwner->PriorAction, pOwner->Angle, pOwner->HeadAngle, false, false);
-                    pOwnerModel->RotationPosition(BoneTransform[33], p, p);	// ParentMatrix
+                    pOwnerModel->RotationPosition(g_BoneTransformScratch[33], p, p);	// ParentMatrix
 
-                    pModel->Animation(BoneTransform, fAnimationFrame,
+                    Render::Build::CurrentRenderCtx().currentAction = pObject->CurrentAction;
+                    pModel->Animation(g_BoneTransformScratch, fAnimationFrame,
                         (int)fAnimationFrame - 1, pObject->PriorAction,
-                        pObject->Angle, pObject->HeadAngle, true, true);	// BoneTransform
+                        pObject->Angle, pObject->HeadAngle, true, true);	// g_BoneTransformScratch
 
                     if (fOwnerAnimationFrame >= Start_Frame && fOwnerAnimationFrame <= End_Frame)
                     {
                         Vector(0.f, 0.f, 0.f, StartRelative);
                         Vector(0.f, 0.f, 0.f, EndRelative);
-                        pModel->TransformPosition(BoneTransform[9], StartRelative, StartPos, true);
-                        pModel->TransformPosition(BoneTransform[6], EndRelative, EndPos, true);
+                        pModel->TransformPosition(g_BoneTransformScratch[9], StartRelative, StartPos, true);
+                        pModel->TransformPosition(g_BoneTransformScratch[6], EndRelative, EndPos, true);
                         CreateObjectBlur(pObject, StartPos, EndPos, vLight, 2, false, o->m_iAnimation + 1);
                         CreateObjectBlur(pObject, StartPos, EndPos, vLight, 2, false, o->m_iAnimation + 2);
 
-                        pModel->TransformPosition(BoneTransform[8], StartRelative, StartPos, true);
-                        pModel->TransformPosition(BoneTransform[5], EndRelative, EndPos, true);
+                        pModel->TransformPosition(g_BoneTransformScratch[8], StartRelative, StartPos, true);
+                        pModel->TransformPosition(g_BoneTransformScratch[5], EndRelative, EndPos, true);
                         CreateObjectBlur(pObject, StartPos, EndPos, vLight, 5, false, o->m_iAnimation + 3);
                     }
 
@@ -15657,10 +15673,10 @@ void MoveEffect(OBJECT* o, int iIndex)
         if (o->LifeTime > 38)
         {
             BMD* b = &Models[o->Owner->Type];
-            b->Animation(BoneTransform, o->Owner->AnimationFrame, o->Owner->PriorAnimationFrame, o->Owner->PriorAction, o->Owner->Angle, o->Owner->HeadAngle, false, false);
+            b->Animation(g_BoneTransformScratch, o->Owner->AnimationFrame, o->Owner->PriorAnimationFrame, o->Owner->PriorAction, o->Owner->Angle, o->Owner->HeadAngle, false, false);
             vec3_t vRelativePos, vWorldPos;
             Vector(0, 0, 0, vRelativePos);
-            b->TransformPosition(BoneTransform[9], vRelativePos, vWorldPos, false);
+            b->TransformPosition(g_BoneTransformScratch[9], vRelativePos, vWorldPos, false);
 
             o->Position[0] = vWorldPos[0] + o->Owner->Position[0];
             o->Position[1] = vWorldPos[1] + o->Owner->Position[1];
@@ -16978,7 +16994,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         if (o->Owner->Live)
         {
             BMD* pModel = &Models[o->Type];
-            pModel->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
+            pModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
 
             if (o->AnimationFrame >= 8.0f || !o->Owner->Live)
                 o->Live = false;
@@ -17016,7 +17032,7 @@ void MoveEffect(OBJECT* o, int iIndex)
         if (o->Owner->Live)
         {
             BMD* pModel = &Models[o->Type];
-            pModel->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
+            pModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
 
             if (o->AnimationFrame >= 6.0f || !o->Owner->Live)
             {
@@ -17545,7 +17561,7 @@ void MoveEffect(OBJECT* o, int iIndex)
                 pModel = &Models[o->Owner->Type];
                 for (int i = 0; i < fDelay; i++)
                 {
-                    pModel->Animation(BoneTransform, fAnimationFrame, o->Owner->PriorAnimationFrame, o->Owner->PriorAction, o->Owner->Angle, o->Owner->HeadAngle, false, false);
+                    pModel->Animation(g_BoneTransformScratch, fAnimationFrame, o->Owner->PriorAnimationFrame, o->Owner->PriorAction, o->Owner->Angle, o->Owner->HeadAngle, false, false);
 
                     pModel->TransformByObjectBone(_StartPos, o, 1);
                     pModel->TransformByObjectBone(_EndPos, o, 2);
@@ -17632,7 +17648,7 @@ void MoveEffect(OBJECT* o, int iIndex)
 
             for (int i = 0; i < fDelay; i++)
             {
-                pModel->Animation(BoneTransform, fAnimationFrame, o->Owner->PriorAnimationFrame, o->Owner->PriorAction, o->Owner->Angle, o->Owner->HeadAngle, false, false);
+                pModel->Animation(g_BoneTransformScratch, fAnimationFrame, o->Owner->PriorAnimationFrame, o->Owner->PriorAction, o->Owner->Angle, o->Owner->HeadAngle, false, false);
 
                 pModel->TransformByObjectBone(_StartPos, o->Owner, 36);
                 pModel->TransformByObjectBone(_EndPos, o->Owner, 28);
@@ -17708,7 +17724,7 @@ void MoveEffect(OBJECT* o, int iIndex)
     case MODEL_DRAGON_LOWER_DUMMY:
     {
         BMD* pModel = &Models[o->Type];
-        pModel->CurrentAction = o->CurrentAction;
+        Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
         pModel->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity, o->Position, o->Angle);
 
         if (o->AnimationFrame > 1 && o->AnimationFrame < 6)
@@ -17902,10 +17918,10 @@ void MoveEffect(OBJECT* o, int iIndex)
         if (o->Type >= MODEL_BIRD01 && o->Type < MODEL_SKILL_END)
         {
             BMD* b = &Models[o->Type];
-            b->CurrentAction = o->CurrentAction;
+            Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
             if (o->CurrentAction != 255 && b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity, o->Position, o->Angle) == false)
             {
-                o->AnimationFrame = b->Actions[b->CurrentAction].NumAnimationKeys;
+                o->AnimationFrame = b->Actions[Render::Build::CurrentRenderCtx().currentAction].NumAnimationKeys;
                 o->CurrentAction = 255;
             }
         }
@@ -17939,7 +17955,7 @@ void MoveEffect(OBJECT* o, int iIndex)
             case MODEL_SWORD_FORCE:
             {
                 BMD* b = &Models[o->Type];
-                b->CurrentAction = o->CurrentAction;
+                Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
                 b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity, o->Position, o->Angle);
                 MoveParticle(o, true);
             }
@@ -18008,15 +18024,15 @@ void RenderWheelWeapon(OBJECT* o)
 
     int Type = o->Owner->Weapon + MODEL_SWORD;
     BMD* b = &Models[Type];
-    b->CurrentAction = 0;
-    b->Skin = gCharacterManager.GetBaseClass(Hero->Class);
-    b->CurrentAction = o->CurrentAction;
-    VectorCopy(o->Position, b->BodyOrigin);
+    Render::Build::CurrentRenderCtx().currentAction = 0;
+    Render::Build::CurrentRenderCtx().skin = gCharacterManager.GetBaseClass(Hero->Class);
+    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
+    VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
     float TempType = o->Type;
     o->Type = Type;
     ItemObjectAttribute(o);
-    b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
+    b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
     vec3_t Light;
     RequestTerrainLight(o->Position[0], o->Position[1], Light);
     VectorAdd(Light, o->Light, Light);
@@ -18038,10 +18054,10 @@ void RenderFuryStrike(OBJECT* o)
 
         int Type = o->Owner->Weapon + MODEL_SWORD;
         BMD* b = &Models[Type];
-        b->CurrentAction = 0;
-        b->Skin = gCharacterManager.GetBaseClass(Hero->Class);
-        b->CurrentAction = o->CurrentAction;
-        VectorCopy(o->Position, b->BodyOrigin);
+        Render::Build::CurrentRenderCtx().currentAction = 0;
+        Render::Build::CurrentRenderCtx().skin = gCharacterManager.GetBaseClass(Hero->Class);
+        Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
+        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
         float TempType = o->Type;
         float tempGravity = o->Gravity;
@@ -18053,7 +18069,7 @@ void RenderFuryStrike(OBJECT* o)
         VectorAdd(Light, o->Light, Light);
         VectorCopy(o->Angle, Angle);
 
-        b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, Angle, o->HeadAngle, false, false);
+        b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, Angle, o->HeadAngle, false, false);
         RenderPartObject(o, Type, NULL, Light, Alpha, o->Owner->WeaponLevel, 0, 0, true, true, true);
 
         o->Type = (short)TempType;
@@ -18063,7 +18079,7 @@ void RenderFuryStrike(OBJECT* o)
 void RenderSkillSpear(OBJECT* o)
 {
     BMD* b = &Models[MODEL_SPEARSKILL];
-    b->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
+    b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, false);
     //o->BlendMeshLight = .5f;
     //RenderPartObject(o,MODEL_SPEARSKILL,NULL,o->Light,( float)( o->LifeTime) * 0.05f,0,0,true,true,true,false,RENDER_BRIGHT|RENDER_TEXTURE);
     o->BlendMeshLight = 1.0f;
@@ -18126,7 +18142,7 @@ void RenderEffects(bool bRenderBlendMesh)
                 case MODEL_MULTI_SHOT3:
                 {
                     BMD* b = &Models[o->Type];
-                    Vector(1.f, 1.f, 1.f, b->BodyLight);
+                    Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
                     b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity / 6.f, o->Position, o->Angle);
                     RenderObject(o);
                 }
@@ -18298,7 +18314,7 @@ void RenderEffects(bool bRenderBlendMesh)
                         const int nBoneCount = 6;
                         int nBone[nBoneCount] = { 54, 55, 56, 57, 58, 59 };
                         Vector(0.2f, 0.3f, 1.0f, vLight);
-                        pModel->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame,
+                        pModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame,
                             o->PriorAction, o->Angle, o->HeadAngle, false, false);
                         for (int i = 0; i < nBoneCount; ++i)
                         {
@@ -18627,16 +18643,16 @@ void RenderEffects(bool bRenderBlendMesh)
                         vec3_t vPos, p;
                         Vector(0.0f, 0.0f, 0.0f, p);
                         pOwnerModel->RotationPosition(pOwner->BoneTransform[33], p, vPos);
-                        VectorAdd(pOwner->Position, vPos, pModel->BodyOrigin);
+                        VectorAdd(pOwner->Position, vPos, Render::Build::CurrentRenderCtx().bodyOrigin);
                         Vector(0.0f, 0.0f, 0.0f, pObject->Angle);
 
                         OBB_t OBB;
                         vec3_t Temp;
-                        pModel->Animation(BoneTransform, pObject->AnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->Angle, true);
-                        pModel->Transform(BoneTransform, Temp, Temp, &OBB, true);
+                        pModel->Animation(g_BoneTransformScratch, pObject->AnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->Angle, true);
+                        pModel->Transform(g_BoneTransformScratch, Temp, Temp, &OBB, true);
 
                         BodyLight(pObject, pModel);
-                        pModel->BodyScale = pObject->Scale;
+                        Render::Build::CurrentRenderCtx().bodyScale = pObject->Scale;
 
                         pModel->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, pObject->Alpha, 0, pObject->Alpha, pObject->BlendMeshTexCoordU, pObject->BlendMeshTexCoordV, -1);
                         float fV = (((int)(WorldTime * 0.05) % 16) / 4) * 0.25f;
@@ -18748,29 +18764,29 @@ void RenderEffects(bool bRenderBlendMesh)
                     }
                     else
                     {
-                        pBMDSwordModel->BodyHeight = 0.f;
-                        pBMDSwordModel->ContrastEnable = o->ContrastEnable;
+                        Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
+                        Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
                         BodyLight(o, pBMDSwordModel);
-                        pBMDSwordModel->BodyScale = o->Scale;
-                        pBMDSwordModel->CurrentAction = o->CurrentAction;
-                        VectorCopy(o->Position, pBMDSwordModel->BodyOrigin);
+                        Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
+                        Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
+                        VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
 
-                        pBMDSwordModel->Animation(BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
-                        pBMDSwordModel->Transform(BoneTransform, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, false);
+                        pBMDSwordModel->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, true);
+                        pBMDSwordModel->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, false);
 
                         arrEachBoneTranslations = new vec3_t[pBMDSwordModel->NumBones];
                         pBMDSwordModel->AnimationTransformOnlySelf(arrEachBoneTranslations, o);
                     }
 
-                    pBMDSwordModel->LightEnable = true;
+                    Render::Build::CurrentRenderCtx().lightEnable = true;
 
-                    Vector(1.0f, 1.0f, 1.0f, pBMDSwordModel->BodyLight);
+                    Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
                     pBMDSwordModel->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-                    Vector(1.0f, 1.0f, 1.0f, pBMDSwordModel->BodyLight);
+                    Vector(1.0f, 1.0f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
                     pBMDSwordModel->RenderMesh(1, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
 
-                    Vector(0.2f, 0.2f, 1.0f, pBMDSwordModel->BodyLight);
+                    Vector(0.2f, 0.2f, 1.0f, Render::Build::CurrentRenderCtx().bodyLight);
                     o->Alpha = 1.0f;
                     pBMDSwordModel->RenderMesh(2, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
                     o->Alpha = 1.0f;
@@ -18925,7 +18941,7 @@ void RenderEffects(bool bRenderBlendMesh)
                 case MODEL_DRAGON_LOWER_DUMMY:
                 {
                     BMD* b = &Models[o->Type];
-                    b->CurrentAction = o->CurrentAction;
+                    Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
                     b->PlayAnimation(&o->AnimationFrame, &o->PriorAnimationFrame, &o->PriorAction, o->Velocity / 6.f, o->Position, o->Angle);
                     RenderObject(o);
                 }

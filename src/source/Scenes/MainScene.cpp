@@ -23,6 +23,9 @@
 #include "GameLogic/Pets/w_PetProcess.h"
 #include "Core/Utilities/Log/muConsoleDebug.h"
 #include "Core/Utilities/FrameProfiler.h"
+#include "Render/Models/BmdGpuCache.h"
+#include "Render/Models/BmdInstanceBatch.h"
+#include "Render/Models/ShadowInstanceBatch.h"
 #include "Network/Server/WSclient.h"
 #include "Network/Reconnect/ReconnectManager.h"
 #include "Engine/AI/GOBoid.h"
@@ -34,6 +37,8 @@
 #include "UI/Legacy/UIMapName.h"
 #include "Camera/CameraProjection.h"
 #include "Camera/CameraManager.h"
+#include "Render/HeroInterpolation.h"
+#include "Render/Interpolation.h"
 #include "Camera/CameraMode.h"
 #ifdef _EDITOR
 #include "Camera/FrustumRenderer.h"
@@ -194,7 +199,11 @@ static void InitializeMainScene()
 static void InitializeSceneFrame()
 {
     EarthQuake *= 0.2f;
-    InitTerrainLight();
+    // Only the grass-sway runs per render frame here. The dynamic-light grid RESET moved
+    // to MainSceneFixedUpdate (sim tick) so it stays aligned with the AddTerrainLight
+    // contributors (fires/lamps/glows, all in UpdateGameEntities @ 25 tps); otherwise at
+    // uncapped FPS the light strobed on/off on every non-tick frame.
+    UpdateTerrainGrassWind();
 
     CheckInventory = NULL;
     CheckSkill = -1;
@@ -337,9 +346,48 @@ void MoveMainScene()
     if (ErrorMessage != 0)
         MouseOnWindow = true;
 
-    UpdateGameEntities();
-
+    // Stage 1b: the world advance (UpdateGameEntities) moved to
+    // MainSceneFixedUpdate(), driven at a fixed 25 tps by RenderScene. This
+    // function now runs once per render frame (init, gating, UI, input) only.
     g_ConsoleDebug->UpdateMainScene();
+}
+
+/**
+ * @brief Advances the game world by one fixed simulation tick (25 tps).
+ *
+ * Called N times per render frame by the fixed-timestep driver in RenderScene
+ * (N derived from real elapsed wall time), so the world advances at a constant
+ * rate independent of frame rate. Guarded by EnableMainRender like
+ * MoveMainScene so the world does not tick before the server join completes.
+ */
+void MainSceneFixedUpdate()
+{
+    if (EnableMainRender == false)
+    {
+        return;
+    }
+
+    // Stage 2: snapshot the Hero position BEFORE this tick moves it, so the
+    // renderer can interpolate prev->cur between ticks.
+    if (Hero != nullptr)
+    {
+        Render::HeroInterp::OnTick(Hero->Object.Position);
+
+        // Stage 4b: same idea for the Hero body animation frame (pre-advance), so
+        // the pose can be interpolated between ticks. Gated by $poseinterp.
+        if (Render::Interpolation::PoseEnabled())
+        {
+            Render::Interpolation::HeroAnimOnTick(Hero->Object.AnimationFrame,
+                Hero->Object.PriorAnimationFrame, Hero->Object.PriorAction);
+        }
+    }
+
+    // Reset the dynamic terrain-light grid to baseline right before this tick's
+    // contributors (fires/lamps/char & effect glows in UpdateGameEntities) re-add to it.
+    // Held across render frames between ticks, so dynamic light is continuously present
+    // instead of being wiped every non-tick frame (the high-FPS "light on/off" strobe).
+    ResetTerrainDynamicLight();
+    UpdateGameEntities();
 }
 
 /**
@@ -422,14 +470,18 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
             {
                 if ((gMapManager.IsPKField() || IsDoppelGanger2()) && renderStatic)
                 {
-                    FRAME_PROFILE(Objects); RenderObjects();
+                    FRAME_PROFILE(Objects);
+                    Render::Models::SetGpuObjectsPass(true);
+                    Render::Models::ObjectsInstScope _objInst;   // Task 7: instance repeated props (no-op unless MU_GPUINSTOBJ)
+                    RenderObjects();
+                    Render::Models::SetGpuObjectsPass(false);
                 }
                 { FRAME_PROFILE(Terrain); RenderTerrain(false); }
             }
     }
 
     if (!gMapManager.IsPKField() && !IsDoppelGanger2() && renderStatic)
-        { FRAME_PROFILE(Objects); RenderObjects(); }
+        { FRAME_PROFILE(Objects); Render::Models::SetGpuObjectsPass(true); Render::Models::ObjectsInstScope _objInst; RenderObjects(); Render::Models::SetGpuObjectsPass(false); }
 
     if (renderEffects)
     {
@@ -437,7 +489,17 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         RenderBoids();
     }
 
-    { FRAME_PROFILE(Characters); RenderCharactersClient(); }
+    {
+        FRAME_PROFILE(Characters);
+        Render::Models::SetGpuCharsPass(true);
+        Render::Models::InstBegin();                 // P-bmd-instance: collect this pass
+        Render::Models::ShadowBegin();               // P-bmd-shadow: collect instanced shadows
+        RenderCharactersClient();
+        Render::Models::InstFlush();                 // one draw per (model,mesh,tex)
+        Render::Models::ShadowFlush();               // shadows after bodies (palette uploaded)
+        Render::Models::SetGpuCharsPass(false);
+    }
+    Render::Models::LogAndResetGpuStats();
 
     if (EditFlag != EDIT_NONE && renderTerrain)
     {
@@ -459,7 +521,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         RenderBoids(true);
 
     if (renderStatic)
-        { FRAME_PROFILE(Objects); RenderObjects_AfterCharacter(); }
+        { FRAME_PROFILE(Objects); Render::Models::SetGpuObjectsPass(true); Render::Models::ObjectsInstScope _objInst; RenderObjects_AfterCharacter(); Render::Models::SetGpuObjectsPass(false); }
 
     RenderJoints(byWaterMap);
 
@@ -469,6 +531,8 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
         RenderEffects();
         RenderBlurs();
     }
+    {
+    FRAME_PROFILE(Sprites);
     CheckSprites();
     BeginSprite();
 
@@ -488,6 +552,7 @@ static void RenderGameWorld(BYTE& byWaterMap, int width, int height)
     EndSprite();
 
     RenderAfterEffects();
+    }
 
     if (IsWaterTerrain() == true)
     {
@@ -535,13 +600,14 @@ static void RenderMainSceneUI()
 
     if (g_Camera.TopViewEnable == false)
     {
+        FRAME_PROFILE(UILegacy);
         RenderInterface(true);
     }
     RenderTournamentInterface();
     EndBitmap();
 
     g_pPartyManager->Render();
-    g_pNewUISystem->Render();
+    { FRAME_PROFILE(UINew); g_pNewUISystem->Render(); }
 
     BeginBitmap();
     RenderInfomation();
@@ -685,7 +751,7 @@ bool RenderMainScene()
     }
 #endif
 
-    RenderMainSceneUI();
+    { FRAME_PROFILE(Other); RenderMainSceneUI(); }
 
 
     EndOpengl();

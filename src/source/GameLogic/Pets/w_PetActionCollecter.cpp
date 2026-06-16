@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "w_PetActionCollecter.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -226,10 +227,10 @@ bool PetActionCollecter::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, do
     BMD* b = &Models[obj->Type];
     vec3_t Position, vRelativePos, Light;
 
-    VectorCopy(obj->Position, b->BodyOrigin);
+    VectorCopy(obj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Vector(0.f, 0.f, 0.f, vRelativePos);
 
-    b->Animation(BoneTransform, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
+    b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
 
     float fRad1 = ((Q_PI / 3000.0f) * fmodf(tick, 3000));
     float fSize = sinf(fRad1) * 0.2f;
@@ -257,7 +258,7 @@ bool PetActionCollecter::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, do
         break;
     }
 
-    b->TransformPosition(BoneTransform[10], vRelativePos, Position, false);
+    b->TransformPosition(g_BoneTransformScratch[10], vRelativePos, Position, false);
     Vector(1.0f, 0.8f, 0.2f, Light);
     CreateSprite(BITMAP_FLARE_RED, Position, (0.5f + fSize), Light, obj);
     Vector(1.0f, 0.1f, 0.2f, Light);
@@ -266,7 +267,7 @@ bool PetActionCollecter::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, do
     int temp[] = { 19, 32, 33, 34, 35 };
     for (int i = 0; i < 5; i++)
     {
-        b->TransformPosition(BoneTransform[temp[i]], vRelativePos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[temp[i]], vRelativePos, Position, false);
         Vector(0.8f, 0.6f, 0.2f, Light);
         CreateSprite(BITMAP_LIGHT, Position, (0.6f * fSize2), Light, obj);
         Vector(0.8f, 0.8f, 0.2f, Light);

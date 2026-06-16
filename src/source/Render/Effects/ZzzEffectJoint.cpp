@@ -2,6 +2,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
+#include "Render/Build/BuildEmitMode.h"       // Etapa 3b 6.8b: suppress effects on the parallel pass
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -29,6 +31,11 @@ void CreateJointFpsChecked(int Type, vec3_t Position, vec3_t TargetPosition, vec
 void CreateJoint(int Type, vec3_t Position, vec3_t TargetPosition, vec3_t Angle, int SubType, OBJECT* Target, float Scale, short PKKey,
     WORD SkillIndex, WORD SkillSerialNum, int iChaIndex, const float* vPriorColor, short int sTargetindex)
 {
+    // Etapa 3b 6.8b: suppressed during the parallel (MeshOnly) char build; replayed in
+    // the EffectsOnly serial pass (see BuildEmitMode.h).
+    if (Render::Build::BuildSuppressEffects())
+        return;
+
     for (int i = 0; i < MAX_JOINTS; i++)
     {
         JOINT* o = &Joints[i];
@@ -3103,43 +3110,43 @@ void MoveJoint(JOINT* o, int iIndex)
                 VectorCopy(o->Target->EyeRight, o->Position);
                 break;
             case 57:
-                Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame,
+                Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame,
                     o->Target->PriorAnimationFrame, o->Target->PriorAction, o->Target->Angle,
                     o->Target->HeadAngle, false, false);
                 Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, o->PKKey);
                 break;
             case 48:
-                Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame,
+                Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame,
                     o->Target->PriorAnimationFrame, o->Target->PriorAction, o->Target->Angle,
                     o->Target->HeadAngle, false, false);
                 Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 24);
                 break;
             case 49:
-                Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame,
+                Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame,
                     o->Target->PriorAnimationFrame, o->Target->PriorAction, o->Target->Angle,
                     o->Target->HeadAngle, false, false);
                 Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 28);
                 break;
             case 50:
-                Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame,
+                Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame,
                     o->Target->PriorAnimationFrame, o->Target->PriorAction, o->Target->Angle,
                     o->Target->HeadAngle, false, false);
                 Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 32);
                 break;
             case 51:
-                Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame,
+                Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame,
                     o->Target->PriorAnimationFrame, o->Target->PriorAction, o->Target->Angle,
                     o->Target->HeadAngle, false, false);
                 Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 44);
                 break;
             case 52:
-                Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame,
+                Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame,
                     o->Target->PriorAnimationFrame, o->Target->PriorAction, o->Target->Angle,
                     o->Target->HeadAngle, false, false);
                 Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 48);
                 break;
             case 53:
-                Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame,
+                Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame,
                     o->Target->PriorAnimationFrame, o->Target->PriorAction, o->Target->Angle,
                     o->Target->HeadAngle, false, false);
                 Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 52);
@@ -4406,7 +4413,7 @@ void MoveJoint(JOINT* o, int iIndex)
                 Vector(0, 0, 0, vRelative);
                 BMD* pModel = &Models[o->Target->Type];
                 pModel->TransformPosition(o->Target->BoneTransform[37], vRelative, o->TargetPosition, false);
-                VectorScale(o->TargetPosition, pModel->BodyScale, o->TargetPosition);
+                VectorScale(o->TargetPosition, Render::Build::CurrentRenderCtx().bodyScale, o->TargetPosition);
                 VectorAdd(o->Target->Position, o->TargetPosition, o->TargetPosition);
             }
             else if (o->SubType == 15 || o->SubType == 17)
@@ -6486,7 +6493,7 @@ void MoveJoint(JOINT* o, int iIndex)
                 Vector(0.f, 20.f, 0.f, p);
                 VectorCopy(o->Direction, Direction);
                 BMD* b = &Models[o->Target->Type];
-                VectorCopy(o->Target->Position, b->BodyOrigin);
+                VectorCopy(o->Target->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                 b->TransformPosition(o->Target->BoneTransform[(int)o->MultiUse], p, o->StartPosition, true);
                 VectorCopy(o->StartPosition, o->Position);
 
@@ -6656,8 +6663,8 @@ void MoveJoint(JOINT* o, int iIndex)
                         if (o->Target != NULL)
                         {
                             BMD* b = &Models[MODEL_SHADOW_BODY];
-                            b->Animation(BoneTransform, 0.f, 0.f, 0, o->Target->Angle, o->Target->HeadAngle, false, true);
-                            b->Transform(BoneTransform, o->Target->BoundingBoxMin, o->Target->BoundingBoxMax, &o->Target->OBB, false);
+                            b->Animation(g_BoneTransformScratch, 0.f, 0.f, 0, o->Target->Angle, o->Target->HeadAngle, false, true);
+                            b->Transform(g_BoneTransformScratch, o->Target->BoundingBoxMin, o->Target->BoundingBoxMax, &o->Target->OBB, false);
 
                             if (o->SubType == 0)
                             {
@@ -6810,7 +6817,7 @@ void MoveJoint(JOINT* o, int iIndex)
             o->Live = false;
             return;
         }
-        Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame, o->Target->PriorAnimationFrame,
+        Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame, o->Target->PriorAnimationFrame,
             o->Target->PriorAction, o->Target->Angle, o->Target->HeadAngle, false, false);
 
         Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 0);
@@ -6823,7 +6830,7 @@ void MoveJoint(JOINT* o, int iIndex)
             o->Live = false;
             return;
         }
-        Models[o->Target->Type].Animation(BoneTransform, o->Target->AnimationFrame, o->Target->PriorAnimationFrame,
+        Models[o->Target->Type].Animation(g_BoneTransformScratch, o->Target->AnimationFrame, o->Target->PriorAnimationFrame,
             o->Target->PriorAction, o->Target->Angle, o->Target->HeadAngle, false, false);
 
         Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 5);
@@ -6837,7 +6844,7 @@ void MoveJoint(JOINT* o, int iIndex)
             return;
         }
         float TargetAniFrame = o->Target->AnimationFrame + (o->SubType * o->Target->AlphaTarget);
-        Models[o->Target->Type].Animation(BoneTransform, TargetAniFrame, o->Target->PriorAnimationFrame,
+        Models[o->Target->Type].Animation(g_BoneTransformScratch, TargetAniFrame, o->Target->PriorAnimationFrame,
             o->Target->PriorAction, o->Target->Angle, o->Target->HeadAngle, false, false);
 
         Models[o->Target->Type].TransformByObjectBone(o->Position, o->Target, 2);
@@ -6859,7 +6866,7 @@ void MoveJoint(JOINT* o, int iIndex)
             TempFrame -= 7;
 
         float TargetAniFrame = o->Target->AnimationFrame - (((o->Velocity * 10.0f) - TempFrame) * 0.1f);
-        Models[o->Target->Type].Animation(BoneTransform, TargetAniFrame, o->Target->PriorAnimationFrame,
+        Models[o->Target->Type].Animation(g_BoneTransformScratch, TargetAniFrame, o->Target->PriorAnimationFrame,
             o->Target->PriorAction, o->Target->Angle, o->Target->HeadAngle, false, false);
 
         if (o->SubType >= 7)

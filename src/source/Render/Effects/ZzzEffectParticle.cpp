@@ -2,6 +2,8 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
+#include "Render/Build/BuildEmitMode.h"       // Etapa 3b 6.8b: suppress effects on the parallel pass
 #include "Render/Models/BoneManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -35,7 +37,7 @@ void HandPosition(PARTICLE* o)
         Vector(0.f, 0.f, 0.f, p);
         break;
     }
-    VectorCopy(Owner->Position, b->BodyOrigin);
+    VectorCopy(Owner->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     b->TransformPosition(Owner->BoneTransform[Hero->Weapon[o->SubType % 2].LinkBone], p, o->Position, true);
 }
 
@@ -53,6 +55,11 @@ int CreateParticleFpsChecked(int Type, vec3_t Position, vec3_t Angle, vec3_t Lig
 
 int CreateParticle(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int SubType, float Scale, OBJECT* Owner)
 {
+    // Etapa 3b 6.8b: suppressed during the parallel (MeshOnly) char build; replayed in
+    // the EffectsOnly serial pass (see BuildEmitMode.h).
+    if (Render::Build::BuildSuppressEffects())
+        return false;
+
     if (!g_pOption->GetRenderAllEffects())
     {
         return false;
@@ -860,7 +867,7 @@ int CreateParticle(int Type, vec3_t Position, vec3_t Angle, vec3_t Light, int Su
                     vec3_t vRelative, p1;
                     Vector(0.0f, 0.0f, 0.0f, vRelative);
                     pModel->TransformPosition(o->Target->BoneTransform[rand() % iNumBones], vRelative, o->Position, false);
-                    VectorScale(o->Position, pModel->BodyScale, o->Position);
+                    VectorScale(o->Position, Render::Build::CurrentRenderCtx().bodyScale, o->Position);
                     VectorAdd(o->Position, o->Target->Position, o->Position);
 
                     o->Velocity[0] = 0;
@@ -8300,7 +8307,7 @@ void MoveParticles()
                     if (o->Target != NULL)
                     {
                         BMD* pModel = &Models[o->Target->Type];
-                        VectorCopy(o->Target->Position, pModel->BodyOrigin);
+                        VectorCopy(o->Target->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
                         Vector(6.f, 6.f, 0.f, vRelativePos);
                         pModel->TransformPosition(o->Target->BoneTransform[20], vRelativePos, vPos, true);
                     }

@@ -1,6 +1,7 @@
 ﻿// GMEmpireGuardian2.cpp: implementation of the GMEmpireGuardian2 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -271,13 +272,13 @@ bool GMEmpireGuardian2::MoveMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
                 float fAnimationFrame = o->AnimationFrame - fActionSpeed;
                 for (int i = 0; i < 10; i++)
                 {
-                    b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                    b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                     Vector(0.0f, 0.0f, 0.0f, StartRelative);
                     Vector(0.0f, 0.0f, 0.0f, EndRelative);
 
-                    b->TransformPosition(BoneTransform[34], StartRelative, StartPos, false);
-                    b->TransformPosition(BoneTransform[35], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[34], StartRelative, StartPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[35], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 0);
 
                     fAnimationFrame += fSpeedPerFrame;
@@ -305,13 +306,13 @@ bool GMEmpireGuardian2::MoveMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
                 float fAnimationFrame = o->AnimationFrame - fActionSpeed;
                 for (int i = 0; i < 10; i++)
                 {
-                    b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                    b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                     Vector(0.0f, 0.0f, 0.0f, StartRelative);
                     Vector(0.0f, 0.0f, 0.0f, EndRelative);
 
-                    b->TransformPosition(BoneTransform[34], StartRelative, StartPos, false);
-                    b->TransformPosition(BoneTransform[35], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[34], StartRelative, StartPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[35], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 0);
 
                     fAnimationFrame += fSpeedPerFrame;
@@ -344,13 +345,13 @@ bool GMEmpireGuardian2::MoveMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
                 float fAnimationFrame = o->AnimationFrame - fActionSpeed;
                 for (int i = 0; i < 10; i++)
                 {
-                    b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                    b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                     Vector(0.0f, 0.0f, 0.0f, StartRelative);
                     Vector(0.0f, 0.0f, 0.0f, EndRelative);
 
-                    b->TransformPosition(BoneTransform[34], StartRelative, StartPos, false);
-                    b->TransformPosition(BoneTransform[35], EndRelative, EndPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[34], StartRelative, StartPos, false);
+                    b->TransformPosition(g_BoneTransformScratch[35], EndRelative, EndPos, false);
                     CreateBlur(c, StartPos, EndPos, Light, 0);
 
                     fAnimationFrame += fSpeedPerFrame;
@@ -563,19 +564,19 @@ bool GMEmpireGuardian2::RenderObjectVisual(OBJECT* o, BMD* b)
         Vector(8.f, -3.f, -3.f, vRelativePos);
         Vector(flumi, flumi, flumi, vLight1);
         Vector(0.9f, 0.1f, 0.1f, vLight2);
-        b->TransformPosition(BoneTransform[2], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[2], vRelativePos, vPos);
 #ifdef LDS_FIX_ACCESS_INDEXNUMBER_ALREADY_LOADTEXTURE
         CreateSprite(BITMAP_SHINY + 6, vPos, 0.5f, vLight2, o);
         CreateSprite(BITMAP_SHINY + 6, vPos, fScale, vLight1, o);
         Vector(3.f, -3.f, -3.5f, vRelativePos);
-        b->TransformPosition(BoneTransform[3], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[3], vRelativePos, vPos);
         CreateSprite(BITMAP_SHINY + 6, vPos, 0.5f, vLight2, o);
         CreateSprite(BITMAP_SHINY + 6, vPos, fScale, vLight1, o);
 #else // LDS_FIX_ACCESS_INDEXNUMBER_ALREADY_LOADTEXTURE
         CreateSprite(BITMAP_SHINY + 5, vPos, 0.5f, vLight2, o);
         CreateSprite(BITMAP_SHINY + 5, vPos, fScale, vLight1, o);
         Vector(3.f, -3.f, -3.5f, vRelativePos);
-        b->TransformPosition(BoneTransform[3], vRelativePos, vPos);
+        b->TransformPosition(g_BoneTransformScratch[3], vRelativePos, vPos);
         CreateSprite(BITMAP_SHINY + 5, vPos, 0.5f, vLight2, o);
         CreateSprite(BITMAP_SHINY + 5, vPos, fScale, vLight1, o);
 #endif // LDS_FIX_ACCESS_INDEXNUMBER_ALREADY_LOADTEXTURE
@@ -610,7 +611,7 @@ bool GMEmpireGuardian2::RenderObjectVisual(OBJECT* o, BMD* b)
     case 37:
     {
         Vector(0.f, 0.f, 0.f, p);
-        b->TransformPosition(BoneTransform[1], p, Position);
+        b->TransformPosition(g_BoneTransformScratch[1], p, Position);
 
         float fLumi;
         fLumi = (sinf(WorldTime * 0.039f) + 1.0f) * 0.2f + 0.6f;
@@ -631,7 +632,7 @@ bool GMEmpireGuardian2::RenderObjectVisual(OBJECT* o, BMD* b)
 
         for (int i = 2; i <= 7; i++)
         {
-            b->TransformPosition(BoneTransform[i], vRelativePos, vPos);
+            b->TransformPosition(g_BoneTransformScratch[i], vRelativePos, vPos);
             CreateParticleFpsChecked(BITMAP_FIRE_HIK3_MONO, vPos, vAngle, vLight1, 4, o->Scale * 0.6f);
             CreateParticleFpsChecked(BITMAP_FIRE_HIK3_MONO, vPos, vAngle, vLight2, 4, o->Scale * 0.3f);
         }
@@ -832,7 +833,7 @@ bool GMEmpireGuardian2::RenderMonster(OBJECT* o, BMD* b, bool ExtraMon)
     {
         if (o->CurrentAction == MONSTER01_DIE)
         {
-            Vector(0.3f, 1.0f, 0.2f, b->BodyLight);
+            Vector(0.3f, 1.0f, 0.2f, Render::Build::CurrentRenderCtx().bodyLight);
         }
         b->RenderMesh(0, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
         b->RenderMesh(1, RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);

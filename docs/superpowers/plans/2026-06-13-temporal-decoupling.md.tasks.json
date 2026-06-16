@@ -1,0 +1,74 @@
+{
+  "planPath": "docs/superpowers/plans/2026-06-13-temporal-decoupling.md",
+  "tasks": [
+    {
+      "id": 1,
+      "subject": "Task 1: Stage 0 — Instrumentación (MovementProbe + CSV baseline)",
+      "status": "pending",
+      "description": "**Goal:** Capturar baseline medible (hero_units_per_sec + frame timing) con la matemática extraída a módulo puro testeable.\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug -R movement_probe --output-on-failure\n\n```json:metadata\n{\"files\": [\"src/source/Core/Diagnostics/MovementProbe.h\", \"src/source/Core/Diagnostics/MovementProbe.cpp\", \"tests/diagnostics/test_movement_probe.cpp\", \"tests/CMakeLists.txt\", \"src/source/Scenes/SceneManager.cpp\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug -R movement_probe --output-on-failure\", \"acceptanceCriteria\": [\"UnitsPerSec frame-rate independiente\", \"CSV con columnas definidas\", \"flag apagado por defecto costo cero\", \"baseline 30/60/144 capturado\"], \"tags\": []}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: Stage 1 — SimulationClock (acumulador fixed-step puro)",
+      "status": "pending",
+      "description": "**Goal:** Núcleo del fixed timestep como clase pura sin deps de engine, con tests de invariancia frame-rate. Reemplaza el cálculo temporal de CalcFPS.\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug -R simulation_clock --output-on-failure\n\n```json:metadata\n{\"files\": [\"src/source/Core/Time/SimulationClock.h\", \"src/source/Core/Time/SimulationClock.cpp\", \"tests/time/test_simulation_clock.cpp\", \"tests/CMakeLists.txt\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug -R simulation_clock --output-on-failure\", \"acceptanceCriteria\": [\"Advance devuelve steps/alpha/droppedDebt\", \"invariancia 8ms vs 40ms = 25 steps\", \"MAX_STEPS corta spiral\", \"frameMs neg/clamp guardado\"], \"tags\": []}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: Stage 1b — Cablear SimulationClock en MainLoop (factor ≡ 1.0)",
+      "status": "pending",
+      "blockedBy": [1, 2],
+      "description": "**Goal:** Correr la sim a paso fijo en MainLoop con FPS_ANIMATION_FACTOR ≡ 1.0 → comportamiento idéntico al baseline a todo FPS. Render recibe alpha.\n\n**USER-ORDERED GATE — NON-SKIPPABLE.** Cerrar sólo tras re-validar cada criterio con evidencia capturada (CSV baseline vs post-cambio).\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug --output-on-failure; CSV baseline vs nueva captura plano ±2% (E1) y velocidad sostenida 10 FPS (E2)\n\n```json:metadata\n{\"files\": [\"src/source/App/Platform/Windows/Winmain.cpp\", \"src/source/Scenes/SceneManager.cpp\", \"src/source/Scenes/SceneCore.h\", \"src/source/Engine/AI/ZzzAI.cpp\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug --output-on-failure\", \"acceptanceCriteria\": [\"sim en FixedUpdate fuera de RenderScene\", \"FPS_ANIMATION_FACTOR == 1.0\", \"E1 plano +/-2% vs baseline 30/60/144\", \"E2 velocidad sostenida 10 FPS\", \"ctest verde\"], \"userGate\": true, \"tags\": [\"user-gate\"], \"requireEvidenceTokens\": [[\"baseline\"], [\"post-cambio\"]]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: Stage 2 — Movimiento local (cat A → u/tick + snapshot/lerp Hero)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Migrar movimiento del Hero a unidades por tick y renderizar con interpolación snapshot prev/cur (alpha).\n\n**USER-ORDERED GATE — NON-SKIPPABLE.** Cerrar sólo con E1 re-validado y evidencia CSV capturada.\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug -R motion --output-on-failure; E1 plano vs baseline\n\n```json:metadata\n{\"files\": [\"src/source/Render/Interpolation.h\", \"src/source/Render/Interpolation.cpp\", \"src/source/Engine/Object/ZzzCharacter.cpp\", \"tests/motion/test_motion_integration.cpp\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug -R motion --output-on-failure\", \"acceptanceCriteria\": [\"IntegratePosition pura invariante 30 vs 240\", \"Hero interpolado sin jitter\", \"E1 plano +/-2%\", \"ctest verde\"], \"userGate\": true, \"tags\": [\"user-gate\"], \"requireEvidenceTokens\": [[\"baseline\", \"30fps\"], [\"240fps\"]]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: Stage 3 — Entidades remotas (interp a estado servidor + buffer)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Interpolar otros jugadores/mobs hacia el estado del servidor con buffer de 1–2 ticks; reducir rubber-band.\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug -R remote_interp --output-on-failure\n\n```json:metadata\n{\"files\": [\"docs/temporal/03-entidades-remotas.md\", \"tests/motion/test_remote_interp.cpp\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug -R remote_interp --output-on-failure\", \"acceptanceCriteria\": [\"buffer interp red testeado no extrapola\", \"remotas suaves\", \"ctest verde\"], \"tags\": []}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: Stage 4 — Animaciones (avance lógico en tick + blend frameMs)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Avanzar el frame de animación en la sim (tick) y mezclar visualmente con frameMs; misma duración a todo FPS.\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug -R anim --output-on-failure\n\n```json:metadata\n{\"files\": [\"src/source/Render/Models/ZzzBMD.cpp\", \"tests/anim/test_anim_advance.cpp\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug -R anim --output-on-failure\", \"acceptanceCriteria\": [\"avance animacion puro invariante\", \"sin doble velocidad\", \"ctest verde\"], \"tags\": []}\n```"
+    },
+    {
+      "id": 7,
+      "subject": "Task 7: Stage 5 — Cámara cinemática (cat E → dt real)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Portar travel/zoom de la cámara cinemática (cat E sin factor) a dt real → cutscenes duran lo mismo a todo FPS.\n\n**USER-ORDERED GATE — NON-SKIPPABLE.** Cerrar sólo con E5 re-validado y evidencia capturada.\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug -R camera --output-on-failure; E5 plano\n\n```json:metadata\n{\"files\": [\"src/source/Camera/CameraMove.cpp\", \"tests/camera/test_camera_travel.cpp\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug -R camera --output-on-failure\", \"acceptanceCriteria\": [\"travel/zoom puro por-dt invariante\", \"E5 duracion cutscene igual\", \"ctest verde\"], \"userGate\": true, \"tags\": [\"user-gate\"], \"requireEvidenceTokens\": [[\"30fps\"], [\"240fps\"]]}\n```"
+    },
+    {
+      "id": 8,
+      "subject": "Task 8: Stage 6 — Física de efectos (D re-integrar, C rediseñar, B✗ → pow)",
+      "status": "pending",
+      "blockedBy": [3],
+      "description": "**Goal:** Arreglar categorías rotas que aceleran/densifican sobre 25 FPS: re-integrar proyectiles/pet/cloth (D), rediseñar conteos enteros (C) a tiempos/ticks sin overflow, corregir decays rotos (B✗) a forma pow.\n\n**USER-ORDERED GATE — NON-SKIPPABLE.** Cerrar sólo con E3/E4/E6 re-validados y evidencia capturada.\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug -R effect --output-on-failure; E3/E4/E6 planos\n\n```json:metadata\n{\"files\": [\"src/source/Engine/Object/ZzzEffect.cpp\", \"src/source/Engine/Object/ZzzEffectParticle.cpp\", \"src/source/Engine/Object/ZzzEffectJoint.cpp\", \"src/source/GameLogic/Pets/CSPetSystem.cpp\", \"src/source/Engine/AI/GOBoid.cpp\", \"tests/effects/test_effect_physics.cpp\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug -R effect --output-on-failure\", \"acceptanceCriteria\": [\"B-roto decay pow puro testeado\", \"cat C conteos a ticks sin overflow\", \"cat D re-integracion mismo alcance 30 vs 240\", \"E3/E4/E6 planos\", \"ctest verde\"], \"userGate\": true, \"tags\": [\"user-gate\"], \"requireEvidenceTokens\": [[\"30fps\", \"baseline\"], [\"240fps\"]]}\n```"
+    },
+    {
+      "id": 9,
+      "subject": "Task 9: Stage 7 — UI / networking visual (formalizar buffer interp)",
+      "status": "pending",
+      "blockedBy": [4, 5, 6, 7, 8],
+      "description": "**Goal:** La UI ya usa delta; formalizar el buffer de interpolación de red como API estable; verificar sin regresión.\n\n**Verify:** ctest --test-dir out/build/windows-x86 -C Debug --output-on-failure; revisión visual sin regresión\n\n```json:metadata\n{\"files\": [\"docs/temporal/07-ui-networking.md\"], \"verifyCommand\": \"ctest --test-dir out/build/windows-x86 -C Debug --output-on-failure\", \"acceptanceCriteria\": [\"API buffer interp estable\", \"sin regresion UI\", \"ctest verde\"], \"tags\": []}\n```"
+    },
+    {
+      "id": 10,
+      "subject": "Task 10: Stage 8 — Limpieza (borrar factor/clamp/REFERENCE_FPS)",
+      "status": "pending",
+      "blockedBy": [9],
+      "description": "**Goal:** Eliminar FPS_ANIMATION_FACTOR, el clamp y REFERENCE_FPS; cerrar la migración.\n\n**USER-ORDERED GATE — NON-SKIPPABLE.** Cerrar sólo con grep re-ejecutado y salida capturada.\n\n**Verify:** grep -rn \"FPS_ANIMATION_FACTOR|REFERENCE_FPS\" src/source → vacío; ctest --test-dir out/build/windows-x86 -C Debug --output-on-failure verde\n\n```json:metadata\n{\"files\": [\"src/source/Engine/AI/ZzzAI.cpp\", \"tests/regression/test_speed_invariance.cpp\"], \"verifyCommand\": \"grep -rn \\\"FPS_ANIMATION_FACTOR|REFERENCE_FPS\\\" src/source; ctest --test-dir out/build/windows-x86 -C Debug --output-on-failure\", \"acceptanceCriteria\": [\"grep FPS_ANIMATION_FACTOR = 0\", \"grep REFERENCE_FPS = 0\", \"suite regresion E1-E6 verde\", \"ctest verde\"], \"userGate\": true, \"tags\": [\"user-gate\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-06-13"
+}

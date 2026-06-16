@@ -10,6 +10,8 @@
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "ZzzLodTerrain.h"
+#include "Render/Terrain/TerrainBatch.h"   // P2: batched terrain (MU_TERRAINVBO)
+#include <vector>
 #include "Engine/Pathing/ZzzPath.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -1226,8 +1228,28 @@ inline void Interpolation(int mx, int my)
     }
 }
 
+// P2 (terrain-VBO): when batching is active for this pass, the per-tile Vertex*()
+// helpers append into the current bucket (set by RenderFace*) instead of issuing
+// immediate-mode GL. s_tbCur != nullptr means "emit into this bucket".
+static bool                s_tbActive = false;   // batching this terrain pass
+static std::vector<float>* s_tbCur    = nullptr; // current bucket (per face)
+
+static inline void TBEmit(const float* pos, float u, float v,
+                          float r, float g, float b, float a)
+{
+    s_tbCur->push_back(pos[0]); s_tbCur->push_back(pos[1]); s_tbCur->push_back(pos[2]);
+    s_tbCur->push_back(u);      s_tbCur->push_back(v);
+    s_tbCur->push_back(r);      s_tbCur->push_back(g);  s_tbCur->push_back(b);  s_tbCur->push_back(a);
+}
+
 inline void Vertex0()
 {
+    if (s_tbCur)
+    {
+        const float* L = PrimaryTerrainLight[TerrainIndex1];
+        TBEmit(TerrainVertex[0], TerrainTextureCoord[0][0], TerrainTextureCoord[0][1], L[0], L[1], L[2], 1.f);
+        return;
+    }
     glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
     glColor3fv(PrimaryTerrainLight[TerrainIndex1]);
     glVertex3fv(TerrainVertex[0]);
@@ -1235,6 +1257,12 @@ inline void Vertex0()
 
 inline void Vertex1()
 {
+    if (s_tbCur)
+    {
+        const float* L = PrimaryTerrainLight[TerrainIndex2];
+        TBEmit(TerrainVertex[1], TerrainTextureCoord[1][0], TerrainTextureCoord[1][1], L[0], L[1], L[2], 1.f);
+        return;
+    }
     glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
     glColor3fv(PrimaryTerrainLight[TerrainIndex2]);
     glVertex3fv(TerrainVertex[1]);
@@ -1242,6 +1270,12 @@ inline void Vertex1()
 
 inline void Vertex2()
 {
+    if (s_tbCur)
+    {
+        const float* L = PrimaryTerrainLight[TerrainIndex3];
+        TBEmit(TerrainVertex[2], TerrainTextureCoord[2][0], TerrainTextureCoord[2][1], L[0], L[1], L[2], 1.f);
+        return;
+    }
     glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
     glColor3fv(PrimaryTerrainLight[TerrainIndex3]);
     glVertex3fv(TerrainVertex[2]);
@@ -1249,6 +1283,12 @@ inline void Vertex2()
 
 inline void Vertex3()
 {
+    if (s_tbCur)
+    {
+        const float* L = PrimaryTerrainLight[TerrainIndex4];
+        TBEmit(TerrainVertex[3], TerrainTextureCoord[3][0], TerrainTextureCoord[3][1], L[0], L[1], L[2], 1.f);
+        return;
+    }
     glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
     glColor3fv(PrimaryTerrainLight[TerrainIndex4]);
     glVertex3fv(TerrainVertex[3]);
@@ -1291,32 +1331,56 @@ inline void Vertex02()
 
 inline void VertexAlpha0()
 {
-    glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
     float* Light = &PrimaryTerrainLight[TerrainIndex1][0];
+    if (s_tbCur)
+    {
+        TBEmit(TerrainVertex[0], TerrainTextureCoord[0][0], TerrainTextureCoord[0][1],
+               Light[0], Light[1], Light[2], TerrainMappingAlpha[TerrainIndex1]);
+        return;
+    }
+    glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
     glColor4f(Light[0], Light[1], Light[2], TerrainMappingAlpha[TerrainIndex1]);
     glVertex3fv(TerrainVertex[0]);
 }
 
 inline void VertexAlpha1()
 {
-    glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
     float* Light = &PrimaryTerrainLight[TerrainIndex2][0];
+    if (s_tbCur)
+    {
+        TBEmit(TerrainVertex[1], TerrainTextureCoord[1][0], TerrainTextureCoord[1][1],
+               Light[0], Light[1], Light[2], TerrainMappingAlpha[TerrainIndex2]);
+        return;
+    }
+    glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
     glColor4f(Light[0], Light[1], Light[2], TerrainMappingAlpha[TerrainIndex2]);
     glVertex3fv(TerrainVertex[1]);
 }
 
 inline void VertexAlpha2()
 {
-    glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
     float* Light = &PrimaryTerrainLight[TerrainIndex3][0];
+    if (s_tbCur)
+    {
+        TBEmit(TerrainVertex[2], TerrainTextureCoord[2][0], TerrainTextureCoord[2][1],
+               Light[0], Light[1], Light[2], TerrainMappingAlpha[TerrainIndex3]);
+        return;
+    }
+    glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
     glColor4f(Light[0], Light[1], Light[2], TerrainMappingAlpha[TerrainIndex3]);
     glVertex3fv(TerrainVertex[2]);
 }
 
 inline void VertexAlpha3()
 {
-    glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
     float* Light = &PrimaryTerrainLight[TerrainIndex4][0];
+    if (s_tbCur)
+    {
+        TBEmit(TerrainVertex[3], TerrainTextureCoord[3][0], TerrainTextureCoord[3][1],
+               Light[0], Light[1], Light[2], TerrainMappingAlpha[TerrainIndex4]);
+        return;
+    }
+    glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
     glColor4f(Light[0], Light[1], Light[2], TerrainMappingAlpha[TerrainIndex4]);
     glVertex3fv(TerrainVertex[3]);
 }
@@ -1363,94 +1427,97 @@ inline void VertexAlpha02()
 
 inline void VertexBlend0()
 {
-    glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
     float Light = TerrainMappingAlpha[TerrainIndex1];
+    if (s_tbCur)
+    {
+        TBEmit(TerrainVertex[0], TerrainTextureCoord[0][0], TerrainTextureCoord[0][1], Light, Light, Light, 1.f);
+        return;
+    }
+    glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
     glColor3f(Light, Light, Light);
     glVertex3fv(TerrainVertex[0]);
 }
 
 inline void VertexBlend1()
 {
-    glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
     float Light = TerrainMappingAlpha[TerrainIndex2];
+    if (s_tbCur)
+    {
+        TBEmit(TerrainVertex[1], TerrainTextureCoord[1][0], TerrainTextureCoord[1][1], Light, Light, Light, 1.f);
+        return;
+    }
+    glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
     glColor3f(Light, Light, Light);
     glVertex3fv(TerrainVertex[1]);
 }
 
 inline void VertexBlend2()
 {
-    glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
     float Light = TerrainMappingAlpha[TerrainIndex3];
+    if (s_tbCur)
+    {
+        TBEmit(TerrainVertex[2], TerrainTextureCoord[2][0], TerrainTextureCoord[2][1], Light, Light, Light, 1.f);
+        return;
+    }
+    glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
     glColor3f(Light, Light, Light);
     glVertex3fv(TerrainVertex[2]);
 }
 
 inline void VertexBlend3()
 {
-    glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
     float Light = TerrainMappingAlpha[TerrainIndex4];
+    if (s_tbCur)
+    {
+        TBEmit(TerrainVertex[3], TerrainTextureCoord[3][0], TerrainTextureCoord[3][1], Light, Light, Light, 1.f);
+        return;
+    }
+    glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
     glColor3f(Light, Light, Light);
     glVertex3fv(TerrainVertex[3]);
 }
 
 void RenderFace(int Texture, int mx, int my)
 {
+    // Decide the blend/state mode from (map, texture) -- same rules as legacy.
+    int mode = Render::Terrain::TB_OPAQUE;   // default: DisableAlphaBlend
     if (gMapManager.WorldActive == WD_39KANTURU_3RD)
     {
         if (Texture == 3)
-            EnableAlphaTest();
+            mode = Render::Terrain::TB_ALPHATEST;
         else if (Texture == 100)
             return;
-        else
-            DisableAlphaBlend();
     }
     else if (gMapManager.WorldActive >= WD_45CURSEDTEMPLE_LV1 && gMapManager.WorldActive <= WD_45CURSEDTEMPLE_LV6)
     {
-        if (Texture == 4)
-        {
-            EnableAlphaTest();
-        }
-        else
-        {
-            DisableAlphaBlend();
-        }
+        if (Texture == 4) mode = Render::Terrain::TB_ALPHATEST;
     }
-    else if (gMapManager.WorldActive == WD_51HOME_6TH_CHAR
-        )
+    else if (gMapManager.WorldActive == WD_51HOME_6TH_CHAR)
     {
-        if (Texture == 2)
-        {
-            EnableAlphaTest();
-        }
-        else
-        {
-            DisableAlphaBlend();
-        }
+        if (Texture == 2) mode = Render::Terrain::TB_ALPHATEST;
     }
     else if (gMapManager.WorldActive == WD_69EMPIREGUARDIAN1 || gMapManager.WorldActive == WD_70EMPIREGUARDIAN2 || gMapManager.WorldActive == WD_71EMPIREGUARDIAN3 || gMapManager.WorldActive == WD_72EMPIREGUARDIAN4
-        || gMapManager.WorldActive == WD_73NEW_LOGIN_SCENE || gMapManager.WorldActive == WD_74NEW_CHARACTER_SCENE
-        )
+        || gMapManager.WorldActive == WD_73NEW_LOGIN_SCENE || gMapManager.WorldActive == WD_74NEW_CHARACTER_SCENE)
     {
-        if (Texture == 10)
-        {
-            EnableAlphaTest();
-        }
-        else
-        {
-            DisableAlphaBlend();
-        }
+        if (Texture == 10) mode = Render::Terrain::TB_ALPHATEST;
     }
 #ifdef ASG_ADD_MAP_KARUTAN
     else if (IsKarutanMap())
     {
-        if (Texture == 12)
-            EnableAlphaTest();
-        else
-            DisableAlphaBlend();
+        if (Texture == 12) mode = Render::Terrain::TB_ALPHATEST;
     }
 #endif	// ASG_ADD_MAP_KARUTAN
-    else
-        DisableAlphaBlend();
+
+    if (s_tbActive)
+    {
+        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, mode);
+        Vertex0(); Vertex1(); Vertex2(); Vertex3();
+        return;
+    }
+
+    s_tbCur = nullptr;
+    if (mode == Render::Terrain::TB_ALPHATEST) EnableAlphaTest();
+    else                                       DisableAlphaBlend();
     BindTexture(BITMAP_MAPTILE + Texture);
 
     glBegin(GL_TRIANGLE_FAN);
@@ -1463,13 +1530,24 @@ void RenderFace(int Texture, int mx, int my)
 
 void RenderFace_After(int Texture, int mx, int my)
 {
+    int mode;
     if (Texture == 100)
-        EnableAlphaTest();
+        mode = Render::Terrain::TB_ALPHATEST;
     else if (Texture == 101)
-        EnableAlphaBlend();
+        mode = Render::Terrain::TB_ALPHABLEND;
     else
         return;
 
+    if (s_tbActive)
+    {
+        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, mode);
+        Vertex0(); Vertex1(); Vertex2(); Vertex3();
+        return;
+    }
+
+    s_tbCur = nullptr;
+    if (mode == Render::Terrain::TB_ALPHATEST) EnableAlphaTest();
+    else                                       EnableAlphaBlend();
     BindTexture(BITMAP_MAPTILE + Texture);
 
     glBegin(GL_TRIANGLE_FAN);
@@ -1482,6 +1560,14 @@ void RenderFace_After(int Texture, int mx, int my)
 
 void RenderFaceAlpha(int Texture, int mx, int my)
 {
+    if (s_tbActive)
+    {
+        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHATEST);
+        VertexAlpha0(); VertexAlpha1(); VertexAlpha2(); VertexAlpha3();
+        return;
+    }
+
+    s_tbCur = nullptr;
     EnableAlphaTest();
     BindTexture(BITMAP_MAPTILE + Texture);
     glBegin(GL_TRIANGLE_FAN);
@@ -1494,6 +1580,14 @@ void RenderFaceAlpha(int Texture, int mx, int my)
 
 void RenderFaceBlend(int Texture, int mx, int my)
 {
+    if (s_tbActive)
+    {
+        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHABLEND);
+        VertexBlend0(); VertexBlend1(); VertexBlend2(); VertexBlend3();
+        return;
+    }
+
+    s_tbCur = nullptr;
     EnableAlphaBlend();
     BindTexture(BITMAP_MAPTILE + Texture);
     glBegin(GL_TRIANGLE_FAN);
@@ -2603,11 +2697,17 @@ void CacheActiveFrustum()
 #endif
 }
 
+// Set by LoginScene: true once it has built a real camera frustum (CreateFrustrum) so
+// LOG_IN_SCENE can cull terrain/objects instead of drawing the whole map. Stays false
+// for the full-terrain fallback (MU_LOGIN_FULLTERRAIN) and the other early scenes, which
+// have no valid frustum hull and must keep rendering everything.
+bool g_LoginFrustumValid = false;
+
 bool TestFrustrum2D(float x, float y, float Range)
 {
     extern EGameScene SceneFlag;
     if (SceneFlag == SERVER_LIST_SCENE || SceneFlag == WEBZEN_SCENE || SceneFlag == LOADING_SCENE
-        || SceneFlag == LOG_IN_SCENE)
+        || (SceneFlag == LOG_IN_SCENE && !g_LoginFrustumValid))
         return true;
 
     // Fast path: unrolled 4-edge test for Legacy/Default cameras
@@ -2763,7 +2863,13 @@ void DeleteAllFrustrum()
 extern float RainCurrent;
 extern int EnableEvent;
 
-void InitTerrainLight()
+// Reset the per-frame DYNAMIC light grid back to the static baked light. This MUST run
+// at the same cadence as the AddTerrainLight contributors (fires, lamps, char/effect
+// glows) -- all of which live in the fixed-step update (UpdateGameEntities @ 25 tps).
+// When this reset ran once per RENDER frame while the adds ran per tick, uncapped FPS
+// wiped the dynamic light on every non-tick frame -> fire/glow light (and additive
+// surfaces lit by it, e.g. wing glow) strobed "on/off".
+void ResetTerrainDynamicLight()
 {
     int xi, yi;
     yi = FrustrumBoundMinY;
@@ -2776,6 +2882,12 @@ void InitTerrainLight()
             VectorCopy(BackTerrainLight[Index], PrimaryTerrainLight[Index]);
         }
     }
+}
+
+// Grass sway -- a pure render-time visual driven by WorldTime; safe per render frame.
+void UpdateTerrainGrassWind()
+{
+    int xi, yi;
     float WindScale;
     float WindSpeed;
 
@@ -2830,6 +2942,15 @@ void InitTerrainLight()
             }
         }
     }
+}
+
+// Combined entry point: reset dynamic light + grass wind. Used by the non-decoupled
+// scenes (login / character select) which run their world update once per render frame,
+// so reset and adds stay aligned there. MainScene splits these (reset -> sim tick).
+void InitTerrainLight()
+{
+    ResetTerrainDynamicLight();
+    UpdateTerrainGrassWind();
 }
 
 void InitTerrainShadow()
@@ -3093,7 +3214,20 @@ void RenderTerrain(bool EditFlag)
     }
 
     TerrainFlag = TERRAIN_MAP_NORMAL;
+    // P2 (terrain-VBO): batch the normal pass into per-texture buckets, flushed
+    // as a handful of glDrawArrays below. The grass pass + editor stay legacy.
+    if (!EditFlag && Render::Terrain::TerrainBatchEnabled())
+    {
+        s_tbActive = true;
+        Render::Terrain::TerrainBatchBegin();
+    }
     RenderTerrainFrustrum(EditFlag);
+    if (s_tbActive)
+    {
+        Render::Terrain::TerrainBatchFlush();
+        s_tbActive = false;
+        s_tbCur = nullptr;
+    }
     //
     if (EditFlag && SelectFlag)
     {

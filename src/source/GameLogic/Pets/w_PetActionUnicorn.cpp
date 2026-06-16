@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "w_PetActionUnicorn.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -250,13 +251,13 @@ bool PetActionUnicorn::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, doub
     BMD* b = &Models[obj->Type];
     vec3_t Position, vRelativePos, Light;
 
-    VectorCopy(obj->Position, b->BodyOrigin);
+    VectorCopy(obj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Vector(0.f, 0.f, 0.f, vRelativePos);
 
-    b->Animation(BoneTransform, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
+    b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
 
     Vector(0.f, 0.f, 0.f, vRelativePos);
-    b->TransformPosition(BoneTransform[11], vRelativePos, Position, false);
+    b->TransformPosition(g_BoneTransformScratch[11], vRelativePos, Position, false);
     Vector(1.0f, 0.7f, 0.0f, Light);
     CreateSprite(BITMAP_MAGIC, Position, 0.15f, Light, obj);
 
@@ -264,7 +265,7 @@ bool PetActionUnicorn::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, doub
     if (rand_fps_check(3))
         CreateEffect(BITMAP_PIN_LIGHT, Position, obj->Angle, Light, 4, obj, -1, 0, 0, 0, 0.45f);
 
-    b->TransformPosition(BoneTransform[4], vRelativePos, Position, false);
+    b->TransformPosition(g_BoneTransformScratch[4], vRelativePos, Position, false);
     Vector(0.5f, 0.5f, 1.0f, Light);
 
     CreateSprite(BITMAP_SMOKE, Position, 1.2f, Light, obj);
@@ -274,7 +275,7 @@ bool PetActionUnicorn::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, doub
         CreateParticle(BITMAP_SMOKE, Position, obj->Angle, Light, 67, 1.0f);
 
     Vector(0.7f, 0.7f, 1.0f, Light);
-    b->TransformPosition(BoneTransform[4], vRelativePos, Position, false);
+    b->TransformPosition(g_BoneTransformScratch[4], vRelativePos, Position, false);
     CreateParticleFpsChecked(BITMAP_SMOKELINE1, Position, obj->Angle, Light, 4, 0.6f, obj);
     CreateParticleFpsChecked(BITMAP_SMOKELINE2, Position, obj->Angle, Light, 4, 0.6f, obj);
     CreateParticleFpsChecked(BITMAP_SMOKELINE3, Position, obj->Angle, Light, 4, 0.6f, obj);

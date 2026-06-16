@@ -49,6 +49,15 @@ void MovePointers();
 
 void CreateBonfire(vec3_t Position, vec3_t Angle);
 void CreateFire(int Type, OBJECT* o, float x, float y, float z);
+
+// FPS-independent fire/light flicker. Returns a luminosity in [lo,hi] that advances
+// on a fixed ~25 Hz wall-clock cadence (matching the legacy 25 fps feel) and is
+// smoothly interpolated between samples, so the flicker looks identical regardless of
+// frame rate. The legacy code re-rolled rand() every render frame and fed it to
+// AddTerrainLight, which strobed ("light on/off") at uncapped FPS. `seed` decorrelates
+// separate light sources (pass a per-position value so neighbouring fires desync).
+float FireFlickerLuminosity(float lo, float hi, unsigned seed);
+unsigned FireFlickerSeed(float x, float y);   // stable per-position seed for the above
 void CheckSkull(OBJECT* o);
 
 void CreateHealing(OBJECT* o);

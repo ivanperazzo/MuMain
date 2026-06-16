@@ -15,6 +15,8 @@
 #include "Network/Server/WSclient.h"
 #include "UI/NewUI/NewUISystem.h"
 
+#include "Render/Build/BuildEmitMode.h"
+
 #include <algorithm>
 
 namespace
@@ -40,6 +42,12 @@ OBJECT	Sprites[MAX_SPRITES];
 
 int CreateSprite(int Type, vec3_t Position, float Scale, vec3_t Light, OBJECT* Owner, float Rotation, int SubType)
 {
+    // Etapa 3b 6.8b: suppressed during the parallel (MeshOnly) char build so the global
+    // Sprites[] pool is never mutated off the GL/serial thread. The EffectsOnly serial
+    // replay re-issues this in entity order -> identical to the single serial render.
+    if (Render::Build::BuildSuppressEffects())
+        return false;
+
     if (!g_pOption->GetRenderAllEffects())
     {
         return false;

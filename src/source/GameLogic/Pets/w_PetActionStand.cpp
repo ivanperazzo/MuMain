@@ -2,6 +2,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state -> per-worker ctx
 #include "w_PetActionStand.h"
 #include "Engine/AI/ZzzAI.h"
 #include "Render/Effects/ZzzEffect.h"
@@ -77,18 +78,18 @@ bool PetActionStand::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, double
     float fRad2 = ((Q_PI / 3000.0f) * fmodf((tick + 1500), 3000));
     float tempLight;
 
-    VectorCopy(obj->Position, b->BodyOrigin);
+    VectorCopy(obj->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
     Vector(0.f, 0.f, 0.f, vRelativePos);
 
-    b->Animation(BoneTransform, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
+    b->Animation(g_BoneTransformScratch, obj->AnimationFrame, obj->PriorAnimationFrame, obj->PriorAction, obj->Angle, obj->HeadAngle);
 
     Vector(0.7f, 0.2f, 0.6f, Light);
-    b->TransformPosition(BoneTransform[3], vRelativePos, Position, false);
+    b->TransformPosition(g_BoneTransformScratch[3], vRelativePos, Position, false);
     CreateSprite(BITMAP_LIGHTMARKS_FOREIGN, Position, 1.5f, Light, obj);
     CreateSprite(BITMAP_LIGHTMARKS_FOREIGN, Position, 0.8f, Light, obj);
 
     Vector(0.3f, 0.3f, 0.6f, Light);
-    b->TransformPosition(BoneTransform[5], vRelativePos, Position, false);
+    b->TransformPosition(g_BoneTransformScratch[5], vRelativePos, Position, false);
     Position[2] -= 25.0f;
     CreateEffect(MODEL_FEATHER_FOREIGN, Position, obj->Angle, Light, 4, NULL, -1, 0, 0, 0, 0.3f);
 
@@ -96,7 +97,7 @@ bool PetActionStand::Effect(OBJECT* obj, CHARACTER* Owner, int targetKey, double
 
     for (int i = 0; i < 11; ++i)
     {
-        b->TransformPosition(BoneTransform[temp[i]], vRelativePos, Position, false);
+        b->TransformPosition(g_BoneTransformScratch[temp[i]], vRelativePos, Position, false);
 
         switch (i)
         {

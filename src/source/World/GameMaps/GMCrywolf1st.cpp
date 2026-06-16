@@ -1,4 +1,5 @@
 ﻿#include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "UI/Legacy/UIWindows.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
@@ -444,12 +445,12 @@ bool M34CryWolf1st::RenderCryWolf1stObjectMesh(OBJECT* o, BMD* b, int ExtraMon)
     {
         if (m_OccupationState == CRYWOLF_OCCUPATION_STATE_PEACE)
         {
-            Vector(0.4f, 0.4f, 0.4f, b->BodyLight);
+            Vector(0.4f, 0.4f, 0.4f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         }
         else
         {
-            Vector(0.4f, 0.4f, 0.4f, b->BodyLight);
+            Vector(0.4f, 0.4f, 0.4f, Render::Build::CurrentRenderCtx().bodyLight);
             b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         }
     }
@@ -547,23 +548,23 @@ bool M34CryWolf1st::RenderCryWolf1stObjectMesh(OBJECT* o, BMD* b, int ExtraMon)
             float fTemp = 0.1f;
 
             if (m_StatueHP <= 10) fTemp = 1.0f;
-            b->BodyLight[0] = (sinf(WorldTime * 0.004f) * 3.0f) * fTemp + 5.0f - m_StatueHP / 20.0f;
-            b->BodyLight[1] = m_StatueHP / 25.0f - 1.0f;
-            b->BodyLight[2] = m_StatueHP / 20.0f - 0.5f;
+            Render::Build::CurrentRenderCtx().bodyLight[0] = (sinf(WorldTime * 0.004f) * 3.0f) * fTemp + 5.0f - m_StatueHP / 20.0f;
+            Render::Build::CurrentRenderCtx().bodyLight[1] = m_StatueHP / 25.0f - 1.0f;
+            Render::Build::CurrentRenderCtx().bodyLight[2] = m_StatueHP / 20.0f - 0.5f;
 
-            b->StreamMesh = 0;
+            Render::Build::CurrentRenderCtx().streamMesh = 0;
             b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
 
-            b->StreamMesh = 1;
+            Render::Build::CurrentRenderCtx().streamMesh = 1;
             b->RenderMesh(0, RENDER_BRIGHT | RENDER_CHROME2, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
-            b->StreamMesh = -1;
+            Render::Build::CurrentRenderCtx().streamMesh = -1;
         }
     }
     return true;
     case MODEL_SKILL_FURY_STRIKE:
     {
-        Vector(0.0f, 0.0f, 0.9f, b->BodyLight);
+        Vector(0.0f, 0.0f, 0.9f, Render::Build::CurrentRenderCtx().bodyLight);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
     }
     return true;
@@ -729,7 +730,7 @@ bool M34CryWolf1st::MoveCryWolf1stMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
     {
         float fActionSpeed = b->Actions[o->CurrentAction].PlaySpeed * static_cast<float>(FPS_ANIMATION_FACTOR);
         float fAnimationFrame = o->AnimationFrame - fActionSpeed;
-        b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+        b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
         vec3_t Light;
         if (o->CurrentAction == MONSTER01_ATTACK2)
         {
@@ -737,8 +738,8 @@ bool M34CryWolf1st::MoveCryWolf1stMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
             if (o->AnimationFrame >= 5.5f && o->AnimationFrame < (5.5f + fActionSpeed))
             {
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                b->TransformPosition(BoneTransform[24], EndRelative, EndPos, false);
-                b->TransformPosition(BoneTransform[16], EndRelative, EndPos1, false);
+                b->TransformPosition(g_BoneTransformScratch[24], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[16], EndRelative, EndPos1, false);
                 Vector(1.f, 1.f, 1.f, Light);
 
                 for (int iu = 0; iu < 6; iu++)
@@ -801,7 +802,7 @@ bool M34CryWolf1st::MoveCryWolf1stMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
         MoveEye(o, b, 9, 10);
         float fActionSpeed = b->Actions[o->CurrentAction].PlaySpeed * static_cast<float>(FPS_ANIMATION_FACTOR);
         float fAnimationFrame = o->AnimationFrame - fActionSpeed;
-        b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+        b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
         vec3_t Light;
 
         if (o->CurrentAction == MONSTER01_ATTACK2)
@@ -810,7 +811,7 @@ bool M34CryWolf1st::MoveCryWolf1stMonsterVisual(CHARACTER* c, OBJECT* o, BMD* b)
             if (o->AnimationFrame >= 7.5f && o->AnimationFrame < (7.5f + fActionSpeed) && rand_fps_check(1))
             {
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                b->TransformPosition(BoneTransform[33], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[33], EndRelative, EndPos, false);
                 Vector(1.f, 1.f, 1.f, Light);
                 CreateEffect(BITMAP_CRATER, EndPos, o->Angle, o->Light, 2);
                 CreateParticle(BITMAP_EXPLOTION, EndPos, o->Angle, Light, 2);
@@ -1122,11 +1123,11 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 100.f, -150.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[16], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[16], EndRelative, EndPos, false);
 
                 if (o->AnimationFrame > 5.0f && o->AnimationFrame < 7.0f)
                 {
@@ -1148,12 +1149,12 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
                 //					Position[1] += rand()%20-10;
 
                                     /*
-                                    b->TransformPosition(BoneTransform[39],StartRelative,StartPos,false);
-                                    b->TransformPosition(BoneTransform[41],EndRelative,EndPos,false);
+                                    b->TransformPosition(g_BoneTransformScratch[39],StartRelative,StartPos,false);
+                                    b->TransformPosition(g_BoneTransformScratch[41],EndRelative,EndPos,false);
                                     CreateBlur(c,StartPos,EndPos,Light,3,true,24);
 
-                                    b->TransformPosition(BoneTransform[43],StartRelative,StartPos,false);
-                                    b->TransformPosition(BoneTransform[45],EndRelative,EndPos,false);
+                                    b->TransformPosition(g_BoneTransformScratch[43],StartRelative,StartPos,false);
+                                    b->TransformPosition(g_BoneTransformScratch[45],EndRelative,EndPos,false);
                                     CreateBlur(c,StartPos,EndPos,Light,3,true,25);
                 */
                 fAnimationFrame += fSpeedPerFrame;
@@ -1177,7 +1178,7 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++)
             {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 //					Vector(0.f, 0.f, -60.f, StartRelative);
                 //					Vector(0.f, 0.f, -150.f, EndRelative);
@@ -1186,12 +1187,12 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
                 //					Vector(20.f, 0.f, 0.f, StartRelative);
                 //					Vector(60.f, 0.f, 0.f, EndRelative);
 
-                b->TransformPosition(BoneTransform[12], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[16], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[12], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[16], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 23);
 
-                b->TransformPosition(BoneTransform[20], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[24], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[20], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[24], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 24);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -1215,12 +1216,12 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
 
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, -60.f, StartRelative);
                 Vector(0.f, 0.f, -150.f, EndRelative);
-                b->TransformPosition(BoneTransform[c->Weapon[0].LinkBone], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[c->Weapon[0].LinkBone], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[c->Weapon[0].LinkBone], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[c->Weapon[0].LinkBone], EndRelative, EndPos, false);
 
                 if (o->AnimationFrame > 3.5f && o->AnimationFrame < 4.5f)
                 {
@@ -1269,12 +1270,12 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
 
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, -60.f, StartRelative);
                 Vector(0.f, 0.f, -150.f, EndRelative);
-                b->TransformPosition(BoneTransform[c->Weapon[0].LinkBone], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[c->Weapon[0].LinkBone], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[c->Weapon[0].LinkBone], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[c->Weapon[0].LinkBone], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 80);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -1310,12 +1311,12 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
 
             VectorCopy(o->Angle, TempAngle);
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 250.f, 0.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                b->TransformPosition(BoneTransform[27], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[27], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[27], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[27], EndRelative, EndPos, false);
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 80);
 
                 fAnimationFrame += fSpeedPerFrame;
@@ -1356,19 +1357,19 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fSpeedPerFrame = fActionSpeed / 10.f;
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, -90.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                b->TransformPosition(BoneTransform[80], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[80], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[80], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[80], EndRelative, EndPos, false);
 
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 80);
 
                 Vector(0.f, 0.f, 90.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                b->TransformPosition(BoneTransform[82], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[82], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[82], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[82], EndRelative, EndPos, false);
 
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 84);
 
@@ -1391,12 +1392,12 @@ void M34CryWolf1st::MoveCryWolf1stBlurEffect(CHARACTER* c, OBJECT* o, BMD* b)
             float fSpeedPerFrame = fActionSpeed / 10.f;
             float fAnimationFrame = o->AnimationFrame - fActionSpeed;
             for (int i = 0; i < 10; i++) {
-                b->Animation(BoneTransform, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
+                b->Animation(g_BoneTransformScratch, fAnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle);
 
                 Vector(0.f, 0.f, 120.f, StartRelative);
                 Vector(0.f, 0.f, 0.f, EndRelative);
-                b->TransformPosition(BoneTransform[25], StartRelative, StartPos, false);
-                b->TransformPosition(BoneTransform[25], EndRelative, EndPos, false);
+                b->TransformPosition(g_BoneTransformScratch[25], StartRelative, StartPos, false);
+                b->TransformPosition(g_BoneTransformScratch[25], EndRelative, EndPos, false);
 
                 CreateBlur(c, StartPos, EndPos, Light, 3, true, 25);
 
@@ -1414,7 +1415,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     {
     case MODEL_SORAM:
     {
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, 5);
         b->EndRender();
@@ -1423,7 +1424,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_BALGASS:
     {
-        Vector(1.f, 1.f, 1.f, b->BodyLight);
+        Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {
@@ -1457,7 +1458,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
                 o->BlendMesh = -2;
                 b->EndRender();
                 b->BeginRender(o->Alpha);
-                Models[o->Type].StreamMesh = i;
+                Render::Build::CurrentRenderCtx().streamMesh = i;
             }
             else
                 o->BlendMesh = -1;
@@ -1474,7 +1475,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     {
         if (ExtraMon)
         {
-            Vector(0.5f, 0.5f, 0.6f, b->BodyLight);
+            Vector(0.5f, 0.5f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
             b->BeginRender(o->Alpha);
             for (int i = 0; i < Models[o->Type].NumMeshs; i++)
             {
@@ -1492,7 +1493,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     {
         if (ExtraMon)
         {
-            Vector(0.5f, 0.5f, 0.8f, b->BodyLight);
+            Vector(0.5f, 0.5f, 0.8f, Render::Build::CurrentRenderCtx().bodyLight);
             b->BeginRender(o->Alpha);
             for (int i = 0; i < Models[o->Type].NumMeshs; i++)
             {
@@ -1508,7 +1509,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_TANTALLOS:
     {
-        Vector(0.6f, 0.8f, 0.6f, b->BodyLight);
+        Vector(0.6f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {
@@ -1521,7 +1522,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_BLOODY_WOLF:
     {
-        Vector(0.6f, 0.8f, 0.6f, b->BodyLight);
+        Vector(0.6f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {
@@ -1534,7 +1535,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_BEAM_KNIGHT:	//318
     {
-        Vector(0.6f, 0.8f, 0.6f, b->BodyLight);
+        Vector(0.6f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {
@@ -1547,7 +1548,7 @@ bool M34CryWolf1st::RenderCryWolf1stMonsterObjectMesh(OBJECT* o, BMD* b, int Ext
     break;
     case MODEL_DRAGON_:	//319
     {
-        Vector(0.6f, 0.8f, 0.6f, b->BodyLight);
+        Vector(0.6f, 0.8f, 0.6f, Render::Build::CurrentRenderCtx().bodyLight);
         b->BeginRender(o->Alpha);
         for (int i = 0; i < Models[o->Type].NumMeshs; i++)
         {

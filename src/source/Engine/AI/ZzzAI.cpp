@@ -7,6 +7,7 @@
 
 #include "stdafx.h"
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Build/BuildEmitMode.h"   // Etapa 3b 6.8b: suppress effect-gating rand on the parallel pass
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -705,6 +706,15 @@ double   WorldTime = 0.0;
 
 bool rand_fps_check(int reference_frames)
 {
+    // Etapa 3b 6.8b: during the parallel (MeshOnly) char build, return false so the
+    // effect blocks this gates do NOT fire and do NOT consume the process-global,
+    // non-thread-safe RNG on worker threads (which raced -> jittery [bmd_cov]). The
+    // EffectsOnly serial replay runs with mode != MeshOnly, so it evaluates this exactly
+    // as the single serial render did -> identical effect emission. (No render-path mesh
+    // decision is gated by rand_fps_check for the instanced crowd; verified by [bmd_cov]
+    // staying a flat 2300 under MU_JOBS.)
+    if (Render::Build::BuildSuppressEffects())
+        return false;
     return Random::FpsCheck(reference_frames, static_cast<double>(FPS_ANIMATION_FACTOR));
 }
 
@@ -725,9 +735,16 @@ void CalcFPS()
     const double differenceMs = std::max<double>(WorldTime - last, MIN_FRAME_TIME_MS);
     FPS = MILLISECONDS_IN_SECOND / differenceMs;
 
-    // animate with no less than REFERENCE_FPS, otherwise some animations don't work correctly
+    // Stage 1b: the main scene's world now advances at a fixed 25 tps inside
+    // RenderScene, so each tick is exactly one reference frame and the legacy
+    // per-frame factor must be 1.0 there (it is removed entirely in Stage 8).
+    // Other scenes (login/character) still run once per render frame, so they
+    // keep the original frame-rate compensation. FPS above is still measured for
+    // the HUD either way.
     const double fpsRatio = (FPS <= 0.0) ? 0.0 : REFERENCE_FPS / FPS;
-    FPS_ANIMATION_FACTOR = std::clamp(static_cast<float>(fpsRatio), 0.f, 1.f);
+    FPS_ANIMATION_FACTOR = (SceneFlag == MAIN_SCENE)
+        ? 1.0f
+        : std::clamp(static_cast<float>(fpsRatio), 0.f, 1.f);
 
     // Calculate average fps every 2 seconds or 25 frames
     const double diffSinceStart = WorldTime - start;

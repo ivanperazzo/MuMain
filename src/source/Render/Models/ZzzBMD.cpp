@@ -18,33 +18,123 @@
 #include "Engine/Physics/PhysicsManager.h"
 #include "UI/NewUI/NewUISystem.h"
 
+#include "Render/Models/BmdGpuCache.h"   // P-bmd-gpu: GPU skinning path
+#include "Render/Models/BmdInstanceBatch.h"  // P-bmd-instance: Characters batching
+#include "Render/Models/ShadowInstanceBatch.h"  // P-bmd-shadow: instanced GPU shadows
+#include "Render/GL/BmdShader.h"
+#include "Render/GL/GLLoader.h"
+#include "Core/Utilities/FrameProfiler.h"   // bottleneck profiling (Anim slot)
+#include "Render/Build/WorkerArena.h"   // Task 2: per-vertex skin scratch moved per-worker (accessor macros)
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.2: placement state moved to per-worker ctx
+#include "Render/Build/BuildEmitMode.h"       // Etapa 3b 6.8b: mesh-emission suppress on the EffectsOnly replay
+#include "Render/GL/GLLog.h"             // Etapa 3b 6.9: [jobs] / GL-on-worker warn log
+#include "Core/Jobs/ThreadPool.h"       // Etapa 3b 6.9: GL-on-worker guard (CurrentWorkerIndex / JobsEnabled)
+#include <cassert>
+
 BMD* Models;
 BMD* ModelsDump;
 
-vec4_t BoneQuaternion[MAX_BONES];
 short  BoundingVertices[MAX_BONES];
 vec3_t BoundingMin[MAX_BONES];
 vec3_t BoundingMax[MAX_BONES];
 
-float  BoneTransform[MAX_BONES][3][4];
+// Task 3: the file-global BoneTransform scratch was renamed to g_BoneTransformScratch
+// (macro -> per-worker Render::Build::WorkerArena::boneScratch, WorkerArena.h). It was a
+// transient hierarchy-concat buffer, used only when an entity has no per-entity
+// OBJECT::BoneTransform; an object-like macro named BoneTransform is impossible because
+// OBJECT::BoneTransform is a struct member. Per-bone chrome caches go to the arena too.
+#define g_chromeage     (Render::Build::CurrentArena().chromeAge)
+#define g_chromeup      (Render::Build::CurrentArena().chromeUp)
+#define g_chromeright   (Render::Build::CurrentArena().chromeRight)
 
-vec3_t VertexTransform[MAX_MESH][MAX_VERTICES];
-vec3_t NormalTransform[MAX_MESH][MAX_VERTICES];
-float  IntensityTransform[MAX_MESH][MAX_VERTICES];
-vec3_t LightTransform[MAX_MESH][MAX_VERTICES];
+// Task 3 (review follow-up): BoneQuaternion (per-bone slerp scratch in BMD::Animation) is
+// ZzzBMD.cpp-only, so its macro is file-local like the chrome caches. vec4_t == float[4]
+// (Core/Globals/_types.h), layout-identical to arena.boneQuaternion[][4]. ParentMatrix is
+// cross-TU and macro-mapped in WorkerArena.h.
+static_assert(sizeof(vec4_t) == sizeof(float[4]), "BoneQuaternion arena layout drifted from vec4_t");
+#define BoneQuaternion  (Render::Build::CurrentArena().boneQuaternion)
+
+// VertexTransform/NormalTransform/IntensityTransform/LightTransform/g_chrome moved
+// to the per-worker Render::Build::WorkerArena (Task 2); accessor macros in
+// WorkerArena.h keep every call site unchanged.
+
+// Etapa 3b 6.2: the placement state (BodyScale/BodyOrigin/BodyHeight) was per-render
+// mutable state living on the shared Models[type] BMD; it now lives in the per-worker
+// Render::Build::BmdRenderContext, reached by CurrentRenderCtx(). The file-global
+// BoneScale (per-entity edge/select scale, set in ZzzObject/ZzzCharacter, read in
+// SkinMesh + instanced gates here) joins it. Bare references inside BMD methods here
+// (and the b->/pModel-> setters in other TUs) are repointed onto the ctx slot;
+// signatures are unchanged. The set->use sequence is contiguous within a worker, so
+// the per-worker single slot reproduces the old shared-member semantics byte-for-byte.
+#define BodyScale   (Render::Build::CurrentRenderCtx().bodyScale)
+#define BodyOrigin  (Render::Build::CurrentRenderCtx().bodyOrigin)
+#define BodyHeight  (Render::Build::CurrentRenderCtx().bodyHeight)
+#define BoneScale   (Render::Build::CurrentRenderCtx().boneScale)
+
+// Etapa 3b 6.3: the lighting state (LightEnable / BodyLight / ShadowAngle) was per-render
+// mutable state living on the shared Models[type] BMD; it now lives in the per-worker
+// Render::Build::BmdRenderContext (CurrentRenderCtx()). Bare references inside BMD methods
+// here (and the b->/pModel-> setters in other TUs) are repointed onto the ctx slot;
+// signatures are unchanged. The set->use sequence is contiguous within a worker, so the
+// per-worker single slot reproduces the old shared-member semantics byte-for-byte.
+// These object-like macros are FILE-LOCAL to ZzzBMD.cpp; the free function BodyLight(OBJECT*,
+// BMD*) and identifiers like s_lastLightEnable / AmbientShadowAngle / CopyShadowAngle are
+// distinct whole tokens the preprocessor will not rewrite. (ContrastEnable has no bare use
+// here, so it gets no macro — only its cross-TU setters move to ctx.contrastEnable.)
+#define BodyLight    (Render::Build::CurrentRenderCtx().bodyLight)
+#define LightEnable  (Render::Build::CurrentRenderCtx().lightEnable)
+#define ShadowAngle  (Render::Build::CurrentRenderCtx().shadowAngle)
+
+// Etapa 3b 6.4: the animation state (BodyAngle / CurrentAction / CurrentAnimation /
+// CurrentAnimationFrame) was per-render mutable state living on the shared Models[type] BMD;
+// it now lives in the per-worker Render::Build::BmdRenderContext (CurrentRenderCtx()). Bare
+// references inside BMD methods here (and the b->/pModel-> setters in other TUs) are repointed
+// onto the ctx slot; signatures are unchanged. The set->use sequence is contiguous within a
+// worker, so the per-worker single slot reproduces the old shared-member semantics byte-for-byte.
+// NOTE: PriorAction is DELIBERATELY NOT macro'd — both BMD::Animation and BMD::PlayAnimation take
+// a `PriorAction` PARAMETER that shadows the (migrated) BMD member; a macro would rewrite the
+// parameter name and break those methods. The BMD member PriorAction has NO bare-token read in
+// this file (every use here is the param or an OBJECT member), and its cross-TU setters (if any)
+// move to ctx.priorAction explicitly. PlayAnimation's `*PriorAction = CurrentAction;` writes the
+// caller's OBJECT field through the param pointer (the durable source) and reads ctx.currentAction.
+#define BodyAngle             (Render::Build::CurrentRenderCtx().bodyAngle)
+#define CurrentAction         (Render::Build::CurrentRenderCtx().currentAction)
+#define CurrentAnimation      (Render::Build::CurrentRenderCtx().currentAnimation)
+#define CurrentAnimationFrame (Render::Build::CurrentRenderCtx().currentAnimationFrame)
+
+// Etapa 3b 6.5: the mesh-selection state (StreamMesh / Skin / HideSkin) and the bounding-size
+// output (fTransformedSize) were per-render mutable state living on the shared Models[type] BMD;
+// they now live in the per-worker Render::Build::BmdRenderContext (CurrentRenderCtx()). Bare
+// references inside BMD methods here (and the b->/pModel->/Models[].  setters in other TUs) are
+// repointed onto the ctx slot; signatures are unchanged. The set->use sequence is contiguous
+// within a worker, so the per-worker single slot reproduces the old shared-member semantics.
+// Macro safety: each of these is a WHOLE TOKEN the preprocessor rewrites exactly. SkinMesh /
+// EnsureMeshSkinned / MarkMeshSkinned / s_meshSkinned / IsSkin / BITMAP_SKIN / getStreamMesh are
+// DISTINCT tokens (the macros never touch them). There is no `x->StreamMesh`/`x.Skin`/etc. and no
+// local/param named StreamMesh/Skin/HideSkin/fTransformedSize in this file (the `this->StreamMesh`
+// site was rewritten to bare `StreamMesh`; the loop locals are lowercase `streamMesh`), so the
+// object-like macros are safe.
+#define StreamMesh       (Render::Build::CurrentRenderCtx().streamMesh)
+#define Skin             (Render::Build::CurrentRenderCtx().skin)
+#define HideSkin         (Render::Build::CurrentRenderCtx().hideSkin)
+#define fTransformedSize (Render::Build::CurrentRenderCtx().fTransformedSize)
 
 vec3_t RenderArrayVertices[MAX_VERTICES * 3];
 vec4_t RenderArrayColors[MAX_VERTICES * 3];
 vec2_t RenderArrayTexCoords[MAX_VERTICES * 3];
 
 bool  StopMotion = false;
-float ParentMatrix[3][4];
+// Task 3 (review follow-up): file-global `float ParentMatrix[3][4];` removed — now a
+// per-worker arena member via the ParentMatrix macro (WorkerArena.h). Transient root-bone
+// concat scratch; was never read across calls. Same TUs that used the old extern now
+// include WorkerArena.h.
 
 static vec3_t LightVector = { 0.f, -0.1f, -0.8f };
 static vec3_t LightVector2 = { 0.f, -0.5f, -0.8f };
 
 void BMD::Animation(float(*BoneMatrix)[3][4], float AnimationFrame, float PriorFrame, unsigned short PriorAction, vec3_t Angle, vec3_t HeadAngle, bool Parent, bool Translate)
 {
+    FRAME_PROFILE(Anim);
     if (NumActions <= 0) return;
 
     if (PriorAction >= NumActions) PriorAction = 0;
@@ -160,10 +250,142 @@ extern EGameScene SceneFlag;
 extern int EditFlag;
 
 bool HighLight = true;
-float BoneScale = 1.f;
+// Etapa 3b 6.2: the file-global BoneScale moved to Render::Build::BmdRenderContext::boneScale
+// (per-worker). Bare references below are macro-mapped to CurrentRenderCtx().boneScale.
+
+// Etapa 3b 6.6: the per-Transform correlation context (P-bmd-gpu / P-bmd-skinskip /
+// P-bmd-instance) used to be file-scope statics here. They encode the "Transform precedes
+// RenderMesh/InstAdd for the SAME object, no intervening Transform" invariant; under
+// parallel Phase B two workers would race on them. They now live in the per-worker
+// Render::Build::BmdRenderContext (CurrentRenderCtx()), so the set->use correlation holds
+// per-worker. These are FILE-STATICS, NOT BMD members, so there is NO sizeof(BMD) concern
+// and NO reserved padding (pure static->per-worker relocation, like Tasks 2-3).
+//
+// File-local object-like macros keep every call site unchanged. The s_*-prefixed tokens
+// below are distinct whole tokens with no conflicting local/param/member in this TU, so the
+// preprocessor rewrites them exactly. Initial values match the originals (skinnedSerial /
+// instPaletteLastSerial = 0xFFFFFFFF via the struct default-member-init; others 0/false/null).
+//
+//   P-bmd-gpu: context of the last BMD::Transform call, consumed by the next RenderMesh's GPU path.
+#define s_lastBoneMatrix         (Render::Build::CurrentRenderCtx().lastBoneMatrix)
+#define s_lastTransformTranslate (Render::Build::CurrentRenderCtx().lastTransformTranslate)
+#define s_lastTransformScale     (Render::Build::CurrentRenderCtx().lastTransformScale)
+//   P-bmd-instance: monotonic id bumped per Transform (one palette appended per character-part).
+#define s_transformSerial        (Render::Build::CurrentRenderCtx().transformSerial)
+//   P-bmd-skinskip: context recorded by Transform so a deferred mesh can be skinned on demand later.
+#define s_lastLightPosition      (Render::Build::CurrentRenderCtx().lastLightPosition)
+#define s_lastLightEnable        (Render::Build::CurrentRenderCtx().lastLightEnable)
+//   "skinned this mesh for this serial" set; reset when the serial changes.
+#define s_skinnedSerial          (Render::Build::CurrentRenderCtx().skinnedSerial)
+#define s_meshSkinned            (Render::Build::CurrentRenderCtx().meshSkinned)
+// DEAD-AND-DROPPED: s_skinScratchMin/s_skinScratchMax were a "bounding sink for lazy skin
+// (unused in gameplay)" — SkinMesh only WRITES them (under EditFlag==2) and nothing reads
+// the result downstream. They are now a per-worker throwaway scratch on EnsureMeshSkinned's
+// call to SkinMesh (see below), not a shared static. (No sizeof concern, just removing dead
+// shared mutable state for an exhaustive race audit.)
+
+void BMD::SkinMesh(int meshIndex, float(*BoneMatrix)[3][4], bool Translate, float _Scale,
+                   const float* LightPosition, float* BoundingMin, float* BoundingMax) const
+{
+    Mesh_t* m = &Meshs[meshIndex];
+    const int i = meshIndex;
+    for (int j = 0; j < m->NumVertices; j++)
+    {
+        Vertex_t* v = &m->Vertices[j];
+        float* vp = VertexTransform[i][j];
+
+        if (BoneScale == 1.f)
+        {
+            if (_Scale)
+            {
+                vec3_t Position;
+                VectorCopy(v->Position, Position);
+                VectorScale(Position, _Scale, Position);
+                VectorTransform(Position, BoneMatrix[v->Node], vp);
+            }
+            else
+                VectorTransform(v->Position, BoneMatrix[v->Node], vp);
+            if (Translate)
+                VectorScale(vp, BodyScale, vp);
+        }
+        else
+        {
+            VectorRotate(v->Position, BoneMatrix[v->Node], vp);
+            vp[0] = vp[0] * BoneScale + BoneMatrix[v->Node][0][3];
+            vp[1] = vp[1] * BoneScale + BoneMatrix[v->Node][1][3];
+            vp[2] = vp[2] * BoneScale + BoneMatrix[v->Node][2][3];
+            if (Translate)
+                VectorScale(vp, BodyScale, vp);
+        }
+#ifdef _DEBUG
+#else
+        if (EditFlag == 2)
+#endif
+        {
+            for (int k = 0; k < 3; k++)
+            {
+                if (vp[k] < BoundingMin[k]) BoundingMin[k] = vp[k];
+                if (vp[k] > BoundingMax[k]) BoundingMax[k] = vp[k];
+            }
+        }
+        if (Translate)
+            VectorAdd(vp, BodyOrigin, vp);
+    }
+
+    for (int j = 0; j < m->NumNormals; j++)
+    {
+        Normal_t* sn = &m->Normals[j];
+        float* tn = NormalTransform[i][j];
+        VectorRotate(sn->Normal, BoneMatrix[sn->Node], tn);
+        if (LightEnable && LightPosition)
+        {
+            float Luminosity = DotProduct(tn, LightPosition) * 0.8f + 0.4f;
+            if (Luminosity < 0.2f) Luminosity = 0.2f;
+            IntensityTransform[i][j] = Luminosity;
+        }
+    }
+}
+
+void BMD::EnsureMeshSkinned(int meshIndex) const
+{
+    if (s_skinnedSerial != s_transformSerial)
+    {
+        for (bool& b : s_meshSkinned) b = false;
+        s_skinnedSerial = s_transformSerial;
+    }
+    if (meshIndex < 0 || meshIndex >= NumMeshs || meshIndex >= MAX_MESH)
+        return;
+    if (s_meshSkinned[meshIndex] || s_lastBoneMatrix == nullptr)
+        return;
+    s_meshSkinned[meshIndex] = true;
+    // s_skinScratchMin/Max dropped (dead output): SkinMesh's bounding write under EditFlag==2
+    // is discarded downstream, so feed a local throwaway sink instead of a shared static.
+    vec3_t skinScratchMin, skinScratchMax;
+    SkinMesh(meshIndex, s_lastBoneMatrix, s_lastTransformTranslate, s_lastTransformScale,
+             s_lastLightEnable ? s_lastLightPosition : nullptr, skinScratchMin, skinScratchMax);
+}
+
+void BMD::MarkMeshSkinned(int meshIndex) const
+{
+    if (s_skinnedSerial != s_transformSerial)
+    {
+        for (bool& b : s_meshSkinned) b = false;
+        s_skinnedSerial = s_transformSerial;
+    }
+    if (meshIndex >= 0 && meshIndex < MAX_MESH)
+        s_meshSkinned[meshIndex] = true;
+}
 
 void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t BoundingBoxMax, OBB_t* OBB, bool Translate, float _Scale)
 {
+    FRAME_PROFILE(Anim);
+    // P-bmd-gpu: record the context this CPU transform ran with so a following
+    // RenderMesh can reproduce it exactly on the GPU (A/B identical).
+    s_lastBoneMatrix        = BoneMatrix;
+    s_lastTransformTranslate = Translate;
+    s_lastTransformScale     = _Scale;
+    ++s_transformSerial;
+
     vec3_t LightPosition;
 
     if (LightEnable)
@@ -198,66 +420,30 @@ void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t Boun
         Vector(999999.f, 999999.f, 999999.f, BoundingMin);
         Vector(-999999.f, -999999.f, -999999.f, BoundingMax);
     }
+    // P-bmd-skinskip: record context for lazy skin + reset the per-serial skinned set.
+    s_lastLightEnable = LightEnable;
+    if (LightEnable)
+        VectorCopy(LightPosition, s_lastLightPosition);
+    for (bool& b : s_meshSkinned) b = false;
+    s_skinnedSerial = s_transformSerial;
+
+    // measureSkip (MU_SKINSKIP): raw skip, breaks visuals -- skinning-ceiling measurement.
+    // deferActive (MU_GPUSKIN): skip CPU skin in the instanced character pass; consumers
+    // that still read VertexTransform/NormalTransform (legacy draw, CPU shadow fallback,
+    // effects, side-hair, cloth) force-skin lazily via EnsureMeshSkinned. Requires GPU
+    // shadows ON (else the CPU shadow would read unskinned vertices for every mesh).
+    const bool measureSkip = Render::Models::SkinSkip();
+    const bool deferActive = Render::Models::GpuSkinDeferEnabled()
+        && Render::Models::GpuCharsPass() && Render::Models::GpuBmdEnabled()
+        && Render::Models::GpuInstEnabled() && Render::Models::GpuShadowEnabled();
+
     for (int i = 0; i < NumMeshs; i++)
     {
-        Mesh_t* m = &Meshs[i];
-        for (int j = 0; j < m->NumVertices; j++)
-        {
-            Vertex_t* v = &m->Vertices[j];
-            float* vp = VertexTransform[i][j];
-
-            if (BoneScale == 1.f)
-            {
-                if (_Scale)
-                {
-                    vec3_t Position;
-                    VectorCopy(v->Position, Position);
-                    VectorScale(Position, _Scale, Position);
-                    VectorTransform(Position, BoneMatrix[v->Node], vp);
-                }
-                else
-                    VectorTransform(v->Position, BoneMatrix[v->Node], vp);
-                if (Translate)
-                    VectorScale(vp, BodyScale, vp);
-            }
-            else
-            {
-                VectorRotate(v->Position, BoneMatrix[v->Node], vp);
-                vp[0] = vp[0] * BoneScale + BoneMatrix[v->Node][0][3];
-                vp[1] = vp[1] * BoneScale + BoneMatrix[v->Node][1][3];
-                vp[2] = vp[2] * BoneScale + BoneMatrix[v->Node][2][3];
-                if (Translate)
-                    VectorScale(vp, BodyScale, vp);
-            }
-#ifdef _DEBUG
-#else
-            if (EditFlag == 2)
-#endif
-            {
-                for (int k = 0; k < 3; k++)
-                {
-                    if (vp[k] < BoundingMin[k]) BoundingMin[k] = vp[k];
-                    if (vp[k] > BoundingMax[k]) BoundingMax[k] = vp[k];
-                }
-            }
-            if (Translate)
-                VectorAdd(vp, BodyOrigin, vp);
-        }
-
-        for (int j = 0; j < m->NumNormals; j++)
-        {
-            Normal_t* sn = &m->Normals[j];
-            float* tn = NormalTransform[i][j];
-            VectorRotate(sn->Normal, BoneMatrix[sn->Node], tn);
-            if (LightEnable)
-            {
-                float Luminosity;
-                Luminosity = DotProduct(tn, LightPosition) * 0.8f + 0.4f;
-
-                if (Luminosity < 0.2f) Luminosity = 0.2f;
-                IntensityTransform[i][j] = Luminosity;
-            }
-        }
+        if (measureSkip) continue;
+        if (deferActive) continue;   // leave unskinned; EnsureMeshSkinned does it on read
+        SkinMesh(i, BoneMatrix, Translate, _Scale,
+                 LightEnable ? LightPosition : nullptr, BoundingMin, BoundingMax);
+        if (i < MAX_MESH) s_meshSkinned[i] = true;
     }
     if (EditFlag == 2)
     {
@@ -304,7 +490,7 @@ void BMD::TransformByObjectBone(vec3_t vResultPosition, OBJECT* pObject, int iBo
     }
     else
     {
-        TransformMatrix = BoneTransform[iBoneNumber];
+        TransformMatrix = g_BoneTransformScratch[iBoneNumber];
     }
 
     vec3_t vTemp;
@@ -383,7 +569,7 @@ bool BMD::PlayAnimation(float* AnimationFrame, float* PriorAnimationFrame, unsig
 {
     bool Loop = true;
 
-    if (AnimationFrame == nullptr || PriorAnimationFrame == nullptr || PriorAction == nullptr || (NumActions > 0 && CurrentAction >= NumActions))
+    if (AnimationFrame == nullptr || PriorAnimationFrame == nullptr || PriorAction == nullptr || Actions == nullptr || (NumActions > 0 && CurrentAction >= NumActions))
     {
         return Loop;
     }
@@ -485,20 +671,20 @@ void BMD::AnimationTransformWithAttachHighModel_usingGlobalTM(OBJECT* oHighHiera
 
     for (int i_ = 0; i_ < NumBones; ++i_)
     {
-        R_ConcatTransforms(tmBoneHierarchicalObject, arrBonesTMLocal[i_], BoneTransform[i_]);
-        BoneTransform[i_][0][3] = BoneTransform[i_][0][3] + v3Position[0];
-        BoneTransform[i_][1][3] = BoneTransform[i_][1][3] + v3Position[1];
-        BoneTransform[i_][2][3] = BoneTransform[i_][2][3] + v3Position[2];
+        R_ConcatTransforms(tmBoneHierarchicalObject, arrBonesTMLocal[i_], g_BoneTransformScratch[i_]);
+        g_BoneTransformScratch[i_][0][3] = g_BoneTransformScratch[i_][0][3] + v3Position[0];
+        g_BoneTransformScratch[i_][1][3] = g_BoneTransformScratch[i_][1][3] + v3Position[1];
+        g_BoneTransformScratch[i_][2][3] = g_BoneTransformScratch[i_][2][3] + v3Position[2];
 
-        Vector(BoneTransform[i_][0][3],
-            BoneTransform[i_][1][3],
-            BoneTransform[i_][2][3],
+        Vector(g_BoneTransformScratch[i_][0][3],
+            g_BoneTransformScratch[i_][1][3],
+            g_BoneTransformScratch[i_][2][3],
             arrOutSetfAllBonePositions[i_]);
     }
 
     if (true == bApplyTMtoVertices)
     {
-        Transform(BoneTransform, Temp, Temp, &OBB, false);
+        Transform(g_BoneTransformScratch, Temp, Temp, &OBB, false);
     }
 
     delete[] arrBonesTMLocal;
@@ -646,15 +832,21 @@ void BMD::AnimationTransformOnlySelf(vec3_t* arrOutSetfAllBonePositions,
     delete[] arrBonesTMLocal;
 }
 
-vec3_t		g_vright;		// needs to be set to viewer's right in order for chrome to work
-int			g_smodels_total = 1;				// cookie
-float		g_chrome[MAX_VERTICES][2];	// texture coords for surface normals
-int			g_chromeage[MAX_BONES];	// last time chrome vectors were updated
-vec3_t		g_chromeup[MAX_BONES];		// chrome vector "up" in bone reference frames
-vec3_t		g_chromeright[MAX_BONES];	// chrome vector "right" in bone reference frames
+// Task 3 (review follow-up): the file-global `vec3_t g_vright;` was written to the invariant
+// constant (0,0,1) at the top of BMD::Chrome and read only within that same function — a
+// benign write-then-read of a constant, but still a shared mutable global. Made a function-
+// local in BMD::Chrome (below) so it is no longer a global at all. Used nowhere else.
+// Task 3: g_smodels_total is a read-only "frame id" cookie. It is NEVER incremented
+// anywhere in the tree (grep: one def + one read), so it is effectively a constant 1 and
+// the original chrome-cache invalidation it keyed is dead. Kept read-only; the per-entity
+// build path must never write it (Task 6 race-audit relies on this).
+const int	g_smodels_total = 1;				// cookie (read-only; never bumped)
+// g_chrome / g_chromeage / g_chromeup / g_chromeright moved to Render::Build::WorkerArena
+// (Tasks 2-3; macros above + in WorkerArena.h).
 
 void BMD::Chrome(float* pchrome, int bone, vec3_t normal)
 {
+    vec3_t g_vright;	// viewer's right; invariant (0,0,1) here, set per-call (was a file-global)
     Vector(0.f, 0.f, 1.f, g_vright);
 
     float n;
@@ -670,6 +862,9 @@ void BMD::Chrome(float* pchrome, int bone, vec3_t normal)
         CrossProduct(tmp, chromeupvec, chromerightvec);
         VectorNormalize(chromerightvec);
 
+        // Vestigial: g_smodels_total is const 1 and NOTHING reads g_chromeage to branch
+        // (grep: this is its only access). Retained for serial-identical safety; the original
+        // chrome-cache invalidation it keyed is dead. Do not reintroduce a reader (Task 6).
         g_chromeage[bone] = g_smodels_total;
     }
 
@@ -941,18 +1136,258 @@ void BMD::EndRenderCoinHeap(int coinCount)
     glDisableClientState(GL_VERTEX_ARRAY);
 }
 
+// P-bmd-gpu: draw one mesh via the GPU skinning shader + cached VBO, reproducing
+// BMD::Transform's math (bones + BodyScale/Origin + per-normal lighting). Called
+// from RenderMesh AFTER its texture/blend setup, so it reuses that state and only
+// replaces the CPU per-vertex rebuild + draw. Returns false (state untouched) if
+// the shader isn't ready -> caller falls back to legacy.
+bool BMD::RenderMeshGpu(int meshIndex, const Render::Models::MeshGpu* gpu, float alpha, bool lit)
+{
+    using namespace Render::GL;
+    BmdShader& sh = GetBmdShader();
+    if (!sh.Ensure() || gpu == nullptr || !gpu->eligible || s_lastBoneMatrix == nullptr)
+        return false;
+
+    // Bone matrices: row-major 3x4 affine -> column-major mat4 (bottom row 0,0,0,1)
+    // for the shader's `mat4 * vec4(pos, 1)`.
+    int boneCount = NumBones;
+    if (boneCount < 1) boneCount = 1;
+    if (boneCount > BmdShader::kMaxBones) boneCount = BmdShader::kMaxBones;
+    float bones[BmdShader::kMaxBones * 16];
+    for (int b = 0; b < boneCount; ++b)
+    {
+        const float(*M)[4] = s_lastBoneMatrix[b];   // [3][4]
+        float* d = &bones[b * 16];
+        for (int c = 0; c < 4; ++c)
+        {
+            d[c * 4 + 0] = M[0][c];
+            d[c * 4 + 1] = M[1][c];
+            d[c * 4 + 2] = M[2][c];
+            d[c * 4 + 3] = (c == 3) ? 1.f : 0.f;
+        }
+    }
+
+    // Colour/lighting. Two modes (matches the legacy RenderMesh):
+    //  - lit (props): per-normal lighting, base colour = BodyLight, alpha = alpha.
+    //  - flat (characters, enableLight==false): a single flat colour = the current
+    //    glColor the caller set (read once), no per-vertex lighting.
+    vec3_t lightPos  = { 0.f, 0.f, 0.f };
+    vec3_t baseColor;
+    float  baseAlpha = alpha;
+    if (lit)
+    {
+        VectorCopy(BodyLight, baseColor);
+        // Light position: identical recompute to BMD::Transform's lit branch.
+        vec3_t Position;
+        float Matrix[3][4];
+        if (HighLight)
+        {
+            Vector(1.3f, 0.f, 2.f, Position);
+        }
+        else if (gMapManager.InBattleCastle())
+        {
+            Vector(0.5f, -1.f, 1.f, Position);
+            Vector(0.f, 0.f, -45.f, ShadowAngle);
+        }
+        else
+        {
+            Vector(0.f, -1.5f, 0.f, Position);
+        }
+        AngleMatrix(ShadowAngle, Matrix);
+        VectorIRotate(Position, Matrix, lightPos);
+    }
+    else
+    {
+        float cur[4] = { 1.f, 1.f, 1.f, 1.f };
+        // sub-task 6.7: GL read kept HERE only. RenderMeshGpu is the per-mesh GPU path that
+        // issues GL immediately and is GL-thread-only (Phase B keeps per-mesh-GPU + legacy
+        // draws serial; only the instanced-collect path at RenderMesh runs on workers). NOT
+        // migrated; the instanced flat branch's glGetFloatv was the one moved to ctx.flatColor.
+        glGetFloatv(GL_CURRENT_COLOR, cur);   // the flat colour the caller set
+        baseColor[0] = cur[0]; baseColor[1] = cur[1]; baseColor[2] = cur[2];
+        baseAlpha = cur[3];
+    }
+
+    const bool  translate = s_lastTransformTranslate;
+    const float bodyScale = translate ? BodyScale : 1.f;
+    vec3_t bodyOrigin = { 0.f, 0.f, 0.f };
+    if (translate) { VectorCopy(BodyOrigin, bodyOrigin); }
+
+    sh.Use();
+    sh.SetBones(bones, boneCount);
+    sh.SetBody(bodyScale, bodyOrigin);
+    sh.SetLight(lightPos, baseColor, baseAlpha);
+    sh.SetLit(lit ? 1.f : 0.f);
+    sh.SetTextureUnit(0);
+    ActiveTexture(GL_TEXTURE0);
+
+    gpu->vbo.Bind(GL_ARRAY_BUFFER);
+    namespace Lay = Render::Models::GpuVtxLayout;
+    const GLint aPos = sh.AttrPos(), aVB = sh.AttrVBone(), aN = sh.AttrNormal(),
+                aNB = sh.AttrNBone(), aUV = sh.AttrUV();
+    if (aPos >= 0) { EnableVertexAttribArray(aPos); VertexAttribPointer(aPos, 3, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffPos); }
+    if (aVB  >= 0) { EnableVertexAttribArray(aVB);  VertexAttribPointer(aVB,  1, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffVBone); }
+    if (aN   >= 0) { EnableVertexAttribArray(aN);   VertexAttribPointer(aN,   3, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffNormal); }
+    if (aNB  >= 0) { EnableVertexAttribArray(aNB);  VertexAttribPointer(aNB,  1, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffNBone); }
+    if (aUV  >= 0) { EnableVertexAttribArray(aUV);  VertexAttribPointer(aUV,  2, GL_FLOAT, GL_FALSE, Lay::kStride, (const GLvoid*)(size_t)Lay::kOffUV); }
+
+    glDrawArrays(GL_TRIANGLES, 0, gpu->vertexCount);
+
+    if (aPos >= 0) DisableVertexAttribArray(aPos);
+    if (aVB  >= 0) DisableVertexAttribArray(aVB);
+    if (aN   >= 0) DisableVertexAttribArray(aN);
+    if (aNB  >= 0) DisableVertexAttribArray(aNB);
+    if (aUV  >= 0) DisableVertexAttribArray(aUV);
+    BindBuffer(GL_ARRAY_BUFFER, 0);   // critical: legacy gl*Pointer would read offsets otherwise
+    UseProgram(0);
+    return true;
+}
+
+// P-bmd-instance: append the current character-part's bone palette to the TBO
+// once (subsequent meshes of the same part reuse the base, detected via the
+// Transform serial). Returns the palette base index for InstanceRec.
+static int InstPaletteBaseForCurrentPart(int numBones)
+{
+    // Etapa 3b 6.6: these per-Transform palette-base cache statics moved to the per-worker
+    // BmdRenderContext (instPaletteLastSerial / instPaletteLastBase). As shared function-local
+    // statics, parallel workers would return each other's palette base; per-worker preserves
+    // the "one palette per character-part, reused by its meshes" correlation per worker.
+    // Initial values match the originals (lastSerial = 0xFFFFFFFF, lastBase = 0).
+    auto& ctx = Render::Build::CurrentRenderCtx();
+    if (s_transformSerial != ctx.instPaletteLastSerial)
+    {
+        int bc = numBones;
+        if (bc < 1) bc = 1;
+        if (bc > Render::GL::BmdShader::kMaxBones) bc = Render::GL::BmdShader::kMaxBones;
+        ctx.instPaletteLastBase   = Render::Models::InstAppendPalette(s_lastBoneMatrix, bc);
+        ctx.instPaletteLastSerial = s_transformSerial;
+    }
+    return ctx.instPaletteLastBase;
+}
+
+// P-bmd-instance: global light direction for LIT instanced meshes. HighLight is a
+// constant 'true' in this client, so RenderMeshGpu's lit branch always uses Position
+// (1.3,0,2). Normal chars have ShadowAngle = (0,0,AmbientShadowAngle) (a global), so
+// the result is identical for every char -> one uLightPos per flush. We compute from
+// AmbientShadowAngle directly (not this->ShadowAngle) so a rare pet with a custom
+// shadow angle can't poison the shared uniform for the whole batch.
+void BMD::ComputeInstLitLight(vec3_t out)
+{
+    vec3_t Position, angle;
+    float  Matrix[3][4];
+    Vector(1.3f, 0.f, 2.f, Position);
+    Vector(0.f, 0.f, AmbientShadowAngle, angle);
+    AngleMatrix(angle, Matrix);
+    VectorIRotate(Position, Matrix, out);
+}
+
+// ===========================================================================
+// Etapa 3b 3b-diag: MU_JOBSDIAG-gated, thread-safe RenderMesh collect tracer.
+// All counters are std::atomic so concurrent workers don't corrupt them; the
+// dump runs serially (LogAndResetGpuStats cadence). Localises WHERE a chars-pass
+// RenderMesh call exits when the [bmd_cov] inst count jitters under MU_JOBS.
+// Removed/gated before the fix commit.
+// ===========================================================================
+namespace
+{
+    bool JobsDiagEnabled()
+    {
+        static const bool s_on = [] {
+            char b[8] = {}; size_t n = 0;
+            return getenv_s(&n, b, sizeof(b), "MU_JOBSDIAG") == 0 && n > 0 && b[0] != '0';
+        }();
+        return s_on;
+    }
+    // One bucket per early-return / branch in the chars pass.
+    enum DiagSlot {
+        DIAG_ENTRY = 0,      // entered RenderMesh on the chars pass (post suppress)
+        DIAG_RET_BOUNDS,     // meshIndex OOB
+        DIAG_RET_NOTRI,      // NumTriangles == 0
+        DIAG_RET_BITMAPHIDE, // textureIndex == BITMAP_HIDE
+        DIAG_RET_SKINHAIR,   // IsSkin/IsHair && HideSkin
+        DIAG_RET_NONEBLEND,  // chrome NoneBlendMesh
+        DIAG_REACH_GATE,     // reached the GPU/instancing outer gate
+        DIAG_GATE_GPUNULL,   // outer gate true but gpu==null/ineligible (worker-defer etc.)
+        DIAG_INSTADD,        // reached InstAdd (cls=0)
+        DIAG_CLASSIFY,       // reached the classify block (line 1777)
+        DIAG_N
+    };
+    std::atomic<long long> g_diag[DIAG_N];
+    inline void DiagHit(int slot) { if (JobsDiagEnabled()) g_diag[slot].fetch_add(1, std::memory_order_relaxed); }
+    // Per-meshIndex entry vs instadd histogram (which body mesh slot loses InstAdds).
+    std::atomic<long long> g_diagEntryByMesh[MAX_MESH];
+    std::atomic<long long> g_diagInstByMesh[MAX_MESH];
+    inline void DiagEntryMesh(int mi) { if (JobsDiagEnabled() && mi >= 0 && mi < MAX_MESH) g_diagEntryByMesh[mi].fetch_add(1, std::memory_order_relaxed); }
+    inline void DiagInstMesh(int mi)  { if (JobsDiagEnabled() && mi >= 0 && mi < MAX_MESH) g_diagInstByMesh[mi].fetch_add(1, std::memory_order_relaxed); }
+
+    // Task 7 objects-instancing diag (gated by JobsDiagEnabled() && GpuObjectsPass()).
+    // Tells, per objects pass, how many prop meshes entered, reached the GPU outer gate,
+    // were rejected from the instance batch for being non-translate-only (rotated/scaled
+    // world matrix) vs blend, and how many actually appended. Answers "do town props
+    // instance, or does rotation exclude them?" without guessing.
+    std::atomic<long long> g_objEntry{0}, g_objOuterGate{0}, g_objNoTranslate{0}, g_objBlendExcl{0}, g_objInstAdd{0};
+    inline void ObjDiag(std::atomic<long long>& c) { c.fetch_add(1, std::memory_order_relaxed); }
+}
+void JobsDiagDumpAndReset();   // fwd; called from LogAndResetGpuStats-adjacent site
+
+void JobsDiagDumpAndReset()
+{
+    if (!JobsDiagEnabled()) return;
+    long long v[DIAG_N];
+    for (int i = 0; i < DIAG_N; ++i) v[i] = g_diag[i].exchange(0, std::memory_order_relaxed);
+    Render::GL::Log("[jobsdiag] entry=%lld | ret: bounds=%lld notri=%lld bmphide=%lld skinhair=%lld noneblend=%lld "
+                    "| gate=%lld gpunull=%lld instadd=%lld classify=%lld | dropped(entry-classify-instadd)=%lld",
+                    v[DIAG_ENTRY], v[DIAG_RET_BOUNDS], v[DIAG_RET_NOTRI], v[DIAG_RET_BITMAPHIDE],
+                    v[DIAG_RET_SKINHAIR], v[DIAG_RET_NONEBLEND], v[DIAG_REACH_GATE], v[DIAG_GATE_GPUNULL],
+                    v[DIAG_INSTADD], v[DIAG_CLASSIFY],
+                    v[DIAG_ENTRY] - v[DIAG_CLASSIFY] - (v[DIAG_RET_BOUNDS]+v[DIAG_RET_NOTRI]+v[DIAG_RET_BITMAPHIDE]+v[DIAG_RET_SKINHAIR]+v[DIAG_RET_NONEBLEND]));
+    char buf[1024]; int off = 0;
+    off += snprintf(buf+off, sizeof(buf)-off, "[jobsdiag] perMesh entry/inst (mi:e,i):");
+    for (int mi = 0; mi < MAX_MESH; ++mi)
+    {
+        long long e = g_diagEntryByMesh[mi].exchange(0, std::memory_order_relaxed);
+        long long ia = g_diagInstByMesh[mi].exchange(0, std::memory_order_relaxed);
+        if (e != 0 || ia != 0)
+            off += snprintf(buf+off, sizeof(buf)-off, " %d:%lld,%lld", mi, e, ia);
+        if (off > (int)sizeof(buf) - 32) break;
+    }
+    Render::GL::Log("%s", buf);
+
+    // Task 7 objects-pass instancing breakdown.
+    Render::GL::Log("[objdiag] entry=%lld outerGate=%lld notranslate=%lld blendExcl=%lld instAdd=%lld",
+                    g_objEntry.exchange(0, std::memory_order_relaxed),
+                    g_objOuterGate.exchange(0, std::memory_order_relaxed),
+                    g_objNoTranslate.exchange(0, std::memory_order_relaxed),
+                    g_objBlendExcl.exchange(0, std::memory_order_relaxed),
+                    g_objInstAdd.exchange(0, std::memory_order_relaxed));
+}
+
 void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshIndex, float blendMeshAlpha, float blendMeshTextureCoordU, float blendMeshTextureCoordV, int explicitTextureIndex)
 {
-    if (meshIndex >= NumMeshs || meshIndex < 0) return;
+    // Etapa 3b 6.8b: the EffectsOnly serial replay re-walks RenderCharacter ONLY to
+    // re-issue the suppressed effect side effects in entity order. The mesh instances /
+    // [bmd_cov] counters were already emitted by the parallel MeshOnly pass, so skip the
+    // mesh emission here to avoid double-instancing/double-counting. (The replay only ever
+    // renders characters, never props.)
+    if (Render::Build::BuildSuppressMesh())
+        return;
+
+    const bool diagCharsPass = JobsDiagEnabled() && Render::Models::GpuCharsPass();
+    if (diagCharsPass) { DiagHit(DIAG_ENTRY); DiagEntryMesh(meshIndex); }
+    const bool diagObjPass = JobsDiagEnabled() && Render::Models::GpuObjectsPass();
+    if (diagObjPass) ObjDiag(g_objEntry);
+
+    if (meshIndex >= NumMeshs || meshIndex < 0) { if (diagCharsPass) DiagHit(DIAG_RET_BOUNDS); return; }
 
     Mesh_t* m = &Meshs[meshIndex];
-    if (m->NumTriangles == 0) return;
+    if (m->NumTriangles == 0) { if (diagCharsPass) DiagHit(DIAG_RET_NOTRI); return; }
 
     float wave = static_cast<long>(WorldTime) % 10000 * 0.0001f;
 
     int textureIndex = IndexTexture[m->Texture];
     if (textureIndex == BITMAP_HIDE)
     {
+        if (diagCharsPass) DiagHit(DIAG_RET_BITMAPHIDE);
         return;
     }
 
@@ -969,16 +1404,18 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     const auto texture = Bitmaps.GetTexture(textureIndex);
     if (texture->IsSkin && HideSkin)
     {
+        if (diagCharsPass) DiagHit(DIAG_RET_SKINHAIR);
         return;
     }
 
     if (texture->IsHair && HideSkin)
     {
+        if (diagCharsPass) DiagHit(DIAG_RET_SKINHAIR);
         return;
     }
 
     bool EnableWave = false;
-    int streamMesh = static_cast<u_char>(this->StreamMesh);
+    int streamMesh = static_cast<u_char>(StreamMesh);
     if (m->m_csTScript != nullptr)
     {
         if (m->m_csTScript->getStreamMesh())
@@ -997,15 +1434,27 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     if (meshIndex == StreamMesh)
     {
         glColor3fv(BodyLight);
+        // sub-task 6.7: mirror the flat colour into ctx.flatColor so the instanced flat
+        // branch reads it (per-worker) instead of glGetFloatv(GL_CURRENT_COLOR). StreamMesh
+        // forces flat here (enableLight=false), so this is one of the flat-branch sources.
+        Render::Build::CurrentRenderCtx().flatColor[0] = BodyLight[0];
+        Render::Build::CurrentRenderCtx().flatColor[1] = BodyLight[1];
+        Render::Build::CurrentRenderCtx().flatColor[2] = BodyLight[2];
+        Render::Build::CurrentRenderCtx().flatColor[3] = 1.f;
         enableLight = false;
     }
-    else if (enableLight)
-    {
-        for (int j = 0; j < m->NumNormals; j++)
-        {
-            VectorScale(BodyLight, IntensityTransform[meshIndex][j], LightTransform[meshIndex][j]);
-        }
-    }
+    // The per-normal LightTransform[] = BodyLight * IntensityTransform[] build is
+    // relocated past the instancing early-return + EnsureMeshSkinned (see below):
+    // the instanced lit shader does lighting from palette normals, so the loop is
+    // pure waste for collected meshes, and on the legacy path it must read freshly
+    // skinned IntensityTransform under deferred skinning.
+
+    // True ALPHA-BLEND (translucent) meshes -- e.g. the "blend mesh" branch below that
+    // calls EnableAlphaBlend (wing membranes like Wings of Spirits). These must NOT be
+    // collected into the instanced batch: that flush is alpha-test/opaque only, so an
+    // instanced blend mesh renders flat/opaque (lost translucency). Flag it here and skip
+    // the whole GPU/instancing block so it falls through to the legacy alpha-blended draw.
+    bool meshAlphaBlended = false;
 
     int finalRenderFlags = renderFlags;
     if ((renderFlags & RENDER_COLOR) == RENDER_COLOR)
@@ -1053,11 +1502,11 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     {
         if (m->m_csTScript != nullptr)
         {
-            if (m->m_csTScript->getNoneBlendMesh()) return;
+            if (m->m_csTScript->getNoneBlendMesh()) { if (diagCharsPass) DiagHit(DIAG_RET_NONEBLEND); return; }
         }
 
         if (m->NoneBlendMesh)
-            return;
+            { if (diagCharsPass) DiagHit(DIAG_RET_NONEBLEND); return; }
 
         finalRenderFlags = RENDER_CHROME;
         if ((renderFlags & RENDER_CHROME4) == RENDER_CHROME4)
@@ -1069,64 +1518,10 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
             finalRenderFlags = RENDER_OIL;
         }
 
-        float Wave2 = (int)WorldTime % 5000 * 0.00024f - 0.4f;
-
-        vec3_t L = { (float)(cos(WorldTime * 0.001f)), (float)(sin(WorldTime * 0.002f)), 1.f };
-        for (int j = 0; j < m->NumNormals; j++)
-        {
-            if (j > MAX_VERTICES) break;
-            const auto normal = NormalTransform[meshIndex][j];
-
-            if ((renderFlags & RENDER_CHROME2) == RENDER_CHROME2)
-            {
-                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
-                g_chrome[j][1] = (normal[1] + normal[0]) * 1.0f + Wave2 * 3.f;
-            }
-            else if ((renderFlags & RENDER_CHROME3) == RENDER_CHROME3)
-            {
-                g_chrome[j][0] = DotProduct(normal, LightVector);
-                g_chrome[j][1] = 1.f - DotProduct(normal, LightVector);
-            }
-            else if ((renderFlags & RENDER_CHROME4) == RENDER_CHROME4)
-            {
-                g_chrome[j][0] = DotProduct(normal, L);
-                g_chrome[j][1] = 1.f - DotProduct(normal, L);
-                g_chrome[j][1] -= normal[2] * 0.5f + wave * 3.f;
-                g_chrome[j][0] += normal[1] * 0.5f + L[1] * 3.f;
-            }
-            else if ((renderFlags & RENDER_CHROME5) == RENDER_CHROME5)
-            {
-                g_chrome[j][0] = DotProduct(normal, L);
-                g_chrome[j][1] = 1.f - DotProduct(normal, L);
-                g_chrome[j][1] -= normal[2] * 2.5f + wave * 1.f;
-                g_chrome[j][0] += normal[1] * 3.f + L[1] * 5.f;
-            }
-            else if ((renderFlags & RENDER_CHROME6) == RENDER_CHROME6)
-            {
-                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
-                g_chrome[j][1] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
-            }
-            else if ((renderFlags & RENDER_CHROME7) == RENDER_CHROME7)
-            {
-                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + static_cast<float>(WorldTime) * 0.00006f;
-                g_chrome[j][1] = (normal[2] + normal[0]) * 0.8f + static_cast<float>(WorldTime) * 0.00006f;
-            }
-            else if ((renderFlags & RENDER_OIL) == RENDER_OIL)
-            {
-                g_chrome[j][0] = normal[0];
-                g_chrome[j][1] = normal[1];
-            }
-            else if ((renderFlags & RENDER_CHROME) == RENDER_CHROME)
-            {
-                g_chrome[j][0] = normal[2] * 0.5f + wave;
-                g_chrome[j][1] = normal[1] * 0.5f + wave * 2.f;
-            }
-            else
-            {
-                g_chrome[j][0] = normal[2] * 0.5f + 0.2f;
-                g_chrome[j][1] = normal[1] * 0.5f + 0.5f;
-            }
-        }
+        // g_chrome[] sphere-map texcoords are computed AFTER the GPU/instancing
+        // decision + skinning (see below, gated on finalRenderFlags). When the mesh
+        // instances, the shader builds the UV and this per-normal loop is skipped
+        // entirely; on the legacy path it runs against freshly-skinned normals.
 
         if ((renderFlags & RENDER_CHROME3) == RENDER_CHROME3
             || (renderFlags & RENDER_CHROME4) == RENDER_CHROME4
@@ -1197,6 +1592,7 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
     else if (blendMeshIndex <= -2 || m->Texture == blendMeshIndex)
     {
         finalRenderFlags = RENDER_TEXTURE;
+        meshAlphaBlended = true;   // translucent blend mesh -> keep off the instanced (opaque) batch
         BindTexture(textureIndex);
         if ((renderFlags & RENDER_DARK) == RENDER_DARK)
             EnableAlphaBlendMinus();
@@ -1274,6 +1670,333 @@ void BMD::RenderMesh(int meshIndex, int renderFlags, float alpha, int blendMeshI
         || finalRenderFlags == RENDER_CHROME
         || finalRenderFlags == RENDER_CHROME4
         || finalRenderFlags == RENDER_OIL;
+
+    // P-bmd-gpu: GPU skinning path for lit, plain-textured meshes in the Objects
+    // (props) or Characters (players/mobs + parts) pass, $gpubmd on. Reuses the
+    // texture/blend state set above; replaces the CPU per-vertex rebuild + client-
+    // side draw below. Falls through to legacy otherwise.
+    // P-bmd-instance (chrome): PLAIN RENDER_CHROME only — not CHROME2..7/METAL/OIL (those
+    // share finalRenderFlags==RENDER_CHROME but use different formulas/textures), not
+    // DARK/LIGHTMAP/NODEPTH, standard chrome texture. Two sub-cases: OPAQUE (no BRIGHT,
+    // alpha>=0.99 -> alpha-test bucket) and ADDITIVE (RENDER_BRIGHT -> GL_ONE/ONE bucket,
+    // order-independent). Char equipment chrome is overwhelmingly CHROME|BRIGHT (additive).
+    // The instanced shader reproduces the plain-chrome sphere-map UV (normal.z*0.5+wave,
+    // normal.y*0.5+wave*2).
+    const bool chromeBase =
+        finalRenderFlags == RENDER_CHROME
+        && (renderFlags & RENDER_CHROME) != 0
+        && (renderFlags & (RENDER_CHROME2 | RENDER_CHROME3 | RENDER_CHROME4 | RENDER_CHROME5
+                           | RENDER_CHROME6 | RENDER_CHROME7 | RENDER_METAL | RENDER_OIL
+                           | RENDER_DARK | RENDER_LIGHTMAP | RENDER_NODEPTH)) == 0
+        && explicitTextureIndex == -1;
+    const bool chromeAdditive = chromeBase && (renderFlags & RENDER_BRIGHT) != 0;
+    const bool chromeOpaque   = chromeBase && (renderFlags & RENDER_BRIGHT) == 0 && alpha >= 0.99f;
+    const bool plainChrome    = chromeOpaque || chromeAdditive;
+
+    // P-bmd-instance (chrome variants): CHROME2/3/4/6 + METAL also instance, each with its
+    // own sphere-map formula (shader uChromeMode) + texture. Excludes DARK/LIGHTMAP/NODEPTH
+    // (unsupported blend) and explicit-texture/NoneBlend. CHROME5/7/OIL stay legacy (no
+    // texture bind in the legacy path / rare). Additive when the legacy path would
+    // EnableAlphaBlend (CHROME3/4 or BRIGHT); else opaque.
+    int  chromeVarMode = 0;     // 0 = not an instanceable variant; else shader uChromeMode
+    int  chromeVarTex  = 0;
+    if (explicitTextureIndex == -1
+        && (renderFlags & (RENDER_DARK | RENDER_LIGHTMAP | RENDER_NODEPTH)) == 0
+        && !m->NoneBlendMesh
+        && !(m->m_csTScript != nullptr && m->m_csTScript->getNoneBlendMesh()))
+    {
+        if      ((renderFlags & RENDER_CHROME2) != 0) { chromeVarMode = 2; chromeVarTex = BITMAP_CHROME2; }
+        else if ((renderFlags & RENDER_CHROME3) != 0) { chromeVarMode = 3; chromeVarTex = BITMAP_CHROME2; }
+        else if ((renderFlags & RENDER_CHROME4) != 0) { chromeVarMode = 4; chromeVarTex = BITMAP_CHROME2; }
+        else if ((renderFlags & RENDER_CHROME6) != 0) { chromeVarMode = 6; chromeVarTex = BITMAP_CHROME6; }
+        else if ((renderFlags & RENDER_METAL)   != 0) { chromeVarMode = 8; chromeVarTex = BITMAP_SHINY; }
+    }
+    const bool chromeVarOk       = chromeVarMode != 0;
+    const bool chromeVarAdditive = chromeVarOk
+        && (renderFlags & (RENDER_CHROME3 | RENDER_CHROME4 | RENDER_BRIGHT)) != 0;
+
+    // Etapa 1.4a: an ADDITIVE translucent blend mesh (wings — set meshAlphaBlended above,
+    // textured, EnableAlphaBlend = GL_ONE/ONE; NOT DARK/AlphaBlendMinus) can join the
+    // instanced additive bucket (order-independent) instead of the per-mesh GPU path.
+    const bool blendMeshAdditive = meshAlphaBlended
+        && (renderFlags & RENDER_DARK) == 0
+        && Render::Models::GpuBlendInstEnabled();
+
+    // Etapa 1.4b: a textured BRIGHT mesh that animates its texcoords (EnableWave UV-scroll;
+    // NOT RENDER_WAVE vertex displacement, NOT DARK, not a blend mesh) can also join the
+    // additive bucket — the instanced shader applies the per-bucket UV offset below.
+    const bool waveAdditive = EnableWave
+        && finalRenderFlags == RENDER_TEXTURE
+        && (renderFlags & RENDER_BRIGHT) != 0
+        && (renderFlags & RENDER_DARK) == 0
+        && !meshAlphaBlended
+        && Render::Models::GpuWaveInstEnabled();
+
+    bool wentGpu = false;
+    bool instanced = false;
+    if ((Render::Models::GpuObjectsPass() || Render::Models::GpuCharsPass()) && Render::Models::GpuBmdEnabled()
+        && Render::GL::IsLoaded()
+        && (finalRenderFlags == RENDER_TEXTURE || plainChrome || chromeVarOk) && (!EnableWave || waveAdditive)
+        && (!meshAlphaBlended || Render::Models::GpuBlendMeshEnabled() || blendMeshAdditive)   // blend mesh: legacy unless MU_GPUBLENDMESH (per-mesh GPU) or MU_GPUBLENDINST (instanced additive)
+        && (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) == 0
+        && BoneScale == 1.f && s_lastTransformScale == 0.f && s_lastBoneMatrix != nullptr)
+    {
+        if (diagCharsPass) DiagHit(DIAG_REACH_GATE);
+        if (diagObjPass) ObjDiag(g_objOuterGate);
+        // enableLight true -> per-normal lit (props); false -> flat glColor (chars).
+        const auto* gpu = Render::Models::GetOrBuildMeshGpu(this, meshIndex, Render::GL::BmdShader::kMaxBones);
+        if (diagCharsPass && (gpu == nullptr || !gpu->eligible)) DiagHit(DIAG_GATE_GPUNULL);
+        if (gpu != nullptr && gpu->eligible)
+        {
+            // P-bmd-instance: in the Characters pass, COLLECT world-baked
+            // (Translate==true) plain-textured meshes into the instanced batch instead
+            // of drawing now; InstFlush() at end of pass collapses identical (model,
+            // mesh, texture) into one glDrawArraysInstanced. Both flat (enableLight
+            // false -> flat glColor) and lit (per-normal, light is map-global) qualify.
+            // Excluded: alpha-blended meshes (the flush is alpha-test only); those keep
+            // the per-mesh GPU path. (HighLight is a constant 'true' here, not a per-
+            // object highlight, so it is not an exclusion.)
+            // Additive chrome (CHROME|BRIGHT) is allowed despite being "blended" because the
+            // instanced flush has a dedicated additive (GL_ONE/ONE) pass. Other blended
+            // (textured BRIGHT/DARK) meshes still keep the legacy/per-mesh path.
+            const bool blended = (renderFlags & (RENDER_BRIGHT | RENDER_DARK)) != 0;
+            if (diagObjPass && Render::Models::GpuInstObjEnabled())
+            {
+                if (!s_lastTransformTranslate) ObjDiag(g_objNoTranslate);
+                else if (!(!meshAlphaBlended || blendMeshAdditive)
+                         || !(!blended || chromeAdditive || chromeVarAdditive || blendMeshAdditive || waveAdditive))
+                    ObjDiag(g_objBlendExcl);
+            }
+            if (((Render::Models::GpuCharsPass() && Render::Models::GpuInstEnabled())
+                 || (Render::Models::GpuObjectsPass() && Render::Models::GpuInstObjEnabled()))
+                && s_lastTransformTranslate
+                && (!meshAlphaBlended || blendMeshAdditive)   // opaque batch excludes blend meshes; additive blend meshes (wings) go to the additive bucket below
+                && (!blended || chromeAdditive || chromeVarAdditive || blendMeshAdditive || waveAdditive))
+            {
+                Render::Models::InstanceRec rec;
+                rec.paletteBase   = (float)InstPaletteBaseForCurrentPart(NumBones);
+                rec.bodyScale     = BodyScale;
+                rec.bodyOrigin[0] = BodyOrigin[0];
+                rec.bodyOrigin[1] = BodyOrigin[1];
+                rec.bodyOrigin[2] = BodyOrigin[2];
+                int instMode  = 0;           // 0 textured / 1 chrome sphere-map
+                int instBlend = 0;           // 0 opaque (alpha-test) / 1 additive (GL_ONE/ONE)
+                int instTex   = textureIndex;
+                if (plainChrome)
+                {
+                    // Chrome: flat BodyLight colour (legacy chrome ignores per-normal
+                    // lighting; BRIGHT already scaled BodyLight by alpha above); the shader
+                    // builds the sphere-map UV from the skinned normal. Binds the shared
+                    // chrome texture; wave drives the scroll. Additive when RENDER_BRIGHT.
+                    rec.color[0] = BodyLight[0]; rec.color[1] = BodyLight[1]; rec.color[2] = BodyLight[2];
+                    rec.color[3] = alpha;
+                    rec.lit = 0.f;
+                    instMode  = 1;
+                    instBlend = chromeAdditive ? 1 : 0;
+                    instTex   = BITMAP_CHROME;
+                    rec.instWave = wave;   // per-bucket chrome reflection scroll (6.7)
+                }
+                else if (chromeVarOk)
+                {
+                    // Chrome variant (CHROME2/3/4/6/METAL): flat BodyLight colour; the
+                    // shader builds the per-variant sphere-map UV (uChromeMode) from the
+                    // skinned normal + frame globals. BodyLight was already scaled by alpha
+                    // above for the additive cases (CHROME3/4/BRIGHT). Mirrors the legacy
+                    // Wave2/L/LightVector inputs exactly so the result is A/B identical.
+                    rec.color[0] = BodyLight[0]; rec.color[1] = BodyLight[1]; rec.color[2] = BodyLight[2];
+                    rec.color[3] = alpha;
+                    rec.lit = 0.f;
+                    instMode  = chromeVarMode;
+                    instBlend = chromeVarAdditive ? 1 : 0;
+                    instTex   = chromeVarTex;
+                    rec.instWave = wave;   // per-bucket chrome reflection scroll (6.7)
+                    const float Wave2 = (int)WorldTime % 5000 * 0.00024f - 0.4f;
+                    const float L[3] = { (float)(cos(WorldTime * 0.001f)),
+                                         (float)(sin(WorldTime * 0.002f)), 1.f };
+                    // CHROME2/3/4/6 extra inputs, now carried per-bucket (6.7).
+                    rec.chromeWave2 = Wave2;
+                    rec.chromeL[0] = L[0]; rec.chromeL[1] = L[1]; rec.chromeL[2] = L[2];
+                    rec.chromeLightVec[0] = LightVector[0]; rec.chromeLightVec[1] = LightVector[1]; rec.chromeLightVec[2] = LightVector[2];
+                }
+                else if (waveAdditive)
+                {
+                    // Textured BRIGHT + UV-scroll (wave): additive, per-normal lit like the
+                    // legacy path (LightTransform = BodyLight * intensity). BodyLight was
+                    // already scaled by alpha above for BRIGHT. The shader adds the per-bucket
+                    // UV offset (BlendMeshTexCoordU/V), reproducing legacy "texCoords += scroll".
+                    rec.color[0] = BodyLight[0]; rec.color[1] = BodyLight[1]; rec.color[2] = BodyLight[2];
+                    rec.color[3] = alpha;
+                    rec.lit = enableLight ? 1.f : 0.f;
+                    rec.uvScroll[0] = blendMeshTextureCoordU;
+                    rec.uvScroll[1] = blendMeshTextureCoordV;
+                    instBlend = 1;
+                    if (enableLight)
+                    {
+                        vec3_t lp; ComputeInstLitLight(lp);
+                        rec.instLight[0] = lp[0]; rec.instLight[1] = lp[1]; rec.instLight[2] = lp[2];   // per-bucket lit dir (6.7)
+                    }
+                }
+                else if (enableLight)
+                {
+                    // Lit: base colour = BodyLight, per-normal lum in the shader.
+                    rec.color[0] = BodyLight[0]; rec.color[1] = BodyLight[1]; rec.color[2] = BodyLight[2];
+                    rec.color[3] = alpha;
+                    rec.lit = 1.f;
+                    vec3_t lp; ComputeInstLitLight(lp);
+                    rec.instLight[0] = lp[0]; rec.instLight[1] = lp[1]; rec.instLight[2] = lp[2];   // per-bucket lit dir (6.7)
+                }
+                else
+                {
+                    // Flat: single colour the caller set, no per-vertex lighting. sub-task 6.7:
+                    // read the precomputed ctx.flatColor (mirrored at the glColor*(BodyLight)
+                    // set sites in RenderMesh/RenderBody/RenderBodyTranslate) instead of
+                    // glGetFloatv(GL_CURRENT_COLOR) — the latter is a GL read, illegal on the
+                    // parallel build (worker) thread that has no GL context.
+                    const float* cur = Render::Build::CurrentRenderCtx().flatColor;
+                    rec.color[0] = cur[0]; rec.color[1] = cur[1]; rec.color[2] = cur[2]; rec.color[3] = cur[3];
+                    rec.lit = 0.f;
+                }
+                // Additive blend mesh (wings): the flat 'else' above already captured
+                // glColor (BodyLight * blendMeshAlpha) as rec.color; route to the additive
+                // bucket so InstFlush pass 2 draws it GL_ONE/ONE, matching the legacy path.
+                if (blendMeshAdditive)
+                    instBlend = 1;
+                if (diagCharsPass) { DiagHit(DIAG_INSTADD); DiagInstMesh(meshIndex); }
+                if (diagObjPass) ObjDiag(g_objInstAdd);
+                Render::Models::InstAdd(this, meshIndex, instTex, rec, instMode, instBlend);
+                wentGpu = true;
+                instanced = true;
+            }
+            else if (!plainChrome && !chromeVarOk && RenderMeshGpu(meshIndex, gpu, alpha, enableLight))
+            {
+                // Per-mesh GPU path is textured-only; chrome (plain or variant) that did
+                // not instance (instancing off / objects pass) falls through to the legacy
+                // path so its sphere-map UV/blend are computed correctly.
+                wentGpu = true;
+            }
+        }
+    }
+    if (Render::Models::GpuCharsPass())
+    {
+        if (diagCharsPass) DiagHit(DIAG_CLASSIFY);
+        int cls;
+        if (wentGpu)
+            cls = instanced ? 0 : 1;                                   // instanced / per-mesh GPU
+        else if (finalRenderFlags != RENDER_TEXTURE)
+            cls = 2;                                                   // chrome/color/etc
+        else if ((renderFlags & (RENDER_BRIGHT | RENDER_DARK)) != 0)
+            cls = 3;                                                   // alpha-blended
+        else if (EnableWave || (renderFlags & (RENDER_SHADOWMAP | RENDER_WAVE)) != 0)
+            cls = 4;                                                   // wave/shadowmap
+        else if (BoneScale != 1.f || s_lastTransformScale != 0.f)
+            cls = 5;                                                   // bone/body scale
+        else
+            cls = 6;                                                   // eligible gate ok -> ineligible geometry/bones
+        Render::Models::NoteCharMeshClass(cls);
+        Render::Models::NoteCharMeshDraw(wentGpu);
+    }
+    if (wentGpu)
+        return;
+
+    // Etapa 3b 6.9: GL-on-worker safety. Everything below is the LEGACY immediate-draw
+    // path (glDrawArrays / glColorPointer / chrome state) and issues GL right now. Under
+    // MU_JOBS the per-entity build runs on worker threads with NO GL context, so reaching
+    // this path off the main thread (CurrentWorkerIndex() != 0) is a misconfiguration:
+    // the full-GPU-instanced config the parallel build targets keeps legacy=0 / permeshGPU=0
+    // (verified by [bmd_cov]). Assert in debug + log once; on a worker we MUST NOT issue GL.
+    if (Core::Jobs::JobsEnabled() && Core::Jobs::ThreadPool::CurrentWorkerIndex() != 0)
+    {
+        static bool s_warnedGlOnWorker = false;
+        if (!s_warnedGlOnWorker)
+        {
+            s_warnedGlOnWorker = true;
+            Render::GL::Log("[jobs] WARN: legacy GL draw path reached on worker %d (mesh %d) — "
+                            "non-instanceable mesh under MU_JOBS; skipping GL (config must keep legacy=0)",
+                            Core::Jobs::ThreadPool::CurrentWorkerIndex(), meshIndex);
+        }
+        assert(!"BMD::RenderMesh legacy GL path on a job worker thread (no GL context)");
+        return;   // never issue GL off the GL thread
+    }
+
+    // P-bmd-skinskip: legacy CPU draw reads VertexTransform/LightTransform — force-skin
+    // this mesh now if Transform deferred it (no-op if already skinned this frame).
+    EnsureMeshSkinned(meshIndex);
+
+    // Per-normal lighting for the legacy draw, relocated from the top of RenderMesh:
+    // only reached when the mesh did NOT instance, and after EnsureMeshSkinned so
+    // IntensityTransform is current under deferred skinning.
+    if (enableLight)
+    {
+        for (int j = 0; j < m->NumNormals; j++)
+        {
+            VectorScale(BodyLight, IntensityTransform[meshIndex][j], LightTransform[meshIndex][j]);
+        }
+    }
+
+    // Chrome sphere-map texcoords for the legacy draw, relocated here from the chrome
+    // state block: only reached when the mesh did NOT instance (wentGpu returned above),
+    // and after EnsureMeshSkinned so NormalTransform is current under deferred skinning.
+    if (finalRenderFlags == RENDER_CHROME || finalRenderFlags == RENDER_CHROME4
+        || finalRenderFlags == RENDER_OIL)
+    {
+        const float Wave2 = (int)WorldTime % 5000 * 0.00024f - 0.4f;
+        vec3_t L = { (float)(cos(WorldTime * 0.001f)), (float)(sin(WorldTime * 0.002f)), 1.f };
+        for (int j = 0; j < m->NumNormals; j++)
+        {
+            if (j > MAX_VERTICES) break;
+            const auto normal = NormalTransform[meshIndex][j];
+
+            if ((renderFlags & RENDER_CHROME2) == RENDER_CHROME2)
+            {
+                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
+                g_chrome[j][1] = (normal[1] + normal[0]) * 1.0f + Wave2 * 3.f;
+            }
+            else if ((renderFlags & RENDER_CHROME3) == RENDER_CHROME3)
+            {
+                g_chrome[j][0] = DotProduct(normal, LightVector);
+                g_chrome[j][1] = 1.f - DotProduct(normal, LightVector);
+            }
+            else if ((renderFlags & RENDER_CHROME4) == RENDER_CHROME4)
+            {
+                g_chrome[j][0] = DotProduct(normal, L);
+                g_chrome[j][1] = 1.f - DotProduct(normal, L);
+                g_chrome[j][1] -= normal[2] * 0.5f + wave * 3.f;
+                g_chrome[j][0] += normal[1] * 0.5f + L[1] * 3.f;
+            }
+            else if ((renderFlags & RENDER_CHROME5) == RENDER_CHROME5)
+            {
+                g_chrome[j][0] = DotProduct(normal, L);
+                g_chrome[j][1] = 1.f - DotProduct(normal, L);
+                g_chrome[j][1] -= normal[2] * 2.5f + wave * 1.f;
+                g_chrome[j][0] += normal[1] * 3.f + L[1] * 5.f;
+            }
+            else if ((renderFlags & RENDER_CHROME6) == RENDER_CHROME6)
+            {
+                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
+                g_chrome[j][1] = (normal[2] + normal[0]) * 0.8f + Wave2 * 2.f;
+            }
+            else if ((renderFlags & RENDER_CHROME7) == RENDER_CHROME7)
+            {
+                g_chrome[j][0] = (normal[2] + normal[0]) * 0.8f + static_cast<float>(WorldTime) * 0.00006f;
+                g_chrome[j][1] = (normal[2] + normal[0]) * 0.8f + static_cast<float>(WorldTime) * 0.00006f;
+            }
+            else if ((renderFlags & RENDER_OIL) == RENDER_OIL)
+            {
+                g_chrome[j][0] = normal[0];
+                g_chrome[j][1] = normal[1];
+            }
+            else if ((renderFlags & RENDER_CHROME) == RENDER_CHROME)
+            {
+                g_chrome[j][0] = normal[2] * 0.5f + wave;
+                g_chrome[j][1] = normal[1] * 0.5f + wave * 2.f;
+            }
+            else
+            {
+                g_chrome[j][0] = normal[2] * 0.5f + 0.2f;
+                g_chrome[j][1] = normal[1] * 0.5f + 0.5f;
+            }
+        }
+    }
 
     glEnableClientState(GL_VERTEX_ARRAY);
     if (enableColor) glEnableClientState(GL_COLOR_ARRAY);
@@ -1378,6 +2101,7 @@ void BMD::RenderMeshAlternative(int iRndExtFlag, int iParam, int i, int RenderFl
 
     Mesh_t* m = &Meshs[i];
     if (m->NumTriangles == 0) return;
+    EnsureMeshSkinned(i);   // P-bmd-skinskip: CPU draw reads VertexTransform
     float Wave = (int)WorldTime % 10000 * 0.0001f;
 
     int Texture = IndexTexture[m->Texture];
@@ -1713,6 +2437,7 @@ void BMD::RenderMeshEffect(int i, int iType, int iSubType, vec3_t Angle, VOID* o
 
     Mesh_t* m = &Meshs[i];
     if (m->NumTriangles <= 0) return;
+    EnsureMeshSkinned(i);   // P-bmd-skinskip: spawns effects at VertexTransform positions
 
     vec3_t angle, Light;
     int iEffectCount = 0;
@@ -1878,6 +2603,12 @@ void BMD::RenderBody(int Flag, float Alpha, int BlendMesh, float BlendMeshLight,
             glColor3fv(BodyLight);
         else
             glColor4f(BodyLight[0], BodyLight[1], BodyLight[2], Alpha);
+        // sub-task 6.7: mirror the flat body colour into ctx.flatColor so the instanced flat
+        // branch reads it (per-worker) instead of glGetFloatv(GL_CURRENT_COLOR).
+        Render::Build::CurrentRenderCtx().flatColor[0] = BodyLight[0];
+        Render::Build::CurrentRenderCtx().flatColor[1] = BodyLight[1];
+        Render::Build::CurrentRenderCtx().flatColor[2] = BodyLight[2];
+        Render::Build::CurrentRenderCtx().flatColor[3] = (Alpha >= 0.99f) ? 1.f : Alpha;
     }
     for (int i = 0; i < NumMeshs; i++)
     {
@@ -1958,6 +2689,7 @@ void BMD::RenderMeshTranslate(int i, int RenderFlag, float Alpha, int BlendMesh,
 
     Mesh_t* m = &Meshs[i];
     if (m->NumTriangles == 0) return;
+    EnsureMeshSkinned(i);   // P-bmd-skinskip: CPU draw reads VertexTransform
     float Wave = (int)WorldTime % 10000 * 0.0001f;
 
     int Texture = IndexTexture[m->Texture];
@@ -2310,6 +3042,8 @@ void BMD::AddMeshShadowTriangles(const int blendMesh, const int hiddenMesh, cons
             continue;
         }
 
+        EnsureMeshSkinned(i);   // P-bmd-skinskip: CPU shadow fallback reads VertexTransform
+
         for (int j = 0; j < mesh->NumTriangles; j++)
         {
             const auto* tp = &mesh->Triangles[j];
@@ -2338,13 +3072,101 @@ void BMD::AddMeshShadowTriangles(const int blendMesh, const int hiddenMesh, cons
 
 void BMD::RenderBodyShadow(const int blendMesh, const int hiddenMesh, const int startMeshNumber, const int endMeshNumber, void* pClothes, const int clothesCount)
 {
+    // Etapa 3b 6.8b: shadows were already emitted by the parallel MeshOnly pass; the
+    // EffectsOnly replay must not re-emit them (see RenderMesh / BuildEmitMode.h).
+    if (Render::Build::BuildSuppressMesh())
+        return;
+
     if (!g_pOption->GetRenderAllEffects())
+    {
+        return;
+    }
+
+    // $noshadow: measurement-only toggle. MU_NOSHADOW=1 skips the whole shadow pass
+    // so the harness can attribute the per-vertex CalcShadowPosition + immediate-mode
+    // draw cost. No-op when unset.
+    static const bool s_noShadow = [] {
+        char buf[8] = {}; size_t n = 0;
+        return getenv_s(&n, buf, sizeof(buf), "MU_NOSHADOW") == 0 && n > 0 && buf[0] == '1';
+    }();
+    if (s_noShadow)
     {
         return;
     }
 
     if (NumMeshs == 0 && clothesCount == 0)
     {
+        return;
+    }
+
+    // P-bmd-shadow: GPU instanced shadow path. The mesh shadow (no cloth) is the
+    // single biggest character CPU cost (per-vertex CalcShadowPosition +
+    // RequestTerrainHeight + immediate draw, ~16ms at 100 chars). When this part is
+    // GPU-skin eligible (same gate as the body instanced path), COLLECT its shadow-
+    // casting meshes into the shadow batch (skinned + flattened on the GPU at
+    // ShadowFlush) instead of drawing on the CPU. groundZ is sampled once here (vs
+    // once per vertex). Cloth capes keep the CPU path. Falls back to CPU if any
+    // included mesh is GPU-ineligible (so the part never double-draws).
+    if (clothesCount == 0 && Render::Models::GpuShadowEnabled()
+        && Render::Models::GpuCharsPass()
+        && Render::Models::GpuBmdEnabled() && Render::Models::GpuInstEnabled()
+        && Render::GL::IsLoaded()
+        && BoneScale == 1.f && s_lastTransformScale == 0.f
+        && s_lastTransformTranslate && s_lastBoneMatrix != nullptr)
+    {
+        const int gsStart = (startMeshNumber != -1) ? startMeshNumber : 0;
+        const int gsEnd   = (endMeshNumber   != -1) ? endMeshNumber   : NumMeshs;
+
+        bool allEligible = true;
+        for (int i = gsStart; i < gsEnd; i++)
+        {
+            if (i == hiddenMesh) continue;
+            const Mesh_t* mesh = &Meshs[i];
+            if (mesh->NumTriangles <= 0 || mesh->Texture == blendMesh) continue;
+            const auto* g = Render::Models::GetOrBuildMeshGpu(this, i, Render::GL::BmdShader::kMaxBones);
+            if (g == nullptr || !g->eligible) { allEligible = false; break; }
+        }
+
+        if (allEligible)
+        {
+            const float gsSx = gMapManager.InBattleCastle() ? 2500.f : 2000.f;
+            const float gsSy = 4000.f;
+            const int   gsBase = InstPaletteBaseForCurrentPart(NumBones);
+            const float gsGroundZ = RequestTerrainHeight(BodyOrigin[0], BodyOrigin[1]) + 5.f;
+            for (int i = gsStart; i < gsEnd; i++)
+            {
+                if (i == hiddenMesh) continue;
+                const Mesh_t* mesh = &Meshs[i];
+                if (mesh->NumTriangles <= 0 || mesh->Texture == blendMesh) continue;
+                Render::Models::ShadowRec rec;
+                rec.paletteBase   = (float)gsBase;
+                rec.bodyScale     = BodyScale;
+                rec.bodyOrigin[0] = BodyOrigin[0];
+                rec.bodyOrigin[1] = BodyOrigin[1];
+                rec.bodyOrigin[2] = BodyOrigin[2];
+                rec.groundZ       = gsGroundZ;
+                Render::Models::ShadowAdd(this, i, rec, gsSx, gsSy);
+            }
+            return;   // collected to the GPU shadow batch; skip the legacy CPU draw
+        }
+        // else: fall through to the legacy CPU path for the whole part.
+    }
+
+    // Etapa 3b 6.9: GL-on-worker safety for the legacy CPU shadow path (issues GL below).
+    // In the full-GPU config every shadow mesh instances (allEligible -> return above). If
+    // a worker reaches here (a straggler mesh GetOrBuildMeshGpu deferred), it has no GL
+    // context: skip rather than crash. The deferred mesh builds + instances on the next
+    // main-thread frame.
+    if (Core::Jobs::JobsEnabled() && Core::Jobs::ThreadPool::CurrentWorkerIndex() != 0)
+    {
+        static bool s_warnedShadowOnWorker = false;
+        if (!s_warnedShadowOnWorker)
+        {
+            s_warnedShadowOnWorker = true;
+            Render::GL::Log("[jobs] WARN: legacy CPU shadow path reached on worker %d — "
+                            "straggler mesh under MU_JOBS; skipping GL (will instance next frame)",
+                            Core::Jobs::ThreadPool::CurrentWorkerIndex());
+        }
         return;
     }
 
@@ -2405,7 +3227,7 @@ void BMD::RenderObjectBoundingBox()
             vec3_t BoundingVertices[8];
             for (int j = 0; j < 8; j++)
             {
-                VectorTransform(b->BoundingVertices[j], BoneTransform[i], BoundingVertices[j]);
+                VectorTransform(b->BoundingVertices[j], g_BoneTransformScratch[i], BoundingVertices[j]);
             }
 
             glBegin(GL_QUADS);
@@ -2498,6 +3320,12 @@ void BMD::RenderBone(float(*BoneMatrix)[3][4])
 
 void BMD::Release()
 {
+    // P-bmd-gpu/instance: this slot's Meshs are about to be freed; drop any GPU
+    // geometry/instance buckets cached against this BMD* so an in-place reload
+    // (same address, new geometry — e.g. monster slots across maps) can't reuse
+    // stale VBOs.
+    Render::Models::InvalidateGpuModel(this);
+
     if (Bones)
     {
         for (int i = 0; i < NumBones; ++i)

@@ -1,6 +1,7 @@
 ﻿// GMDoppelGanger3.cpp: implementation of the CGMDoppelGanger3 class.
 //////////////////////////////////////////////////////////////////////
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "Render/Models/ZzzBMD.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -231,12 +232,12 @@ void CGMDoppelGanger3::MoveBlurEffect(CHARACTER* pCharacter, OBJECT* pObject, BM
         float fAnimationFrame = pObject->AnimationFrame - fActionSpeed;
         for (int i = 0; i < 10; i++)
         {
-            pModel->Animation(BoneTransform, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
+            pModel->Animation(g_BoneTransformScratch, fAnimationFrame, pObject->PriorAnimationFrame, pObject->PriorAction, pObject->Angle, pObject->HeadAngle);
 
             Vector(0.f, 0.f, 0.f, StartRelative);
             Vector(0.f, 0.f, 0.f, EndRelative);
-            pModel->TransformPosition(BoneTransform[33], StartRelative, StartPos, false);
-            pModel->TransformPosition(BoneTransform[34], EndRelative, EndPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[33], StartRelative, StartPos, false);
+            pModel->TransformPosition(g_BoneTransformScratch[34], EndRelative, EndPos, false);
             CreateBlur(pCharacter, StartPos, EndPos, vLight, 0, false, 0);
 
             fAnimationFrame += fSpeedPerFrame;
@@ -426,15 +427,15 @@ void CGMDoppelGanger3::RenderAfterObjectMesh(OBJECT* o, BMD* b, bool ExtraMon)
         b->RenderBody(RENDER_TEXTURE, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV, o->HiddenMesh);
         break;
     case 33:
-        b->StreamMesh = 0;
+        Render::Build::CurrentRenderCtx().streamMesh = 0;
         b->RenderMesh(0, RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, (int)WorldTime % 10000 * 0.0001f);
-        b->StreamMesh = -1;
+        Render::Build::CurrentRenderCtx().streamMesh = -1;
         break;
     case 38:
     {
-        b->BodyLight[0] = std::min<float>(b->BodyLight[0] * 2.0f, 1.0f);
-        b->BodyLight[1] = std::min<float>(b->BodyLight[1] * 2.0f, 1.0f);
-        b->BodyLight[2] = std::min<float>(b->BodyLight[2] * 2.0f, 1.0f);
+        Render::Build::CurrentRenderCtx().bodyLight[0] = std::min<float>(Render::Build::CurrentRenderCtx().bodyLight[0] * 2.0f, 1.0f);
+        Render::Build::CurrentRenderCtx().bodyLight[1] = std::min<float>(Render::Build::CurrentRenderCtx().bodyLight[1] * 2.0f, 1.0f);
+        Render::Build::CurrentRenderCtx().bodyLight[2] = std::min<float>(Render::Build::CurrentRenderCtx().bodyLight[2] * 2.0f, 1.0f);
         b->RenderBody(RENDER_TEXTURE | RENDER_BRIGHT, o->Alpha, o->BlendMesh, o->BlendMeshLight, o->BlendMeshTexCoordU, o->BlendMeshTexCoordV);
     }
     break;

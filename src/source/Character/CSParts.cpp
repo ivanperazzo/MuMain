@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Render/Build/BmdRenderContext.h"   // Etapa 3b 6.3: lighting state -> per-worker ctx
 #include "UI/Legacy/UIManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
@@ -211,12 +212,12 @@ void CSParts::IRender(CHARACTER* c)
     }
 
     b = &Models[m_pObj.Type];
-    b->CurrentAction = m_pObj.CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = m_pObj.CurrentAction;
 
     const float speed = m_pObj.Velocity;
     b->PlayAnimation(&m_pObj.AnimationFrame, &m_pObj.PriorAnimationFrame, &m_pObj.PriorAction, speed, m_pObj.Position, m_pObj.Angle);
 
-    Vector(1.f, 1.f, 1.f, b->BodyLight);
+    Vector(1.f, 1.f, 1.f, Render::Build::CurrentRenderCtx().bodyLight);
     RenderObject(&m_pObj, true);
 }
 
@@ -240,7 +241,7 @@ void CSAnimationParts::Animation(CHARACTER* c)
     }
 
     BMD* b = &Models[m_pObj.Type];
-    b->CurrentAction = m_pObj.CurrentAction;
+    Render::Build::CurrentRenderCtx().currentAction = m_pObj.CurrentAction;
 
     float fSpeed = m_pObj.Velocity;
     b->PlayAnimation(&m_pObj.AnimationFrame, &m_pObj.PriorAnimationFrame, &m_pObj.PriorAction, fSpeed, m_pObj.Position, m_pObj.Angle);

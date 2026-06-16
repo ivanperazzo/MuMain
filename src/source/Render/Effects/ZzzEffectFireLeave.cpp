@@ -36,8 +36,38 @@ static  int RainSpeed = 30;
 static  int RainAngle = 0;
 static  int RainPosition = 0;
 
+namespace
+{
+    // 32-bit integer finalizer -> [0,1) uniform. Cheap, decent distribution.
+    float HashToUnit(unsigned h)
+    {
+        h ^= h >> 16; h *= 0x7feb352du; h ^= h >> 15; h *= 0x846ca68bu; h ^= h >> 16;
+        return (h & 0xffffffu) / float(0x1000000);
+    }
+}
+
+unsigned FireFlickerSeed(float x, float y)
+{
+    return (unsigned)(int)x * 73856093u ^ (unsigned)(int)y * 19349663u;
+}
+
+float FireFlickerLuminosity(float lo, float hi, unsigned seed)
+{
+    // ~25 Hz wall-clock cadence (40 ms/sample) reproduces the old 25 fps flicker rate;
+    // smoothly interpolating between consecutive samples removes the harsh per-frame
+    // strobe seen at uncapped FPS while staying frame-rate independent.
+    const float ticks = (float)((double)WorldTime * (1.0 / 40.0));
+    const unsigned b0 = (unsigned)ticks;
+    const float    frac = ticks - (float)b0;
+    const float a = HashToUnit(b0 * 2654435761u ^ seed);
+    const float c = HashToUnit((b0 + 1u) * 2654435761u ^ seed);
+    const float t = a + (c - a) * frac;
+    return lo + (hi - lo) * t;
+}
+
 void CreateBonfire(vec3_t Position, vec3_t Angle)
 {
+    const unsigned flickerSeed = FireFlickerSeed(Position[0], Position[1]);
     Position[0] += Random::RangeFloat(-8, 7);
     Position[1] += Random::RangeFloat(-8, 7);
     Position[2] += Random::RangeFloat(-8, 7);
@@ -51,7 +81,7 @@ void CreateBonfire(vec3_t Position, vec3_t Angle)
         Vector(-Random::RangeFloat(30, 89), 0.f, Random::RangeFloat(0.f, 360.f), a);
         CreateJoint(BITMAP_JOINT_SPARK, Position, Position, a);
     }
-    const float Luminosity = Random::RangeFloat(6, 11) * 0.1f;
+    const float Luminosity = FireFlickerLuminosity(0.6f, 1.1f, flickerSeed);
     Vector(Luminosity, Luminosity * 0.6f, Luminosity * 0.4f, Light);
     AddTerrainLight(Position[0], Position[1], Light, 4, PrimaryTerrainLight);
 }
@@ -72,7 +102,11 @@ void CreateFire(int Type, OBJECT* o, float x, float y, float z)
     switch (Type)
     {
     case 0:
-        Luminosity = Random::RangeFloat(6, 11) * 0.1f;
+        // Flicker the fire's light at a fixed ~25 Hz cadence (seeded by the fire's
+        // stable world position) instead of re-rolling rand() every render frame, so
+        // uncapped FPS no longer strobes the terrain light it casts on nearby
+        // characters/wings ("light on/off"). See FireFlickerLuminosity.
+        Luminosity = FireFlickerLuminosity(0.6f, 1.1f, FireFlickerSeed(o->Position[0], o->Position[1]));
         Vector(Luminosity, Luminosity * 0.6f, Luminosity * 0.4f, Light);
         if (rand_fps_check(2))
             CreateParticle(BITMAP_FIRE, Position, o->Angle, Light, Random::RangeInt(0, 3));

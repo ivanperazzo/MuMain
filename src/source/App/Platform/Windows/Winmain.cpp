@@ -8,11 +8,13 @@
 
 #include <dpapi.h>
 #include <clocale>
+#include <cstdlib>
 #include "Data/GameConfig/GameConfig.h"
 #include "UI/Legacy/UIWindows.h"
 #include "UI/Legacy/UIManager.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Textures/ZzzTexture.h"
+#include "Render/GL/GLLoader.h"
 #include "Engine/Object/ZzzOpenData.h"
 #include "Scenes/SceneCore.h"
 #include "Network/Reconnect/ReconnectManager.h"
@@ -20,6 +22,9 @@
 #include "Core/Time/FrameTimerScheduler.h"
 #include <SDL3/SDL.h>
 #include "Render/Models/ZzzBMD.h"
+#include "Render/Build/WorkerArena.h"
+#include "Render/Build/BmdRenderContext.h"
+#include "Core/Jobs/ThreadPool.h"
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/AI/ZzzAI.h"
@@ -1428,6 +1433,27 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
 
     SDL_GL_MakeCurrent(g_sdlWindow, g_sdlGLContext);
 
+    // GPU/high-FPS track (P-infra): resolve modern-GL entry points (VBO/shader)
+    // now that a context is current. The engine links only opengl32 (GL 1.1) and
+    // never calls glewInit, so without this every glGenBuffers/glCreateShader is a
+    // null pointer. Logs GL_VERSION + loaded count; GPU paths check IsLoaded().
+    Render::GL::LoadModernGL();
+    Render::GL::SelfTest();   // smoke-test shader+VBO on the real driver (gl_log.txt)
+
+    // Task 2: pre-allocate the per-worker skin-scratch arenas (one per job worker +
+    // the main thread = index 0). Avoids first-frame allocation stalls (~30 MB each).
+    Render::Build::InitArenas(Core::Jobs::ThreadPool::Instance().WorkerCount());
+
+    // Etapa 3b 6.1: pre-allocate the per-worker BmdRenderContext slots (same worker
+    // count as the arenas). As of 6.1 these are unreferenced by render code; 6.2-6.9
+    // repoint the per-render BMD fields onto CurrentRenderCtx().field.
+    Render::Build::InitRenderCtxs(Core::Jobs::ThreadPool::Instance().WorkerCount());
+
+    // Etapa 3b 3b: pre-allocate the per-worker RenderLinkObject scratch OBJECTs (was the
+    // shared, racing g_ItemObject[Type]). Same worker count as the arenas/ctxs.
+    extern void InitItemObjectScratch(int count);
+    InitItemObjectScratch(Core::Jobs::ThreadPool::Instance().WorkerCount());
+
     // Bridge SDL's native handles so the remaining Win32 code (IME, DirectSound,
     // cursor, the legacy EDIT-control text boxes) keeps working.
     g_hWnd = static_cast<HWND>(SDL_GetPointerProperty(
@@ -1477,7 +1503,15 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PSTR szCmdLin
     InitVSync();
     if (IsVSyncAvailable())
     {
-        EnableVSync();
+        // MU_NOVSYNC=1 starts with vsync off (SwapInterval 0) so the framerate is
+        // uncapped from the monitor refresh — needed to measure the true CPU/GPU
+        // ceiling and to chase the high-FPS target. Default (unset) keeps vsync on,
+        // so normal gameplay is unaffected. Runtime toggle: console "$vsync on/off".
+        const char* noVsync = std::getenv("MU_NOVSYNC");
+        if (noVsync && noVsync[0] == '1')
+            DisableVSync();
+        else
+            EnableVSync();
         SetTargetFps(-1); // unlimited
     }
 
