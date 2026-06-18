@@ -79,9 +79,14 @@ namespace
     {
         double calcMs = 0.0;  double drawMs = 0.0;   // all props
         double sCalcMs = 0.0; double sDrawMs = 0.0;  // static props only (the bakeable subset)
+        double sBlMs = 0.0;   double sAnimMs = 0.0;  // static-prop Calc sub-breakdown:
+        double sXformMs = 0.0;                        // BodyLight / BMD::Animation / BMD::Transform
         int    props = 0;     int    statics = 0;
     };
     ObjLogAccum g_objLog;
+    // Set by RenderObject() before Calc so Calc_RenderObject can attribute its sub-timers
+    // (BodyLight/Animation/Transform) to the static accumulator only. MU_OBJLOG-gated path.
+    bool g_objLogTimeThis = false;
 }
 OBJECT       Boids[MAX_BOIDS];
 OBJECT       Fishs[MAX_FISHS];
@@ -280,7 +285,14 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     BMD* b = &Models[o->Type];
     Render::Build::CurrentRenderCtx().bodyHeight = 0.f;
     Render::Build::CurrentRenderCtx().contrastEnable = o->ContrastEnable;
-    BodyLight(o, b);
+    if (g_objLogTimeThis)   // MU_OBJLOG: attribute BodyLight (RequestTerrainLight sample) to static props
+    {
+        auto a = std::chrono::steady_clock::now();
+        BodyLight(o, b);
+        g_objLog.sBlMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - a).count();
+    }
+    else
+        BodyLight(o, b);
     Render::Build::CurrentRenderCtx().bodyScale = o->Scale;
     Render::Build::CurrentRenderCtx().currentAction = o->CurrentAction;
     VectorCopy(o->Position, Render::Build::CurrentRenderCtx().bodyOrigin);
@@ -310,6 +322,7 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
         }
     }
 
+    auto tAnim0 = std::chrono::steady_clock::now();
     if (o->EnableBoneMatrix)
     {
         b->Animation(o->BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
@@ -318,6 +331,8 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     {
         b->Animation(g_BoneTransformScratch, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
     }
+    if (g_objLogTimeThis)   // MU_OBJLOG: BMD::Animation cost for static props
+        g_objLog.sAnimMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tAnim0).count();
 
     Render::Build::CurrentRenderCtx().boneScale = 1.f;
     if (3 == Select)
@@ -386,6 +401,7 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
         Render::Build::CurrentRenderCtx().boneScale = 1.f;
     }
 
+    auto tXform0 = std::chrono::steady_clock::now();
     if (o->EnableBoneMatrix)
     {
         b->Transform(o->BoneTransform, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, Translate);
@@ -394,6 +410,8 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     {
         b->Transform(g_BoneTransformScratch, o->BoundingBoxMin, o->BoundingBoxMax, &o->OBB, Translate);
     }
+    if (g_objLogTimeThis)   // MU_OBJLOG: BMD::Transform (OBB/bbox) cost for static props
+        g_objLog.sXformMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - tXform0).count();
 
     return true;
 }
@@ -2719,9 +2737,11 @@ void RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
         const bool isStatic = (o->AnimationFrame == o->PriorAnimationFrame);
         g_objLog.props += 1;
         if (isStatic) g_objLog.statics += 1;
+        g_objLogTimeThis = isStatic;   // time Calc sub-parts only for static (bakeable) props
         auto t0 = std::chrono::steady_clock::now();
         const bool calcOk = Calc_RenderObject(o, Translate, Select, ExtraMon);
         auto t1 = std::chrono::steady_clock::now();
+        g_objLogTimeThis = false;
         const double calc = std::chrono::duration<double, std::milli>(t1 - t0).count();
         g_objLog.calcMs += calc;
         if (isStatic) g_objLog.sCalcMs += calc;
@@ -3539,9 +3559,11 @@ void RenderObjects()
             const double tot = g_objLog.calcMs + g_objLog.drawMs;
             const double sTot = g_objLog.sCalcMs + g_objLog.sDrawMs;
             const double sPctTime = tot > 0.0 ? (100.0 * sTot / tot) : 0.0;
-            Render::GL::Log("[obj] props=%d static=%d(%.0f%%) calc=%.2f draw=%.2f | static calc=%.2f draw=%.2f (%.0f%% of time, bake ceiling=%.2fms)",
+            Render::GL::Log("[obj] props=%d static=%d(%.0f%%) calc=%.2f draw=%.2f | static calc=%.2f draw=%.2f (%.0f%% of time, bake ceiling=%.2fms) | static-calc breakdown: bodylight=%.2f anim=%.2f xform=%.2f rest=%.2f",
                 g_objLog.props, g_objLog.statics, pct, g_objLog.calcMs, g_objLog.drawMs,
-                g_objLog.sCalcMs, g_objLog.sDrawMs, sPctTime, sTot);
+                g_objLog.sCalcMs, g_objLog.sDrawMs, sPctTime, sTot,
+                g_objLog.sBlMs, g_objLog.sAnimMs, g_objLog.sXformMs,
+                g_objLog.sCalcMs - g_objLog.sBlMs - g_objLog.sAnimMs - g_objLog.sXformMs);
         }
     }
 }

@@ -433,9 +433,16 @@ void BMD::Transform(float(*BoneMatrix)[3][4], vec3_t BoundingBoxMin, vec3_t Boun
     // effects, side-hair, cloth) force-skin lazily via EnsureMeshSkinned. Requires GPU
     // shadows ON (else the CPU shadow would read unskinned vertices for every mesh).
     const bool measureSkip = Render::Models::SkinSkip();
-    const bool deferActive = Render::Models::GpuSkinDeferEnabled()
+    const bool deferChars = Render::Models::GpuSkinDeferEnabled()
         && Render::Models::GpuCharsPass() && Render::Models::GpuBmdEnabled()
         && Render::Models::GpuInstEnabled() && Render::Models::GpuShadowEnabled();
+    // Prototype (MU_OBJSKIN): same defer for the instanced OBJECTS pass. Props draw via the
+    // instanced GPU path (MU_GPUINSTOBJ) + GPU shadow, so the per-vertex CPU SkinMesh below is
+    // redundant; non-instanced meshes / CPU consumers force-skin lazily (EnsureMeshSkinned).
+    const bool deferObjs = Render::Models::GpuObjSkinDeferEnabled()
+        && Render::Models::GpuObjectsPass() && Render::Models::GpuBmdEnabled()
+        && Render::Models::GpuInstObjEnabled() && Render::Models::GpuShadowEnabled();
+    const bool deferActive = deferChars || deferObjs;
 
     for (int i = 0; i < NumMeshs; i++)
     {

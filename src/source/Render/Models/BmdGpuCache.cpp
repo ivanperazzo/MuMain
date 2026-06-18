@@ -343,6 +343,15 @@ namespace Render::Models
         return s_on;
     }
 
+    bool GpuObjSkinDeferEnabled()
+    {
+        // Defer CPU skin for instanced PROPS (objects pass). Default OFF (prototype); the
+        // Transform-side gate also requires the objects pass + GPU bmd/instobj/shadow on.
+        // MU_OBJSKIN=1 enables. See header + doc perf/10 (Transform = ~85% of static-prop Calc).
+        static const bool s_on = [] { return EnvFlag("MU_OBJSKIN"); }();
+        return s_on;
+    }
+
     void SetSkinSkip(bool on) { s_skinSkip = on; }
     bool SkinSkip()
     {

@@ -39,6 +39,37 @@ emitido cada 30 frames desde `RenderObjects()`. Harness `measure_obj_main.bat` (
 - Contexto: `chars` 8–17 ms sigue siendo el slot #1 del frame; `objects` es el #2 y el único
   lever view-dependent que queda (terreno+chars ya cerrados default-ON).
 
+### 2c. EL COSTO REAL — `BMD::Transform`/`SkinMesh`, NO BodyLight (18-jun) — la hipótesis del §2/§5 era ERRÓNEA
+Sub-breakdown del Calc de static props (`MU_OBJLOG`, timing por sub-parte):
+- **bodylight = 0.02–0.03 ms** (¡NEGLIGIBLE! `RequestTerrainLight` es trivial post terrain-VBO).
+- anim = 0.12–0.16 ms (chico, confirma el bone-cache fallido).
+- **xform = 1.2–1.4 ms = ~85 % del static Calc** ← EL COSTO.
+`BMD::Transform` (ZzzBMD.cpp:379) corre un loop `SkinMesh()` que **CPU-skinea todos los vértices
+de cada mesh, cada frame**. Para props NO aplica el `deferActive` del char-pass (pide `GpuCharsPass()`),
+así que props se dibujan GPU-instanced pero IGUAL se CPU-skinean en Transform — **redundante**: el
+draw instanced skinea en GPU (bone-palette TBO), nadie lee `VertexTransform` salvo consumers CPU raros
+(mesh no-instanced, shadow, efectos), que ya force-skinean lazy vía `EnsureMeshSkinned` (ZzzBMD.cpp:1923).
+En runtime (`EditFlag != 2`) `SkinMesh` ni siquiera computa bbox → el OBB usa el bbox precomputado del
+prop → el defer NO afecta culling/picking.
+
+**El lever NO es el light-VBO bake del §5.1 — es el skin-defer de props.**
+
+### 2d. PROTOTIPO `MU_OBJSKIN` (default-OFF) — VALIDADO (18-jun)
+Extendido el `deferActive` de `BMD::Transform` al objects pass (gate: objects-pass + GPU
+bmd/instobj/shadow), flag `GpuObjSkinDeferEnabled()` (`MU_OBJSKIN=1`, default-OFF). A/B same-session
+(login throne-room, 100 chars):
+| | OFF | ON |
+|---|---|---|
+| objects slot pico | ~4.8–5.7 ms | **~3.1–3.4 ms** |
+| static calc | ~1.5 ms | ~0.3 ms |
+| static xform | ~1.3 ms | **~0.08 ms** |
+
+**~1.7–1.9 ms off el objects pass (~35 %)**, justo el techo medido. **Visual A/B idéntico**
+(`shot_objskin_off/on.jpg`): estatuas, antorchas+fuego, gárgolas, puertas — todo correcto, sin
+geometría basura ni props faltantes. Bajo riesgo (reusa infra char-defer + lazy `EnsureMeshSkinned`).
+**PENDIENTE para default-ON: validación IN-GAME** (login throne-room ≠ MainScene; props de town
+—árboles/casas/picking— pueden tener consumers CPU no ejercitados acá). Commit prototipo default-OFF.
+
 ## 3. Approach FALLIDO (no repetir)
 
 **Bone-cache de props estáticos** (`MU_OBJBONECACHE`, revertido): cachear el palette per-`OBJECT*`
