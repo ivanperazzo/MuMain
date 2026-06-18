@@ -24,6 +24,21 @@ Instrumentación `MU_OBJLOG=1` → `gl_obj.txt` (login throne-room, 100 chars):
   `RequestTerrainLight` per-prop = sample del terreno) + setup de `CurrentRenderCtx` +
   `Animation` (chico, 1-frame) + bloque Select/edge-scale.
 
+### 2b. Re-medido 18-jun (build main default-ON, `MU_OBJLOG` re-añadido) — TECHO confirmado
+`MU_OBJLOG` re-instrumentado en `RenderObject()` (timing Calc/Draw + split static/animado),
+emitido cada 30 frames desde `RenderObjects()`. Harness `measure_obj_main.bat` (main Release,
+100 chars). Resultados:
+- Props **54 → 252** (count-bound, confirma view-dependence).
+- **~89–93 % estáticos por count** en este ángulo (más que el 77 % previo; depende de la vista).
+- **Calc sigue dominando** Draw ~2:1; calc+draw instrumentado ≈ el slot real (overhead chrono NO domina).
+- Slot `objects` real (línea `[frame]`): **pico ~5–6 ms** en ventana cargada (la "1.5 ms" es la cola
+  con cámara asentada — no usar).
+- **Static props = ~63 % del TIEMPO del pass** (no sólo del count) → **TECHO del bake ≈ 2–2.7 ms
+  steady high-count, ~3–3.8 ms en el pico**. Supera el umbral 1–2 ms del §8.3 → **el static-prop
+  bake (approach §5.1) VALE la pena construirlo.**
+- Contexto: `chars` 8–17 ms sigue siendo el slot #1 del frame; `objects` es el #2 y el único
+  lever view-dependent que queda (terreno+chars ya cerrados default-ON).
+
 ## 3. Approach FALLIDO (no repetir)
 
 **Bone-cache de props estáticos** (`MU_OBJBONECACHE`, revertido): cachear el palette per-`OBJECT*`
@@ -90,11 +105,13 @@ dimensionar el techo del approach #1 antes de construirlo.
 
 ## 8. Primeros pasos sugeridos (de 0)
 
-1. Re-habilitar `MU_OBJLOG`, correr el harness crowd, confirmar el split actual (props estáticos
-   vs animados, Calc vs Draw) en el build current default-ON.
-2. Medir el **techo**: ¿cuánto del slot `objects` desaparecería si los props estáticos costaran 0?
-   (p.ej. flag temporal que skipee el render de props estáticos y medir el delta — feo pero acota).
-3. Si el techo vale la pena (>1-2 ms reales), diseñar el **static-prop bake** (approach #5.1):
+1. ✅ HECHO (18-jun) — `MU_OBJLOG` re-añadido en `RenderObject()`/`RenderObjects()`
+   (gated, default-OFF, zero-cost cuando unset). Harness `measure_obj_main.bat`. Split confirmado
+   (ver §2b): count-bound 54→252, ~89-93 % static por count, Calc domina Draw.
+2. ✅ HECHO (18-jun) — Techo medido vía split static/animado del TIEMPO (no skip flag, no cambia
+   visual): **static props = ~63 % del tiempo del pass; ceiling real ≈ 2-2.7 ms steady, ~3-3.8 ms
+   pico**. Slot real pico ~5-6 ms. **Supera 1-2 ms → seguir al paso 3.**
+3. ⏭️ PRÓXIMO — techo vale la pena (>1-2 ms reales) → diseñar el **static-prop bake** (approach #5.1):
    prototipo gated `MU_OBJSTATIC`, default-OFF, validar A/B + visual (igual que se hizo con el terreno).
 4. Cuidado con la **luz**: validar si los props estáticos necesitan BodyLight vivo (fuego/antorchas
    pulsan) — si sí, hay que streamear su color como hace el terreno, no congelarlo.

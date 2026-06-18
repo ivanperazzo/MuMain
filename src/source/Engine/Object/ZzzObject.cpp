@@ -6,6 +6,8 @@
 #include "Render/Textures/ZzzOpenglUtil.h"
 #include "Render/Models/ZzzBMD.h"
 #include "Render/Models/BmdGpuCache.h"   // GpuInstObjEnabled() — props Translate-mode flip for objects instancing
+#include "Render/GL/GLLog.h"             // MU_OBJLOG instrumentation -> gl_log.txt
+#include <chrono>
 #include "Engine/Object/ZzzInfomation.h"
 #include "Engine/Object/ZzzObject.h"
 #include "Engine/Object/ZzzCharacter.h"
@@ -58,6 +60,29 @@ static float s_fCullRadiusItem = 0.0f;
 
 int          g_iTotalObj = 0;
 OBJECT_BLOCK ObjectBlock[256];
+
+// TEMP instrumentation (MU_OBJLOG=1): split the objects pass into Calc vs Draw and
+// count static (non-animating) props. Accumulated per-prop in RenderObject(), reset
+// at RenderObjects() entry, emitted every 30 frames -> gl_log.txt -> gl_obj.txt.
+// Single-frame snapshot (same methodology as MU_TERRLOG). Off the hot path when unset.
+namespace
+{
+    bool ObjLogEnabled()
+    {
+        static const bool on = [] {
+            char b[8] = {}; size_t n = 0;
+            return getenv_s(&n, b, sizeof(b), "MU_OBJLOG") == 0 && n > 0 && b[0] == '1';
+        }();
+        return on;
+    }
+    struct ObjLogAccum
+    {
+        double calcMs = 0.0;  double drawMs = 0.0;   // all props
+        double sCalcMs = 0.0; double sDrawMs = 0.0;  // static props only (the bakeable subset)
+        int    props = 0;     int    statics = 0;
+    };
+    ObjLogAccum g_objLog;
+}
 OBJECT       Boids[MAX_BOIDS];
 OBJECT       Fishs[MAX_FISHS];
 OBJECT       Mounts[MAX_MOUNTS];
@@ -2688,6 +2713,27 @@ void RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     // Defensive: same out-of-range Type guard as MoveObject (Calc_RenderObject /
     // Draw_RenderObject index Models[o->Type]).
     if (o == nullptr || o->Type < 0 || o->Type >= MAX_MODELS) return;
+
+    if (ObjLogEnabled())
+    {
+        const bool isStatic = (o->AnimationFrame == o->PriorAnimationFrame);
+        g_objLog.props += 1;
+        if (isStatic) g_objLog.statics += 1;
+        auto t0 = std::chrono::steady_clock::now();
+        const bool calcOk = Calc_RenderObject(o, Translate, Select, ExtraMon);
+        auto t1 = std::chrono::steady_clock::now();
+        const double calc = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        g_objLog.calcMs += calc;
+        if (isStatic) g_objLog.sCalcMs += calc;
+        if (!calcOk) return;
+        Draw_RenderObject(o, Translate, Select, ExtraMon);
+        auto t2 = std::chrono::steady_clock::now();
+        const double draw = std::chrono::duration<double, std::milli>(t2 - t1).count();
+        g_objLog.drawMs += draw;
+        if (isStatic) g_objLog.sDrawMs += draw;
+        return;
+    }
+
     if (Calc_RenderObject(o, Translate, Select, ExtraMon) == false)
     {
         return;
@@ -3289,6 +3335,7 @@ void RenderObjectVisual(OBJECT* o)
 
 void RenderObjects()
 {
+    if (ObjLogEnabled()) g_objLog = ObjLogAccum{};   // MU_OBJLOG: reset per-frame accumulator
 #ifdef _EDITOR
     s_bShowItemCullSphere = DevEditor_ShouldShowItemCullSphere();
     s_bShowItemPickBoxes = DevEditor_ShouldShowItemPickBoxes();
@@ -3480,6 +3527,21 @@ void RenderObjects()
                     else break;
                 }
             }
+        }
+    }
+
+    if (ObjLogEnabled())
+    {
+        static int fr = 0;
+        if ((++fr % 30) == 0)
+        {
+            const double pct = g_objLog.props ? (100.0 * g_objLog.statics / g_objLog.props) : 0.0;
+            const double tot = g_objLog.calcMs + g_objLog.drawMs;
+            const double sTot = g_objLog.sCalcMs + g_objLog.sDrawMs;
+            const double sPctTime = tot > 0.0 ? (100.0 * sTot / tot) : 0.0;
+            Render::GL::Log("[obj] props=%d static=%d(%.0f%%) calc=%.2f draw=%.2f | static calc=%.2f draw=%.2f (%.0f%% of time, bake ceiling=%.2fms)",
+                g_objLog.props, g_objLog.statics, pct, g_objLog.calcMs, g_objLog.drawMs,
+                g_objLog.sCalcMs, g_objLog.sDrawMs, sPctTime, sTot);
         }
     }
 }
