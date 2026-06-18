@@ -75,9 +75,13 @@ namespace Render::Models
 
     bool GpuShadowEnabled()
     {
+        // Default ON (instanced character shadows; part of the char GPU path validated
+        // with the crowd test). MU_GPUSHADOW=0 disables at startup (A/B), =1 forces on.
         static const bool s_on = [] {
             char buf[8] = {}; size_t n = 0;
-            return getenv_s(&n, buf, sizeof(buf), "MU_GPUSHADOW") == 0 && n > 0 && buf[0] == '1';
+            if (getenv_s(&n, buf, sizeof(buf), "MU_GPUSHADOW") == 0 && n > 0)
+                return buf[0] != '0';
+            return true;
         }();
         return s_on;
     }

@@ -39,10 +39,10 @@ namespace Render::Models
         // storage also keeps existing entries stable across rehash.
         std::unordered_map<const BMD*, std::vector<MeshGpu>> s_cache;
 
-        bool s_gpuBmdEnabled  = false;   // $gpubmd master switch (default off)
+        bool s_gpuBmdEnabled  = true;    // $gpubmd master switch (default ON — char GPU/instancing path validado: crowd 100ch chars 177->22ms ~8x, visual OK; MU_GPUBMD=0 desactiva)
         bool s_gpuObjectsPass = false;   // true only during the Objects render pass
         bool s_gpuCharsPass   = false;   // true only during the Characters render pass
-        bool s_gpuInstEnabled = false;   // $gpuinst: instanced Characters batching
+        bool s_gpuInstEnabled = true;    // $gpuinst: instanced Characters batching (default ON — colapsa meshes de chars al batch; MU_GPUINST=0 desactiva)
         bool s_gpuInstObj     = true;    // $gpuinstobj: instanced Objects (props) batching (Task 7, default ON, A/B validado in-game 16-jun ~43% off objects pass)
         bool s_gpuStatsLog    = false;   // $gpulog / MU_GPULOG: periodic perf stat logging ([bmd_gpu]/[bmd_cov]/[bmd_shadow]/[obj_inst]). Default OFF — each Log() is a fopen+write+flush, so per-frame logging adds I/O. Turn on for measurement.
         bool s_gpuBlendMesh   = true;    // $gpublendmesh: translucent blend meshes via per-mesh GPU (default ON, Etapa 1.3)
@@ -236,7 +236,13 @@ namespace Render::Models
     void SetGpuBmdEnabled(bool on) { s_gpuBmdEnabled = on; }
     bool GpuBmdEnabled()
     {
-        static const bool s_envInit = [] { if (EnvFlag("MU_GPUBMD")) s_gpuBmdEnabled = true; return true; }();
+        // Default ON. MU_GPUBMD=0 disables at startup (A/B), =1 forces on.
+        static const bool s_envInit = [] {
+            char b[8] = {}; size_t n = 0;
+            if (getenv_s(&n, b, sizeof(b), "MU_GPUBMD") == 0 && n > 0)
+                s_gpuBmdEnabled = (atoi(b) != 0);
+            return true;
+        }();
         (void)s_envInit;
         return s_gpuBmdEnabled;
     }
@@ -247,7 +253,13 @@ namespace Render::Models
     void SetGpuInstEnabled(bool on) { s_gpuInstEnabled = on; }
     bool GpuInstEnabled()
     {
-        static const bool s_envInit = [] { if (EnvFlag("MU_GPUINST")) s_gpuInstEnabled = true; return true; }();
+        // Default ON. MU_GPUINST=0 disables at startup (A/B), =1 forces on.
+        static const bool s_envInit = [] {
+            char b[8] = {}; size_t n = 0;
+            if (getenv_s(&n, b, sizeof(b), "MU_GPUINST") == 0 && n > 0)
+                s_gpuInstEnabled = (atoi(b) != 0);
+            return true;
+        }();
         (void)s_envInit;
         return s_gpuInstEnabled;
     }
