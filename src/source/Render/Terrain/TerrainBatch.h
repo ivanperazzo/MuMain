@@ -28,14 +28,31 @@ namespace Render::Terrain
 
     bool TerrainBatchEnabled();   // env MU_TERRAINVBO, read once
 
+    size_t TerrainBatchVertexCount();   // TEMP: total verts buffered this pass (instrumentation)
+
     void TerrainBatchBegin();     // start a frame's terrain pass: reset buckets
 
-    // Select the bucket for the next 4 emitted vertices (one tile quad). Returns
-    // the bucket's interleaved float store (9 floats/vertex: x y z u v r g b a)
-    // so the caller appends vertices inline (no per-vertex cross-TU call).
-    std::vector<float>* TerrainBatchSelect(int glTexture, int mode);
+    // Reserve one quad (4 verts x 9 floats: x y z u v r g b a) in the bucket for
+    // (glTexture, mode) and return a raw cursor to its first float. The caller
+    // writes exactly kFloatsPerQuad floats through the cursor (no per-vertex
+    // push_back, no bounds checks). A last-key cache skips the hash lookup for
+    // runs of same-texture tiles (terrain is spatially coherent). The returned
+    // pointer is valid until the next TerrainBatchQuad call on the SAME bucket.
+    // outIdxSlot (static-bake only): when non-null, also reserves 4 ints in the bucket's
+    // per-vertex terrain-cell array and returns a cursor to them via *outIdxSlot, so the
+    // caller can record the cell index of each emitted vertex (used for grass colour
+    // streaming, whose shifted geometry breaks idx-from-pos).
+    float* TerrainBatchQuad(int glTexture, int mode, int** outIdxSlot = nullptr);
 
     // Flush all buckets: opaque -> alphatest -> alphablend, one
     // glDrawArrays(GL_QUADS) each (BindTexture + state per bucket). Clears them.
     void TerrainBatchFlush();
+
+    // Static-bake (MU_TERRAINSTATIC): after a full-map walk filled the buckets, upload
+    // each to a GL_STATIC_DRAW VBO once. TerrainBatchDrawStatic then redraws straight
+    // from the GPU VBOs every frame (no per-frame CPU->GPU vertex copy), making the
+    // terrain normal pass view-independent. Geometry/colour are frozen at bake time.
+    void TerrainBatchUploadStatic();
+    void TerrainBatchUpdateColors();   // refresh dynamic colour VBO from PrimaryTerrainLight
+    void TerrainBatchDrawStatic();
 }

@@ -86,6 +86,7 @@ void BodyLight(OBJECT* o, BMD* b);
 
 bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon);
 bool Calc_ObjectAnimation(OBJECT* o, bool Translate, int Select);
+void SetAnimLodSkipBones(bool skip);   // distance anim-LOD: Phase B reuses cached bones when true
 void Draw_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon);
 
 bool IsPartyMemberBuff(int partyindex, eBuffState buffstate);

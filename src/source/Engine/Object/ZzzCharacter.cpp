@@ -51,6 +51,7 @@
 
 // Phase 5: Camera system includes for 3D frustum culling
 #include "Camera/CameraManager.h"
+#include "Camera/CameraState.h"   // g_Camera.Position for distance anim-LOD
 #include "Camera/ICamera.h"
 #include "Engine/Object/CullingConstants.h"
 
@@ -11474,6 +11475,59 @@ static bool ClearCloakedTarget(CHARACTER* c)
 // selected flag, the cloaking skips and the Hero-OBB special case all reproduce
 // exactly the previous inline loop. The only change is WHERE the interpolation is
 // computed (Phase G, into the entry) vs applied (Phase B).
+// ---- Distance animation LOD ----------------------------------------------
+// Throttle the per-frame bone keyframe rebuild for far characters. The decision is
+// made here in Phase G (serial: has the char index + camera) and carried into the
+// parallel Phase B via SetAnimLodSkipBones(). State lives in a side array keyed by
+// slot index — NO OBJECT layout change (sizeof(OBJECT) is touchy here). Off by
+// default; MU_ANIMLOD=1 enables, MU_ANIMLOD_NEAR overrides the near radius.
+static unsigned s_animLodFrame = 0;
+static unsigned s_lastBoneFrame[MAX_CHARACTERS_CLIENT] = {};
+
+static bool AnimLodEnabled()
+{
+    static const bool on = [] {
+        char b[8] = {}; size_t n = 0;
+        return getenv_s(&n, b, sizeof(b), "MU_ANIMLOD") == 0 && n > 0 && b[0] == '1';
+    }();
+    return on;
+}
+
+static float AnimLodNearRadius()
+{
+    static const float r = [] {
+        char b[16] = {}; size_t n = 0;
+        if (getenv_s(&n, b, sizeof(b), "MU_ANIMLOD_NEAR") == 0 && n > 0)
+        {
+            const float v = (float)atof(b);
+            if (v > 0.f) return v;
+        }
+        return 900.f;
+    }();
+    return r;
+}
+
+// Decide whether char slot `i` (object `o`) reuses its cached bones this frame.
+// Near chars and the first-ever frame always rebuild; far chars rebuild every
+// 2nd/3rd frame. Updates the slot's last-rebuild stamp when it rebuilds.
+static bool AnimLodShouldSkip(int i, OBJECT* o)
+{
+    if (!AnimLodEnabled() || !o->EnableBoneMatrix || i < 0 || i >= MAX_CHARACTERS_CLIENT)
+        return false;
+    const float dx = o->Position[0] - g_Camera.Position[0];
+    const float dy = o->Position[1] - g_Camera.Position[1];
+    const float d2 = dx * dx + dy * dy;
+    const float nearR = AnimLodNearRadius();
+    const float near2 = nearR * nearR;
+    const float mid2  = (nearR * 1.8f) * (nearR * 1.8f);
+    const int period = (d2 < near2) ? 1 : (d2 < mid2) ? 2 : 3;
+    if (period > 1 && s_lastBoneFrame[i] != 0
+        && (unsigned)(s_animLodFrame - s_lastBoneFrame[i]) < (unsigned)period)
+        return true;                       // reuse cached pose this frame
+    s_lastBoneFrame[i] = s_animLodFrame;   // rebuilding -> stamp it
+    return false;
+}
+
 static void GatherVisibleChars(std::vector<Render::Build::VisibleChar>& out)
 {
 #ifdef _EDITOR
@@ -11481,6 +11535,7 @@ static void GatherVisibleChars(std::vector<Render::Build::VisibleChar>& out)
 #endif
 
     out.clear();
+    ++s_animLodFrame;   // one tick per Phase-G pass (once per rendered frame)
 
     for (int i = 0; i < MAX_CHARACTERS_CLIENT; ++i)
     {
@@ -11544,6 +11599,8 @@ static void GatherVisibleChars(std::vector<Render::Build::VisibleChar>& out)
             e.animPriorAction = pose.priorAction;
         }
 
+        e.skipBones = AnimLodShouldSkip(i, o);   // distance anim-LOD (decided serial here)
+
         Render::Models::NoteVisibleChar();
         out.push_back(e);
 
@@ -11589,10 +11646,12 @@ static void BuildVisibleChar(const Render::Build::VisibleChar& e)
         o->PriorAction         = e.animPriorAction;
     }
 
+    SetAnimLodSkipBones(e.skipBones);   // distance anim-LOD: reuse cached bones for far chars
     if (!e.selected)
         RenderCharacter(c, o);
     else
         RenderCharacter(c, o, true);
+    SetAnimLodSkipBones(false);
 
     if (e.applyAnim)
     {

@@ -11,7 +11,9 @@
 #include "Render/Models/ZzzBMD.h"
 #include "ZzzLodTerrain.h"
 #include "Render/Terrain/TerrainBatch.h"   // P2: batched terrain (MU_TERRAINVBO)
+#include "Render/GL/GLLog.h"               // TEMP terrain walk/flush instrumentation
 #include <vector>
+#include <chrono>
 #include "Engine/Pathing/ZzzPath.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -1231,15 +1233,23 @@ inline void Interpolation(int mx, int my)
 // P2 (terrain-VBO): when batching is active for this pass, the per-tile Vertex*()
 // helpers append into the current bucket (set by RenderFace*) instead of issuing
 // immediate-mode GL. s_tbCur != nullptr means "emit into this bucket".
-static bool                s_tbActive = false;   // batching this terrain pass
-static std::vector<float>* s_tbCur    = nullptr; // current bucket (per face)
+static bool   s_tbActive = false;   // batching this terrain pass
+static float* s_tbCur    = nullptr; // raw write cursor into the current quad slot
+static int*   s_tbIdxCur = nullptr; // parallel cursor recording terrain cell per vertex
+                                    // (static-bake only; non-null => record idx). Used for
+                                    // grass, whose shifted geometry breaks idx-from-pos.
+static bool   s_bakeRecording = false; // true only during the static-bake walk
 
 static inline void TBEmit(const float* pos, float u, float v,
-                          float r, float g, float b, float a)
+                          float r, float g, float b, float a, int idx = 0)
 {
-    s_tbCur->push_back(pos[0]); s_tbCur->push_back(pos[1]); s_tbCur->push_back(pos[2]);
-    s_tbCur->push_back(u);      s_tbCur->push_back(v);
-    s_tbCur->push_back(r);      s_tbCur->push_back(g);  s_tbCur->push_back(b);  s_tbCur->push_back(a);
+    float* c = s_tbCur;
+    c[0] = pos[0]; c[1] = pos[1]; c[2] = pos[2];
+    c[3] = u;      c[4] = v;
+    c[5] = r;      c[6] = g;      c[7] = b;      c[8] = a;
+    s_tbCur = c + 9;   // advance to next vertex; quad slot holds exactly 4
+    if (s_tbIdxCur)
+        *s_tbIdxCur++ = idx;
 }
 
 inline void Vertex0()
@@ -1510,7 +1520,8 @@ void RenderFace(int Texture, int mx, int my)
 
     if (s_tbActive)
     {
-        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, mode);
+        s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, mode);
+        s_tbIdxCur = nullptr;   // normal/alpha/blend: idx derived from pos at upload
         Vertex0(); Vertex1(); Vertex2(); Vertex3();
         return;
     }
@@ -1540,7 +1551,8 @@ void RenderFace_After(int Texture, int mx, int my)
 
     if (s_tbActive)
     {
-        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, mode);
+        s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, mode);
+        s_tbIdxCur = nullptr;   // normal/alpha/blend: idx derived from pos at upload
         Vertex0(); Vertex1(); Vertex2(); Vertex3();
         return;
     }
@@ -1562,7 +1574,8 @@ void RenderFaceAlpha(int Texture, int mx, int my)
 {
     if (s_tbActive)
     {
-        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHATEST);
+        s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHATEST);
+        s_tbIdxCur = nullptr;   // normal/alpha/blend: idx derived from pos at upload
         VertexAlpha0(); VertexAlpha1(); VertexAlpha2(); VertexAlpha3();
         return;
     }
@@ -1582,7 +1595,8 @@ void RenderFaceBlend(int Texture, int mx, int my)
 {
     if (s_tbActive)
     {
-        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHABLEND);
+        s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHABLEND);
+        s_tbIdxCur = nullptr;   // normal/alpha/blend: idx derived from pos at upload
         VertexBlend0(); VertexBlend1(); VertexBlend2(); VertexBlend3();
         return;
     }
@@ -1733,10 +1747,7 @@ void RenderTerrainFace(float xf, float yf, int xi, int yi, float lodf)
             if (pBitmap)
             {
                 float Height = pBitmap->Height * 2.f;
-                BindTexture(Texture);
-
-                if (gMapManager.IsPKField() || IsDoppelGanger2())
-                    EnableAlphaBlend();
+                const bool grassBlend = (gMapManager.IsPKField() || IsDoppelGanger2());
 
                 float Width = 64.f / 256.f;
                 float su = xf * Width;
@@ -1765,23 +1776,53 @@ void RenderTerrainFace(float xf, float yf, int xi, int yi, float lodf)
 #ifdef ASG_ADD_MAP_KARUTAN
                 }
 #endif	// ASG_ADD_MAP_KARUTAN
-                glBegin(GL_QUADS);
-                glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
-                glColor3fv(PrimaryTerrainLight[TerrainIndex1]);
-                glVertex3fv(TerrainVertex[0]);
-                glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
-                glColor3fv(PrimaryTerrainLight[TerrainIndex2]);
-                glVertex3fv(TerrainVertex[1]);
-                glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
-                glColor3fv(PrimaryTerrainLight[TerrainIndex3]);
-                glVertex3fv(TerrainVertex[2]);
-                glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
-                glColor3fv(PrimaryTerrainLight[TerrainIndex4]);
-                glVertex3fv(TerrainVertex[3]);
-                glEnd();
 
-                if (gMapManager.IsPKField() || IsDoppelGanger2())
-                    DisableAlphaBlend();
+                // Batch the common alpha-test grass into the per-texture buckets (one
+                // glDrawArrays at flush instead of glBegin + BindTexture per tile). The
+                // rare alpha-BLEND grass (PK fields / DoppelGanger2) keeps the immediate
+                // path so its draw order is untouched. Geometry rebuilds each frame
+                // (wind), but the per-tile GL/bind overhead is gone.
+                if (s_tbActive && !grassBlend)
+                {
+                    // Record the terrain cell per vertex (only during the static bake) so
+                    // UploadStatic can stream grass colour from PrimaryTerrainLight — the
+                    // grass quad's -50/wind/height shift makes idx-from-pos unreliable.
+                    int* idxSlot = nullptr;
+                    s_tbCur = Render::Terrain::TerrainBatchQuad(
+                        Texture, Render::Terrain::TB_ALPHATEST,
+                        s_bakeRecording ? &idxSlot : nullptr);
+                    s_tbIdxCur = idxSlot;
+                    const float* L0 = PrimaryTerrainLight[TerrainIndex1];
+                    const float* L1 = PrimaryTerrainLight[TerrainIndex2];
+                    const float* L2 = PrimaryTerrainLight[TerrainIndex3];
+                    const float* L3 = PrimaryTerrainLight[TerrainIndex4];
+                    TBEmit(TerrainVertex[0], TerrainTextureCoord[0][0], TerrainTextureCoord[0][1], L0[0], L0[1], L0[2], 1.f, TerrainIndex1);
+                    TBEmit(TerrainVertex[1], TerrainTextureCoord[1][0], TerrainTextureCoord[1][1], L1[0], L1[1], L1[2], 1.f, TerrainIndex2);
+                    TBEmit(TerrainVertex[2], TerrainTextureCoord[2][0], TerrainTextureCoord[2][1], L2[0], L2[1], L2[2], 1.f, TerrainIndex3);
+                    TBEmit(TerrainVertex[3], TerrainTextureCoord[3][0], TerrainTextureCoord[3][1], L3[0], L3[1], L3[2], 1.f, TerrainIndex4);
+                }
+                else
+                {
+                    BindTexture(Texture);
+                    if (grassBlend)
+                        EnableAlphaBlend();
+                    glBegin(GL_QUADS);
+                    glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
+                    glColor3fv(PrimaryTerrainLight[TerrainIndex1]);
+                    glVertex3fv(TerrainVertex[0]);
+                    glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
+                    glColor3fv(PrimaryTerrainLight[TerrainIndex2]);
+                    glVertex3fv(TerrainVertex[1]);
+                    glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
+                    glColor3fv(PrimaryTerrainLight[TerrainIndex3]);
+                    glVertex3fv(TerrainVertex[2]);
+                    glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
+                    glColor3fv(PrimaryTerrainLight[TerrainIndex4]);
+                    glVertex3fv(TerrainVertex[3]);
+                    glEnd();
+                    if (grassBlend)
+                        DisableAlphaBlend();
+                }
             }
         }
     }
@@ -3214,19 +3255,115 @@ void RenderTerrain(bool EditFlag)
     }
 
     TerrainFlag = TERRAIN_MAP_NORMAL;
-    // P2 (terrain-VBO): batch the normal pass into per-texture buckets, flushed
-    // as a handful of glDrawArrays below. The grass pass + editor stay legacy.
-    if (!EditFlag && Render::Terrain::TerrainBatchEnabled())
+
+    // Static-bake terrain (MU_TERRAINSTATIC=1): walk the WHOLE map into the per-texture
+    // buckets ONCE, upload geometry to static GPU VBOs, then every frame just refresh the
+    // colour VBO from PrimaryTerrainLight and draw -- no per-tile frustum traversal /
+    // vertex assembly. The terrain normal pass becomes view-INDEPENDENT while lighting
+    // stays live (only geometry/texcoords are frozen, which are static anyway; animated
+    // water UV is the one thing not yet handled). Re-bakes on map change. The grass pass
+    // stays per-frame (it would clear the shared buckets), so it is forced onto the
+    // immediate path while static is on.
+    static const bool s_terrStatic = [] {
+        char b[8] = {}; size_t n = 0;
+        return getenv_s(&n, b, sizeof(b), "MU_TERRAINSTATIC") == 0 && n > 0 && b[0] == '1';
+    }();
+    static bool s_baked      = false;
+    static int  s_bakedWorld = -1;
+
+    // TEMP instrumentation (MU_TERRLOG=1): split the normal pass into walk (per-tile
+    // CPU assembly into buckets) vs flush (glDrawArrays + CPU->GPU vertex upload).
+    static const bool s_terrLog = [] {
+        char b[8] = {}; size_t n = 0;
+        return getenv_s(&n, b, sizeof(b), "MU_TERRLOG") == 0 && n > 0 && b[0] == '1';
+    }();
+
+    const bool batchOn = !EditFlag && Render::Terrain::TerrainBatchEnabled();
+
+    if (s_terrStatic && batchOn)
+    {
+        if (gMapManager.WorldActive != s_bakedWorld)
+            s_baked = false;   // map changed -> re-bake
+
+        if (!s_baked)
+        {
+            // Bake: force whole-map bounds + bypass per-tile frustum (TopViewEnable),
+            // walk once into the buckets, then KEEP them (flush draws but doesn't clear).
+            const int  sx = FrustrumBoundMinX, sy = FrustrumBoundMinY;
+            const int  ex = FrustrumBoundMaxX, ey = FrustrumBoundMaxY;
+            const bool sTop = g_Camera.TopViewEnable;
+            ResetFrustrumBoundsFullTerrain();
+            g_Camera.TopViewEnable = true;        // pass every tile in bounds
+            s_tbActive      = true;
+            s_bakeRecording = true;               // record terrain cell per vertex (grass)
+            Render::Terrain::TerrainBatchBegin();
+            TerrainFlag = TERRAIN_MAP_NORMAL;
+            RenderTerrainFrustrum(EditFlag);
+            // Bake the grass pass into the same buckets too (frozen wind, live colour via
+            // the recorded cell index), so it is view-independent like the normal pass.
+            if (TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
+            {
+                EnableAlphaTest();
+                TerrainFlag = TERRAIN_MAP_GRASS;
+                RenderTerrainFrustrum(EditFlag);
+                TerrainFlag = TERRAIN_MAP_NORMAL;
+            }
+            s_bakeRecording = false;
+            s_tbIdxCur = nullptr;
+            Render::Terrain::TerrainBatchFlush();      // draw this frame from CPU buffers
+            Render::Terrain::TerrainBatchUploadStatic(); // ...and upload them to GPU VBOs
+            s_tbActive   = false;
+            s_tbCur      = nullptr;
+            s_baked      = true;
+            s_bakedWorld = gMapManager.WorldActive;
+            FrustrumBoundMinX = sx; FrustrumBoundMinY = sy;
+            FrustrumBoundMaxX = ex; FrustrumBoundMaxY = ey;
+            g_Camera.TopViewEnable = sTop;
+            Render::GL::Log("[terr] static bake world=%d verts=%zu",
+                gMapManager.WorldActive, Render::Terrain::TerrainBatchVertexCount());
+        }
+        else
+        {
+            // Static geometry, live lighting: refresh the colour VBO from the current
+            // PrimaryTerrainLight, then draw straight from the GPU VBOs (no per-tile walk).
+            Render::Terrain::TerrainBatchUpdateColors();
+            Render::Terrain::TerrainBatchDrawStatic();
+        }
+    }
+    else if (s_terrLog && batchOn)
     {
         s_tbActive = true;
         Render::Terrain::TerrainBatchBegin();
-    }
-    RenderTerrainFrustrum(EditFlag);
-    if (s_tbActive)
-    {
+        auto t0 = std::chrono::steady_clock::now();
+        RenderTerrainFrustrum(EditFlag);
+        auto t1 = std::chrono::steady_clock::now();
+        size_t verts = Render::Terrain::TerrainBatchVertexCount();
         Render::Terrain::TerrainBatchFlush();
+        auto t2 = std::chrono::steady_clock::now();
+        static int fr = 0;
+        if ((++fr % 30) == 0)
+        {
+            const double walk  = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            const double flush = std::chrono::duration<double, std::milli>(t2 - t1).count();
+            Render::GL::Log("[terr] walk=%.2fms flush=%.2fms verts=%zu", walk, flush, verts);
+        }
         s_tbActive = false;
         s_tbCur = nullptr;
+    }
+    else
+    {
+        if (batchOn)
+        {
+            s_tbActive = true;
+            Render::Terrain::TerrainBatchBegin();
+        }
+        RenderTerrainFrustrum(EditFlag);
+        if (s_tbActive)
+        {
+            Render::Terrain::TerrainBatchFlush();
+            s_tbActive = false;
+            s_tbCur = nullptr;
+        }
     }
     //
     if (EditFlag && SelectFlag)
@@ -3236,10 +3373,45 @@ void RenderTerrain(bool EditFlag)
     if (!EditFlag)
     {
         EnableAlphaTest();
-        if (TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
+        // In static-bake mode the grass is already baked into the VBOs (drawn by
+        // DrawStatic), so skip the per-frame grass pass entirely.
+        if (!s_terrStatic && TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
         {
             TerrainFlag = TERRAIN_MAP_GRASS;
-            RenderTerrainFrustrum(EditFlag);
+            // Batch the grass pass into per-texture buckets too (alpha-test grass only;
+            // alpha-blend grass stays immediate inside RenderTerrainFace). One
+            // glDrawArrays/texture at flush instead of glBegin+BindTexture per tile.
+            const bool grassBatch = !EditFlag && Render::Terrain::TerrainBatchEnabled();
+            if (grassBatch)
+            {
+                s_tbActive = true;
+                Render::Terrain::TerrainBatchBegin();
+            }
+            static const bool s_grassLog = [] {
+                char b[8] = {}; size_t n = 0;
+                return getenv_s(&n, b, sizeof(b), "MU_TERRLOG") == 0 && n > 0 && b[0] == '1';
+            }();
+            if (s_grassLog)
+            {
+                auto g0 = std::chrono::steady_clock::now();
+                RenderTerrainFrustrum(EditFlag);
+                if (grassBatch) Render::Terrain::TerrainBatchFlush();
+                auto g1 = std::chrono::steady_clock::now();
+                static int gf = 0;
+                if ((++gf % 30) == 0)
+                    Render::GL::Log("[terr] grass=%.2fms",
+                        std::chrono::duration<double, std::milli>(g1 - g0).count());
+            }
+            else
+            {
+                RenderTerrainFrustrum(EditFlag);
+                if (grassBatch) Render::Terrain::TerrainBatchFlush();
+            }
+            if (grassBatch)
+            {
+                s_tbActive = false;
+                s_tbCur = nullptr;
+            }
         }
 #ifdef _EDITOR
         if (s_bShowTileGrid)
