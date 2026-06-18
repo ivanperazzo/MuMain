@@ -1239,6 +1239,9 @@ static int*   s_tbIdxCur = nullptr; // parallel cursor recording terrain cell pe
                                     // (static-bake only; non-null => record idx). Used for
                                     // grass, whose shifted geometry breaks idx-from-pos.
 static bool   s_bakeRecording = false; // true only during the static-bake walk
+// Water tiles (animated UV) collected during the bake; re-rendered per-frame on the
+// immediate path in static mode so they keep scrolling instead of freezing.
+static std::vector<std::pair<int, int>> s_bakeWaterTiles;
 
 static inline void TBEmit(const float* pos, float u, float v,
                           float r, float g, float b, float a, int idx = 0)
@@ -1858,6 +1861,14 @@ bool RenderTerrainTile(float xf, float yf, int xi, int yi, float lodf, int lodi,
 {
     TerrainIndex1 = TERRAIN_INDEX(xi, yi);
     if ((TerrainWall[TerrainIndex1] & TW_NOGROUND) == TW_NOGROUND && !Flag) return false;
+
+    // Static bake: defer animated-water tiles (Layer1 == 5 scrolls by WaterMove) to the
+    // per-frame immediate path so they keep moving; everything else bakes into the VBO.
+    if (s_bakeRecording && !Flag && TerrainMappingLayer1[TerrainIndex1] == 5)
+    {
+        s_bakeWaterTiles.push_back({ xi, yi });
+        return false;
+    }
 
     TerrainIndex2 = TERRAIN_INDEX(xi + lodi, yi);
     TerrainIndex3 = TERRAIN_INDEX(xi + lodi, yi + lodi);
@@ -3296,6 +3307,7 @@ void RenderTerrain(bool EditFlag)
             g_Camera.TopViewEnable = true;        // pass every tile in bounds
             s_tbActive      = true;
             s_bakeRecording = true;               // record terrain cell per vertex (grass)
+            s_bakeWaterTiles.clear();             // re-collect animated-water tiles
             Render::Terrain::TerrainBatchBegin();
             TerrainFlag = TERRAIN_MAP_NORMAL;
             RenderTerrainFrustrum(EditFlag);
@@ -3328,6 +3340,19 @@ void RenderTerrain(bool EditFlag)
             // PrimaryTerrainLight, then draw straight from the GPU VBOs (no per-tile walk).
             Render::Terrain::TerrainBatchUpdateColors();
             Render::Terrain::TerrainBatchDrawStatic();
+
+            // Animated-water tiles were excluded from the bake -> render them per-frame on
+            // the immediate path (scrolling UV), frustum-culled. Sparse on most maps.
+            if (!s_bakeWaterTiles.empty())
+            {
+                TerrainFlag = TERRAIN_MAP_NORMAL;
+                for (const auto& wt : s_bakeWaterTiles)
+                {
+                    const int wx = wt.first, wy = wt.second;
+                    if (TestFrustrum2D((float)wx + 0.5f, (float)wy + 0.5f, 0.f) || g_Camera.TopViewEnable)
+                        RenderTerrainTile((float)wx, (float)wy, wx, wy, 1.f, 1, EditFlag);
+                }
+            }
         }
     }
     else if (s_terrLog && batchOn)
