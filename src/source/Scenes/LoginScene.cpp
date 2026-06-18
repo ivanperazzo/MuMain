@@ -423,6 +423,15 @@ bool NewRenderLogInScene(HDC hDC)
         g_LoginFrustumValid = !s_full;
     }
 
+    // Diagnostic: MU_TEST_BARE=1 renders chars (+ their mounts) on the bare login
+    // terrain, suppressing the throne-room props (RenderObjects) and all world effects
+    // (fire/joints/leaves/boids/pets). Isolates the per-char render cost from the
+    // background so we can see how much FPS the scenery is actually costing.
+    static const bool s_bare = [] {
+        char b[8] = {}; size_t n = 0;
+        return getenv_s(&n, b, sizeof(b), "MU_TEST_BARE") == 0 && n > 0 && b[0] == '1';
+    }();
+
     if (!CUIMng::Instance().m_CreditWin.IsShow())
     {
         { FRAME_PROFILE(Terrain); RenderTerrain(false); }
@@ -444,11 +453,15 @@ bool NewRenderLogInScene(HDC hDC)
         }
         {
             FRAME_PROFILE(Objects);
-            RenderMount();
-            Render::Models::SetGpuObjectsPass(true);
-            { Render::Models::ObjectsInstScope _objInst; RenderObjects(); }   // Task 7
-            Render::Models::SetGpuObjectsPass(false);
+            RenderMount();   // player mounts are part of the char cost — keep in bare mode
+            if (!s_bare)
+            {
+                Render::Models::SetGpuObjectsPass(true);
+                { Render::Models::ObjectsInstScope _objInst; RenderObjects(); }   // Task 7
+                Render::Models::SetGpuObjectsPass(false);
+            }
         }
+        if (!s_bare)
         {
             FRAME_PROFILE(Effects);
             RenderJoints();
@@ -457,6 +470,7 @@ bool NewRenderLogInScene(HDC hDC)
             RenderLeaves();
             RenderBoids();
         }
+        if (!s_bare)
         {
             FRAME_PROFILE(Objects);
             Render::Models::SetGpuObjectsPass(true);
