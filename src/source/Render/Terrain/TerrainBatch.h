@@ -28,12 +28,17 @@ namespace Render::Terrain
 
     bool TerrainBatchEnabled();   // env MU_TERRAINVBO, read once
 
+    size_t TerrainBatchVertexCount();   // TEMP: total verts buffered this pass (instrumentation)
+
     void TerrainBatchBegin();     // start a frame's terrain pass: reset buckets
 
-    // Select the bucket for the next 4 emitted vertices (one tile quad). Returns
-    // the bucket's interleaved float store (9 floats/vertex: x y z u v r g b a)
-    // so the caller appends vertices inline (no per-vertex cross-TU call).
-    std::vector<float>* TerrainBatchSelect(int glTexture, int mode);
+    // Reserve one quad (4 verts x 9 floats: x y z u v r g b a) in the bucket for
+    // (glTexture, mode) and return a raw cursor to its first float. The caller
+    // writes exactly kFloatsPerQuad floats through the cursor (no per-vertex
+    // push_back, no bounds checks). A last-key cache skips the hash lookup for
+    // runs of same-texture tiles (terrain is spatially coherent). The returned
+    // pointer is valid until the next TerrainBatchQuad call on the SAME bucket.
+    float* TerrainBatchQuad(int glTexture, int mode);
 
     // Flush all buckets: opaque -> alphatest -> alphablend, one
     // glDrawArrays(GL_QUADS) each (BindTexture + state per bucket). Clears them.

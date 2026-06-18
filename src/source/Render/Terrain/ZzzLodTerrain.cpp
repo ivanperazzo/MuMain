@@ -11,7 +11,9 @@
 #include "Render/Models/ZzzBMD.h"
 #include "ZzzLodTerrain.h"
 #include "Render/Terrain/TerrainBatch.h"   // P2: batched terrain (MU_TERRAINVBO)
+#include "Render/GL/GLLog.h"               // TEMP terrain walk/flush instrumentation
 #include <vector>
+#include <chrono>
 #include "Engine/Pathing/ZzzPath.h"
 #include "Render/Textures/ZzzTexture.h"
 #include "Engine/Object/ZzzInfomation.h"
@@ -1231,15 +1233,17 @@ inline void Interpolation(int mx, int my)
 // P2 (terrain-VBO): when batching is active for this pass, the per-tile Vertex*()
 // helpers append into the current bucket (set by RenderFace*) instead of issuing
 // immediate-mode GL. s_tbCur != nullptr means "emit into this bucket".
-static bool                s_tbActive = false;   // batching this terrain pass
-static std::vector<float>* s_tbCur    = nullptr; // current bucket (per face)
+static bool   s_tbActive = false;   // batching this terrain pass
+static float* s_tbCur    = nullptr; // raw write cursor into the current quad slot
 
 static inline void TBEmit(const float* pos, float u, float v,
                           float r, float g, float b, float a)
 {
-    s_tbCur->push_back(pos[0]); s_tbCur->push_back(pos[1]); s_tbCur->push_back(pos[2]);
-    s_tbCur->push_back(u);      s_tbCur->push_back(v);
-    s_tbCur->push_back(r);      s_tbCur->push_back(g);  s_tbCur->push_back(b);  s_tbCur->push_back(a);
+    float* c = s_tbCur;
+    c[0] = pos[0]; c[1] = pos[1]; c[2] = pos[2];
+    c[3] = u;      c[4] = v;
+    c[5] = r;      c[6] = g;      c[7] = b;      c[8] = a;
+    s_tbCur = c + 9;   // advance to next vertex; quad slot holds exactly 4
 }
 
 inline void Vertex0()
@@ -1510,7 +1514,7 @@ void RenderFace(int Texture, int mx, int my)
 
     if (s_tbActive)
     {
-        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, mode);
+        s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, mode);
         Vertex0(); Vertex1(); Vertex2(); Vertex3();
         return;
     }
@@ -1540,7 +1544,7 @@ void RenderFace_After(int Texture, int mx, int my)
 
     if (s_tbActive)
     {
-        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, mode);
+        s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, mode);
         Vertex0(); Vertex1(); Vertex2(); Vertex3();
         return;
     }
@@ -1562,7 +1566,7 @@ void RenderFaceAlpha(int Texture, int mx, int my)
 {
     if (s_tbActive)
     {
-        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHATEST);
+        s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHATEST);
         VertexAlpha0(); VertexAlpha1(); VertexAlpha2(); VertexAlpha3();
         return;
     }
@@ -1582,7 +1586,7 @@ void RenderFaceBlend(int Texture, int mx, int my)
 {
     if (s_tbActive)
     {
-        s_tbCur = Render::Terrain::TerrainBatchSelect(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHABLEND);
+        s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHABLEND);
         VertexBlend0(); VertexBlend1(); VertexBlend2(); VertexBlend3();
         return;
     }
@@ -3221,12 +3225,40 @@ void RenderTerrain(bool EditFlag)
         s_tbActive = true;
         Render::Terrain::TerrainBatchBegin();
     }
+    // TEMP instrumentation (MU_TERRLOG=1): split the normal pass into walk (per-tile
+    // CPU assembly into buckets) vs flush (glDrawArrays + CPU->GPU vertex upload), so
+    // we know which half the view-dependent terrain cost lives in before optimizing.
+    static const bool s_terrLog = [] {
+        char b[8] = {}; size_t n = 0;
+        return getenv_s(&n, b, sizeof(b), "MU_TERRLOG") == 0 && n > 0 && b[0] == '1';
+    }();
+    if (s_terrLog && s_tbActive)
+    {
+        auto t0 = std::chrono::steady_clock::now();
+        RenderTerrainFrustrum(EditFlag);
+        auto t1 = std::chrono::steady_clock::now();
+        size_t verts = Render::Terrain::TerrainBatchVertexCount();
+        Render::Terrain::TerrainBatchFlush();
+        auto t2 = std::chrono::steady_clock::now();
+        static int fr = 0;
+        if ((++fr % 30) == 0)
+        {
+            const double walk  = std::chrono::duration<double, std::milli>(t1 - t0).count();
+            const double flush = std::chrono::duration<double, std::milli>(t2 - t1).count();
+            Render::GL::Log("[terr] walk=%.2fms flush=%.2fms verts=%zu", walk, flush, verts);
+        }
+        s_tbActive = false;
+        s_tbCur = nullptr;
+    }
+    else
+    {
     RenderTerrainFrustrum(EditFlag);
     if (s_tbActive)
     {
         Render::Terrain::TerrainBatchFlush();
         s_tbActive = false;
         s_tbCur = nullptr;
+    }
     }
     //
     if (EditFlag && SelectFlag)

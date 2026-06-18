@@ -23,8 +23,14 @@ namespace Render::Terrain
         };
 
         // key = (texture << 4) | mode  -> stable element refs across rehash, so
-        // TerrainBatchSelect can hand the caller a &data pointer to append into.
+        // TerrainBatchQuad can hand the caller a &data pointer to append into.
         std::unordered_map<uint64_t, Bucket> s_buckets;
+
+        // Last-resolved bucket cache: terrain walks tiles in spatial order, so long
+        // runs share one texture+mode. unordered_map node refs are stable across
+        // rehash, so a cached Bucket* stays valid for the whole pass.
+        uint64_t s_lastKey    = ~0ull;
+        Bucket*  s_lastBucket = nullptr;
 
         uint64_t Key(int glTexture, int mode)
         {
@@ -74,19 +80,41 @@ namespace Render::Terrain
         return s_enabled != 0;
     }
 
+    size_t TerrainBatchVertexCount()
+    {
+        size_t floats = 0;
+        for (auto& kv : s_buckets)
+            floats += kv.second.data.size();
+        return floats / kFloatsPerVert;
+    }
+
     void TerrainBatchBegin()
     {
+        s_lastKey = ~0ull;
+        s_lastBucket = nullptr;
         for (auto& kv : s_buckets)
             kv.second.data.clear();   // keep capacity, reuse across frames
     }
 
-    std::vector<float>* TerrainBatchSelect(int glTexture, int mode)
+    float* TerrainBatchQuad(int glTexture, int mode)
     {
-        Bucket& b = s_buckets[Key(glTexture, mode)];
-        b.glTexture = glTexture;
-        b.mode = mode;
-        b.data.reserve(b.data.size() + kFloatsPerQuad);
-        return &b.data;
+        const uint64_t k = Key(glTexture, mode);
+        Bucket* b;
+        if (k == s_lastKey && s_lastBucket)
+        {
+            b = s_lastBucket;
+        }
+        else
+        {
+            b = &s_buckets[k];
+            b->glTexture = glTexture;
+            b->mode = mode;
+            s_lastKey = k;
+            s_lastBucket = b;
+        }
+        const size_t old = b->data.size();
+        b->data.resize(old + kFloatsPerQuad);   // capacity reused across frames
+        return b->data.data() + old;
     }
 
     void TerrainBatchFlush()
