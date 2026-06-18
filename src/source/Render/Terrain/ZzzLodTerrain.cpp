@@ -1737,10 +1737,7 @@ void RenderTerrainFace(float xf, float yf, int xi, int yi, float lodf)
             if (pBitmap)
             {
                 float Height = pBitmap->Height * 2.f;
-                BindTexture(Texture);
-
-                if (gMapManager.IsPKField() || IsDoppelGanger2())
-                    EnableAlphaBlend();
+                const bool grassBlend = (gMapManager.IsPKField() || IsDoppelGanger2());
 
                 float Width = 64.f / 256.f;
                 float su = xf * Width;
@@ -1769,23 +1766,46 @@ void RenderTerrainFace(float xf, float yf, int xi, int yi, float lodf)
 #ifdef ASG_ADD_MAP_KARUTAN
                 }
 #endif	// ASG_ADD_MAP_KARUTAN
-                glBegin(GL_QUADS);
-                glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
-                glColor3fv(PrimaryTerrainLight[TerrainIndex1]);
-                glVertex3fv(TerrainVertex[0]);
-                glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
-                glColor3fv(PrimaryTerrainLight[TerrainIndex2]);
-                glVertex3fv(TerrainVertex[1]);
-                glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
-                glColor3fv(PrimaryTerrainLight[TerrainIndex3]);
-                glVertex3fv(TerrainVertex[2]);
-                glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
-                glColor3fv(PrimaryTerrainLight[TerrainIndex4]);
-                glVertex3fv(TerrainVertex[3]);
-                glEnd();
 
-                if (gMapManager.IsPKField() || IsDoppelGanger2())
-                    DisableAlphaBlend();
+                // Batch the common alpha-test grass into the per-texture buckets (one
+                // glDrawArrays at flush instead of glBegin + BindTexture per tile). The
+                // rare alpha-BLEND grass (PK fields / DoppelGanger2) keeps the immediate
+                // path so its draw order is untouched. Geometry rebuilds each frame
+                // (wind), but the per-tile GL/bind overhead is gone.
+                if (s_tbActive && !grassBlend)
+                {
+                    s_tbCur = Render::Terrain::TerrainBatchQuad(Texture, Render::Terrain::TB_ALPHATEST);
+                    const float* L0 = PrimaryTerrainLight[TerrainIndex1];
+                    const float* L1 = PrimaryTerrainLight[TerrainIndex2];
+                    const float* L2 = PrimaryTerrainLight[TerrainIndex3];
+                    const float* L3 = PrimaryTerrainLight[TerrainIndex4];
+                    TBEmit(TerrainVertex[0], TerrainTextureCoord[0][0], TerrainTextureCoord[0][1], L0[0], L0[1], L0[2], 1.f);
+                    TBEmit(TerrainVertex[1], TerrainTextureCoord[1][0], TerrainTextureCoord[1][1], L1[0], L1[1], L1[2], 1.f);
+                    TBEmit(TerrainVertex[2], TerrainTextureCoord[2][0], TerrainTextureCoord[2][1], L2[0], L2[1], L2[2], 1.f);
+                    TBEmit(TerrainVertex[3], TerrainTextureCoord[3][0], TerrainTextureCoord[3][1], L3[0], L3[1], L3[2], 1.f);
+                }
+                else
+                {
+                    BindTexture(Texture);
+                    if (grassBlend)
+                        EnableAlphaBlend();
+                    glBegin(GL_QUADS);
+                    glTexCoord2f(TerrainTextureCoord[0][0], TerrainTextureCoord[0][1]);
+                    glColor3fv(PrimaryTerrainLight[TerrainIndex1]);
+                    glVertex3fv(TerrainVertex[0]);
+                    glTexCoord2f(TerrainTextureCoord[1][0], TerrainTextureCoord[1][1]);
+                    glColor3fv(PrimaryTerrainLight[TerrainIndex2]);
+                    glVertex3fv(TerrainVertex[1]);
+                    glTexCoord2f(TerrainTextureCoord[2][0], TerrainTextureCoord[2][1]);
+                    glColor3fv(PrimaryTerrainLight[TerrainIndex3]);
+                    glVertex3fv(TerrainVertex[2]);
+                    glTexCoord2f(TerrainTextureCoord[3][0], TerrainTextureCoord[3][1]);
+                    glColor3fv(PrimaryTerrainLight[TerrainIndex4]);
+                    glVertex3fv(TerrainVertex[3]);
+                    glEnd();
+                    if (grassBlend)
+                        DisableAlphaBlend();
+                }
             }
         }
     }
@@ -3271,7 +3291,40 @@ void RenderTerrain(bool EditFlag)
         if (TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
         {
             TerrainFlag = TERRAIN_MAP_GRASS;
-            RenderTerrainFrustrum(EditFlag);
+            // Batch the grass pass into per-texture buckets too (alpha-test grass only;
+            // alpha-blend grass stays immediate inside RenderTerrainFace). One
+            // glDrawArrays/texture at flush instead of glBegin+BindTexture per tile.
+            const bool grassBatch = !EditFlag && Render::Terrain::TerrainBatchEnabled();
+            if (grassBatch)
+            {
+                s_tbActive = true;
+                Render::Terrain::TerrainBatchBegin();
+            }
+            static const bool s_grassLog = [] {
+                char b[8] = {}; size_t n = 0;
+                return getenv_s(&n, b, sizeof(b), "MU_TERRLOG") == 0 && n > 0 && b[0] == '1';
+            }();
+            if (s_grassLog)
+            {
+                auto g0 = std::chrono::steady_clock::now();
+                RenderTerrainFrustrum(EditFlag);
+                if (grassBatch) Render::Terrain::TerrainBatchFlush();
+                auto g1 = std::chrono::steady_clock::now();
+                static int gf = 0;
+                if ((++gf % 30) == 0)
+                    Render::GL::Log("[terr] grass=%.2fms",
+                        std::chrono::duration<double, std::milli>(g1 - g0).count());
+            }
+            else
+            {
+                RenderTerrainFrustrum(EditFlag);
+                if (grassBatch) Render::Terrain::TerrainBatchFlush();
+            }
+            if (grassBatch)
+            {
+                s_tbActive = false;
+                s_tbCur = nullptr;
+            }
         }
 #ifdef _EDITOR
         if (s_bShowTileGrid)
