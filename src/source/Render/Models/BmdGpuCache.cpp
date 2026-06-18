@@ -328,10 +328,18 @@ namespace Render::Models
 
     bool GpuSkinDeferEnabled()
     {
-        // MU_GPUSKIN=1: defer CPU skin for instanced characters (consumers force-skin
-        // lazily). Off by default; the Transform-side gate also requires the char pass +
-        // GPU shadows on, so this is just the master flag.
-        static const bool s_on = EnvFlag("MU_GPUSKIN");
+        // Defer CPU skin for instanced characters to the GPU (consumers force-skin lazily).
+        // Default ON — the Transform-side gate also requires the char pass + GPU bmd/inst/
+        // shadow on (all default ON), so this just activates the offload. Measured (login
+        // crowd, 100 chars): chars 24.5->6.9 ms, anim 19->2.7 ms (~3.5x), visuals correct
+        // (matches the skinskip timing ceiling without the skinskip distortion).
+        // MU_GPUSKIN=0 disables at startup (A/B), =1 forces on.
+        static const bool s_on = [] {
+            char b[8] = {}; size_t n = 0;
+            if (getenv_s(&n, b, sizeof(b), "MU_GPUSKIN") == 0 && n > 0)
+                return atoi(b) != 0;
+            return true;
+        }();
         return s_on;
     }
 
