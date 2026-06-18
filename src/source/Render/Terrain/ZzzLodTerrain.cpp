@@ -1862,12 +1862,25 @@ bool RenderTerrainTile(float xf, float yf, int xi, int yi, float lodf, int lodi,
     TerrainIndex1 = TERRAIN_INDEX(xi, yi);
     if ((TerrainWall[TerrainIndex1] & TW_NOGROUND) == TW_NOGROUND && !Flag) return false;
 
-    // Static bake: defer animated-water tiles (Layer1 == 5 scrolls by WaterMove) to the
-    // per-frame immediate path so they keep moving; everything else bakes into the VBO.
-    if (s_bakeRecording && !Flag && TerrainMappingLayer1[TerrainIndex1] == 5)
+    // Static bake: defer ANY animated-water tile to the per-frame immediate path so it keeps
+    // moving; everything else bakes into the VBO. Must mirror EVERY water condition in
+    // RenderTerrainFace, else the animated water gets frozen into the static VBO (and the
+    // additive blend pass renders with the wrong blend state) -> bright square artifacts.
+    //   - Layer1 == 5                                  : scroll-by-WaterMove water (Lorencia/dungeons/BattleCastle).
+    //   - Layer1 == 11 && (PKField || DoppelGanger2)   : PK-field / Doppel water.
+    //   - (Atlans || DoppelGanger3) && Layer2 == 5     : animated additive water-caustic blend pass (Atlans).
+    if (s_bakeRecording && !Flag)
     {
-        s_bakeWaterTiles.push_back({ xi, yi });
-        return false;
+        const int i1 = TerrainIndex1;
+        const bool animWater =
+            TerrainMappingLayer1[i1] == 5
+            || (TerrainMappingLayer1[i1] == 11 && (gMapManager.IsPKField() || IsDoppelGanger2()))
+            || ((gMapManager.WorldActive == WD_7ATLANSE || IsDoppelGanger3()) && TerrainMappingLayer2[i1] == 5);
+        if (animWater)
+        {
+            s_bakeWaterTiles.push_back({ xi, yi });
+            return false;
+        }
     }
 
     TerrainIndex2 = TERRAIN_INDEX(xi + lodi, yi);
@@ -3267,17 +3280,22 @@ void RenderTerrain(bool EditFlag)
 
     TerrainFlag = TERRAIN_MAP_NORMAL;
 
-    // Static-bake terrain (MU_TERRAINSTATIC=1): walk the WHOLE map into the per-texture
-    // buckets ONCE, upload geometry to static GPU VBOs, then every frame just refresh the
-    // colour VBO from PrimaryTerrainLight and draw -- no per-tile frustum traversal /
-    // vertex assembly. The terrain normal pass becomes view-INDEPENDENT while lighting
-    // stays live (only geometry/texcoords are frozen, which are static anyway; animated
-    // water UV is the one thing not yet handled). Re-bakes on map change. The grass pass
-    // stays per-frame (it would clear the shared buckets), so it is forced onto the
-    // immediate path while static is on.
+    // Static-bake terrain (default ON; MU_TERRAINSTATIC=0 disables for A/B): walk the WHOLE
+    // map into the per-texture buckets ONCE, upload geometry to static GPU VBOs, then every
+    // frame just refresh the colour VBO from PrimaryTerrainLight and draw -- no per-tile
+    // frustum traversal / vertex assembly. The terrain normal pass becomes view-INDEPENDENT
+    // while lighting stays live (only geometry/texcoords are frozen, which are static anyway).
+    // Animated elements are NOT baked: animated-water tiles (all conditions mirrored from
+    // RenderTerrainFace -- Layer1==5, PK/Doppel Layer1==11, Atlans/Doppel3 Layer2==5) are
+    // excluded and rendered per-frame (live caustic/scroll), and the grass pass stays per-frame
+    // on the immediate path (its wind must keep animating, and TerrainBatchBegin would clear the
+    // shared static buckets). Re-bakes on map change.
     static const bool s_terrStatic = [] {
+        // Default ON. MU_TERRAINSTATIC=0 disables at startup (A/B), =1 forces on.
         char b[8] = {}; size_t n = 0;
-        return getenv_s(&n, b, sizeof(b), "MU_TERRAINSTATIC") == 0 && n > 0 && b[0] == '1';
+        if (getenv_s(&n, b, sizeof(b), "MU_TERRAINSTATIC") == 0 && n > 0)
+            return b[0] != '0';
+        return true;
     }();
     static bool s_baked      = false;
     static int  s_bakedWorld = -1;
@@ -3311,15 +3329,10 @@ void RenderTerrain(bool EditFlag)
             Render::Terrain::TerrainBatchBegin();
             TerrainFlag = TERRAIN_MAP_NORMAL;
             RenderTerrainFrustrum(EditFlag);
-            // Bake the grass pass into the same buckets too (frozen wind, live colour via
-            // the recorded cell index), so it is view-independent like the normal pass.
-            if (TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
-            {
-                EnableAlphaTest();
-                TerrainFlag = TERRAIN_MAP_GRASS;
-                RenderTerrainFrustrum(EditFlag);
-                TerrainFlag = TERRAIN_MAP_NORMAL;
-            }
+            // NOTE: grass is deliberately NOT baked. Its wind (TerrainGrassWind) animates, so
+            // baking it froze the sway. Grass is rendered per-frame on the immediate path below
+            // (see the grass pass in the !EditFlag block), which keeps the wind alive while the
+            // static base terrain stays view-independent.
             s_bakeRecording = false;
             s_tbIdxCur = nullptr;
             Render::Terrain::TerrainBatchFlush();      // draw this frame from CPU buffers
@@ -3398,15 +3411,18 @@ void RenderTerrain(bool EditFlag)
     if (!EditFlag)
     {
         EnableAlphaTest();
-        // In static-bake mode the grass is already baked into the VBOs (drawn by
-        // DrawStatic), so skip the per-frame grass pass entirely.
-        if (!s_terrStatic && TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
+        // Grass is rendered per-frame so its wind keeps animating (it is NOT baked into the
+        // static VBOs — baking froze the sway). In static-bake mode it must use the IMMEDIATE
+        // path: TerrainBatchBegin() would clear the shared buckets that hold the baked static
+        // terrain, so grass batching is disabled when s_terrStatic.
+        if (TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
         {
             TerrainFlag = TERRAIN_MAP_GRASS;
             // Batch the grass pass into per-texture buckets too (alpha-test grass only;
             // alpha-blend grass stays immediate inside RenderTerrainFace). One
             // glDrawArrays/texture at flush instead of glBegin+BindTexture per tile.
-            const bool grassBatch = !EditFlag && Render::Terrain::TerrainBatchEnabled();
+            // Disabled under s_terrStatic (would clobber the baked static buckets).
+            const bool grassBatch = !EditFlag && !s_terrStatic && Render::Terrain::TerrainBatchEnabled();
             if (grassBatch)
             {
                 s_tbActive = true;
