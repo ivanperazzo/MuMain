@@ -2,7 +2,8 @@
 
 #include "Render/Terrain/TerrainBatch.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
-#include "Render/GL/GLLoader.h"   // Render::GL::GenBuffers/BindBuffer/BufferData (GL 1.5)
+#include "Render/GL/GLLoader.h"      // Render::GL::GenBuffers/BindBuffer/BufferData (GL 1.5)
+#include "Render/Terrain/ZzzLodTerrain.h"  // PrimaryTerrainLight, TERRAIN_INDEX (colour streaming)
 
 #include <gl/glew.h>
 #include <cstdint>
@@ -20,9 +21,18 @@ namespace Render::Terrain
         {
             int                glTexture = 0;
             int                mode = TB_OPAQUE;
-            std::vector<float> data;        // interleaved, 9 floats/vertex
-            GLuint             vbo = 0;      // static-bake GPU buffer (0 = none)
-            GLsizei            vboVerts = 0; // verts uploaded to vbo (0 = skip in DrawStatic)
+            std::vector<float> data;        // interleaved, 9 floats/vertex (per-frame walk)
+
+            // Static-bake (MU_TERRAINSTATIC): geometry is uploaded once to a STATIC_DRAW
+            // VBO (pos+uv, 5 floats/vert); per-vertex colour lives in a DYNAMIC_DRAW VBO
+            // refreshed each frame from PrimaryTerrainLight so lighting stays live. vtxIdx
+            // maps each vertex back to its terrain cell for the light lookup; colorScratch
+            // is the CPU staging buffer (rgba; alpha baked once, rgb rewritten per frame).
+            GLuint             posUvVbo = 0;
+            GLuint             colorVbo = 0;
+            GLsizei            vboVerts = 0;   // 0 = skip in DrawStatic
+            std::vector<int>   vtxIdx;         // terrain cell index per vertex
+            std::vector<float> colorScratch;   // rgba per vertex (4 floats/vert)
         };
 
         // key = (texture << 4) | mode  -> stable element refs across rehash, so
@@ -151,6 +161,12 @@ namespace Render::Terrain
         glColor4f(1.f, 1.f, 1.f, 1.f);
     }
 
+    namespace
+    {
+        constexpr int kPosUvFloats = 5;   // x y z u v (static)
+        constexpr int kColorFloats = 4;   // r g b a (dynamic)
+    }
+
     void TerrainBatchUploadStatic()
     {
         for (auto& kv : s_buckets)
@@ -158,13 +174,69 @@ namespace Render::Terrain
             Bucket& b = kv.second;
             if (b.data.empty())
                 continue;
-            if (b.vbo == 0)
-                Render::GL::GenBuffers(1, &b.vbo);
-            Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.vbo);
+
+            const size_t verts = b.data.size() / kFloatsPerVert;
+
+            // De-interleave the per-frame walk output into a static pos/uv stream and a
+            // dynamic colour stream, and record each vertex's terrain cell (derived from
+            // its XY) so the colour can be refreshed from PrimaryTerrainLight each frame.
+            std::vector<float> posUv(verts * kPosUvFloats);
+            b.colorScratch.assign(verts * kColorFloats, 1.f);
+            b.vtxIdx.resize(verts);
+            for (size_t v = 0; v < verts; ++v)
+            {
+                const float* src = &b.data[v * kFloatsPerVert];
+                float* pu = &posUv[v * kPosUvFloats];
+                pu[0] = src[0]; pu[1] = src[1]; pu[2] = src[2];   // pos
+                pu[3] = src[3]; pu[4] = src[4];                   // uv
+                float* col = &b.colorScratch[v * kColorFloats];
+                col[0] = src[5]; col[1] = src[6]; col[2] = src[7]; col[3] = src[8];  // baked rgba
+
+                int xi = (int)(src[0] / TERRAIN_SCALE + 0.5f);
+                int yi = (int)(src[1] / TERRAIN_SCALE + 0.5f);
+                if (xi < 0) xi = 0; else if (xi > TERRAIN_SIZE_MASK) xi = TERRAIN_SIZE_MASK;
+                if (yi < 0) yi = 0; else if (yi > TERRAIN_SIZE_MASK) yi = TERRAIN_SIZE_MASK;
+                b.vtxIdx[v] = TERRAIN_INDEX(xi, yi);
+            }
+
+            if (b.posUvVbo == 0) Render::GL::GenBuffers(1, &b.posUvVbo);
+            Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.posUvVbo);
             Render::GL::BufferData(GL_ARRAY_BUFFER,
-                         (GLsizeiptr)(b.data.size() * sizeof(float)),
-                         b.data.data(), GL_STATIC_DRAW);
-            b.vboVerts = (GLsizei)(b.data.size() / kFloatsPerVert);
+                         (GLsizeiptr)(posUv.size() * sizeof(float)),
+                         posUv.data(), GL_STATIC_DRAW);
+
+            if (b.colorVbo == 0) Render::GL::GenBuffers(1, &b.colorVbo);
+            Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.colorVbo);
+            Render::GL::BufferData(GL_ARRAY_BUFFER,
+                         (GLsizeiptr)(b.colorScratch.size() * sizeof(float)),
+                         b.colorScratch.data(), GL_DYNAMIC_DRAW);
+
+            b.vboVerts = (GLsizei)verts;
+        }
+        Render::GL::BindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    void TerrainBatchUpdateColors()
+    {
+        // Refresh the dynamic colour VBO from the current PrimaryTerrainLight (alpha kept
+        // from the bake). O(baked verts) flat loop -- no frustum/vertex math/GL per tile --
+        // so the cost is constant regardless of camera, and lighting stays live.
+        for (auto& kv : s_buckets)
+        {
+            Bucket& b = kv.second;
+            if (b.colorVbo == 0 || b.vboVerts == 0)
+                continue;
+            const size_t verts = (size_t)b.vboVerts;
+            for (size_t v = 0; v < verts; ++v)
+            {
+                const float* L = PrimaryTerrainLight[b.vtxIdx[v]];
+                float* col = &b.colorScratch[v * kColorFloats];
+                col[0] = L[0]; col[1] = L[1]; col[2] = L[2];   // rgb live; alpha untouched
+            }
+            Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.colorVbo);
+            Render::GL::BufferData(GL_ARRAY_BUFFER,
+                         (GLsizeiptr)(b.colorScratch.size() * sizeof(float)),
+                         b.colorScratch.data(), GL_DYNAMIC_DRAW);
         }
         Render::GL::BindBuffer(GL_ARRAY_BUFFER, 0);
     }
@@ -175,21 +247,24 @@ namespace Render::Terrain
         glEnableClientState(GL_TEXTURE_COORD_ARRAY);
         glEnableClientState(GL_COLOR_ARRAY);
 
-        const GLsizei stride = kFloatsPerVert * (GLsizei)sizeof(float);
+        const GLsizei puStride = kPosUvFloats * (GLsizei)sizeof(float);
+        const GLsizei cStride  = kColorFloats * (GLsizei)sizeof(float);
         for (int mode = TB_OPAQUE; mode <= TB_ALPHABLEND; ++mode)
         {
             for (auto& kv : s_buckets)
             {
                 Bucket& b = kv.second;
-                if (b.mode != mode || b.vbo == 0 || b.vboVerts == 0)
+                if (b.mode != mode || b.posUvVbo == 0 || b.vboVerts == 0)
                     continue;
                 ApplyMode(b.mode);
                 BindTexture(b.glTexture);
-                Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.vbo);
-                // Offsets are byte offsets into the bound VBO (not client pointers).
-                glVertexPointer(3, GL_FLOAT, stride, (const void*)(0));
-                glTexCoordPointer(2, GL_FLOAT, stride, (const void*)(3 * sizeof(float)));
-                glColorPointer(4, GL_FLOAT, stride, (const void*)(5 * sizeof(float)));
+                // pos/uv from the static VBO; colour from the dynamic VBO. Each gl*Pointer
+                // captures the buffer bound at its call, so binding flips between them.
+                Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.posUvVbo);
+                glVertexPointer(3, GL_FLOAT, puStride, (const void*)(0));
+                glTexCoordPointer(2, GL_FLOAT, puStride, (const void*)(3 * sizeof(float)));
+                Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.colorVbo);
+                glColorPointer(4, GL_FLOAT, cStride, (const void*)(0));
                 glDrawArrays(GL_QUADS, 0, b.vboVerts);
             }
         }

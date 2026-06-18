@@ -3239,14 +3239,14 @@ void RenderTerrain(bool EditFlag)
 
     TerrainFlag = TERRAIN_MAP_NORMAL;
 
-    // MVP static-bake (MU_TERRAINSTATIC=1): walk the WHOLE map into the per-texture
-    // buckets ONCE, then every frame just re-draw those cached buckets (skip the
-    // per-tile walk). Makes the terrain normal pass view-INDEPENDENT (no per-tile
-    // frustum traversal / vertex assembly) at the cost of FROZEN lighting + geometry
-    // (water UV + fire-glow on the floor stop updating). Diagnostic ceiling demo to
-    // show the headroom before investing in per-frame colour streaming + a real GPU
-    // VBO. Re-bakes on map change. The grass pass stays per-frame (it would clear the
-    // shared buckets), so it is forced onto the immediate path while static is on.
+    // Static-bake terrain (MU_TERRAINSTATIC=1): walk the WHOLE map into the per-texture
+    // buckets ONCE, upload geometry to static GPU VBOs, then every frame just refresh the
+    // colour VBO from PrimaryTerrainLight and draw -- no per-tile frustum traversal /
+    // vertex assembly. The terrain normal pass becomes view-INDEPENDENT while lighting
+    // stays live (only geometry/texcoords are frozen, which are static anyway; animated
+    // water UV is the one thing not yet handled). Re-bakes on map change. The grass pass
+    // stays per-frame (it would clear the shared buckets), so it is forced onto the
+    // immediate path while static is on.
     static const bool s_terrStatic = [] {
         char b[8] = {}; size_t n = 0;
         return getenv_s(&n, b, sizeof(b), "MU_TERRAINSTATIC") == 0 && n > 0 && b[0] == '1';
@@ -3294,7 +3294,9 @@ void RenderTerrain(bool EditFlag)
         }
         else
         {
-            // Frozen: redraw straight from the GPU VBOs (no walk, no CPU->GPU copy).
+            // Static geometry, live lighting: refresh the colour VBO from the current
+            // PrimaryTerrainLight, then draw straight from the GPU VBOs (no per-tile walk).
+            Render::Terrain::TerrainBatchUpdateColors();
             Render::Terrain::TerrainBatchDrawStatic();
         }
     }

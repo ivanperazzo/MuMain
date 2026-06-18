@@ -49,5 +49,6 @@ namespace Render::Terrain
     // from the GPU VBOs every frame (no per-frame CPU->GPU vertex copy), making the
     // terrain normal pass view-independent. Geometry/colour are frozen at bake time.
     void TerrainBatchUploadStatic();
+    void TerrainBatchUpdateColors();   // refresh dynamic colour VBO from PrimaryTerrainLight
     void TerrainBatchDrawStatic();
 }
