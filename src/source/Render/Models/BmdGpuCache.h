@@ -115,13 +115,14 @@ namespace Render::Models
     // the instanced GPU path + GPU shadow (nothing reads their CPU skin).
     bool GpuSkinDeferEnabled();
 
-    // Same defer for the OBJECTS (props) pass (env MU_OBJSKIN=1, default OFF — prototype).
-    // Props are GPU-instanced for the DRAW (MU_GPUINSTOBJ) but BMD::Transform still runs the
-    // full per-vertex CPU SkinMesh every frame purely so legacy/CPU consumers (non-instanced
+    // Same defer for the OBJECTS (props) pass (env MU_OBJSKIN=0 disables, default ON — validated
+    // 18-jun). Props are GPU-instanced for the DRAW (MU_GPUINSTOBJ) but BMD::Transform still ran
+    // the full per-vertex CPU SkinMesh every frame purely so legacy/CPU consumers (non-instanced
     // meshes, shadow, effects) can read VertexTransform — redundant for the instanced draw.
     // When on (+ objects pass + GPU bmd/instobj/shadow), Transform DEFERS the prop skin;
     // EnsureMeshSkinned force-skins lazily on the rare CPU read. Measured: BMD::Transform is
-    // ~85% of the static-prop Calc cost (~1.2ms at ~240 props), NOT BodyLight. doc perf/10.
+    // ~85% of the static-prop Calc cost (~1.2ms at ~240 props), NOT BodyLight. ~35% off the
+    // objects slot; visuals A/B identical. doc perf/10.
     bool GpuObjSkinDeferEnabled();
 
     // --- Diagnostics (measurement only) ---

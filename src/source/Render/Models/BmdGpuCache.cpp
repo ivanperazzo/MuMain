@@ -345,10 +345,17 @@ namespace Render::Models
 
     bool GpuObjSkinDeferEnabled()
     {
-        // Defer CPU skin for instanced PROPS (objects pass). Default OFF (prototype); the
-        // Transform-side gate also requires the objects pass + GPU bmd/instobj/shadow on.
-        // MU_OBJSKIN=1 enables. See header + doc perf/10 (Transform = ~85% of static-prop Calc).
-        static const bool s_on = [] { return EnvFlag("MU_OBJSKIN"); }();
+        // Defer CPU skin for instanced PROPS (objects pass). Default ON (validated A/B + in-game
+        // 18-jun: objects slot ~5->3.2ms @240 props, ~35% off; visuals identical, 0 GL errors over
+        // a full town walk). The Transform-side gate also requires the objects pass + GPU
+        // bmd/instobj/shadow on. MU_OBJSKIN=0 disables (A/B). doc perf/10 (Transform/SkinMesh =
+        // ~85% of static-prop Calc; BodyLight was a red herring).
+        static const bool s_on = [] {
+            char b[8] = {}; size_t n = 0;
+            if (getenv_s(&n, b, sizeof(b), "MU_OBJSKIN") == 0 && n > 0)
+                return atoi(b) != 0;
+            return true;   // default ON
+        }();
         return s_on;
     }
 

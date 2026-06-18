@@ -67,8 +67,14 @@ bmd/instobj/shadow), flag `GpuObjSkinDeferEnabled()` (`MU_OBJSKIN=1`, default-OF
 **~1.7–1.9 ms off el objects pass (~35 %)**, justo el techo medido. **Visual A/B idéntico**
 (`shot_objskin_off/on.jpg`): estatuas, antorchas+fuego, gárgolas, puertas — todo correcto, sin
 geometría basura ni props faltantes. Bajo riesgo (reusa infra char-defer + lazy `EnsureMeshSkinned`).
-**PENDIENTE para default-ON: validación IN-GAME** (login throne-room ≠ MainScene; props de town
-—árboles/casas/picking— pueden tener consumers CPU no ejercitados acá). Commit prototipo default-OFF.
+
+### 2e. CERRADO default-ON (18-jun) — validación in-game OK
+Validado IN-GAME (MainScene town, login real del usuario + caminar Lorencia/Devias/Noria, 296
+frames): **props correctos, 0 errores GL** en todo el recorrido, objects slot 0.7–2.6 ms.
+`GpuObjSkinDeferEnabled()` → **default-ON** (`MU_OBJSKIN=0` desactiva para A/B). **Lever del objects
+pass CERRADO.** La instrumentación `MU_OBJLOG` (incl. sub-breakdown) queda flag-gated default-OFF
+(zero-cost), no se borra. Próximo slot view-dependent: ya no queda — `chars` (8–17 ms) es el #1
+restante pero ya está cerrado default-ON; payoff decreciente.
 
 ## 3. Approach FALLIDO (no repetir)
 
