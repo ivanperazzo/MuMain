@@ -1235,15 +1235,21 @@ inline void Interpolation(int mx, int my)
 // immediate-mode GL. s_tbCur != nullptr means "emit into this bucket".
 static bool   s_tbActive = false;   // batching this terrain pass
 static float* s_tbCur    = nullptr; // raw write cursor into the current quad slot
+static int*   s_tbIdxCur = nullptr; // parallel cursor recording terrain cell per vertex
+                                    // (static-bake only; non-null => record idx). Used for
+                                    // grass, whose shifted geometry breaks idx-from-pos.
+static bool   s_bakeRecording = false; // true only during the static-bake walk
 
 static inline void TBEmit(const float* pos, float u, float v,
-                          float r, float g, float b, float a)
+                          float r, float g, float b, float a, int idx = 0)
 {
     float* c = s_tbCur;
     c[0] = pos[0]; c[1] = pos[1]; c[2] = pos[2];
     c[3] = u;      c[4] = v;
     c[5] = r;      c[6] = g;      c[7] = b;      c[8] = a;
     s_tbCur = c + 9;   // advance to next vertex; quad slot holds exactly 4
+    if (s_tbIdxCur)
+        *s_tbIdxCur++ = idx;
 }
 
 inline void Vertex0()
@@ -1515,6 +1521,7 @@ void RenderFace(int Texture, int mx, int my)
     if (s_tbActive)
     {
         s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, mode);
+        s_tbIdxCur = nullptr;   // normal/alpha/blend: idx derived from pos at upload
         Vertex0(); Vertex1(); Vertex2(); Vertex3();
         return;
     }
@@ -1545,6 +1552,7 @@ void RenderFace_After(int Texture, int mx, int my)
     if (s_tbActive)
     {
         s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, mode);
+        s_tbIdxCur = nullptr;   // normal/alpha/blend: idx derived from pos at upload
         Vertex0(); Vertex1(); Vertex2(); Vertex3();
         return;
     }
@@ -1567,6 +1575,7 @@ void RenderFaceAlpha(int Texture, int mx, int my)
     if (s_tbActive)
     {
         s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHATEST);
+        s_tbIdxCur = nullptr;   // normal/alpha/blend: idx derived from pos at upload
         VertexAlpha0(); VertexAlpha1(); VertexAlpha2(); VertexAlpha3();
         return;
     }
@@ -1587,6 +1596,7 @@ void RenderFaceBlend(int Texture, int mx, int my)
     if (s_tbActive)
     {
         s_tbCur = Render::Terrain::TerrainBatchQuad(BITMAP_MAPTILE + Texture, Render::Terrain::TB_ALPHABLEND);
+        s_tbIdxCur = nullptr;   // normal/alpha/blend: idx derived from pos at upload
         VertexBlend0(); VertexBlend1(); VertexBlend2(); VertexBlend3();
         return;
     }
@@ -1774,15 +1784,22 @@ void RenderTerrainFace(float xf, float yf, int xi, int yi, float lodf)
                 // (wind), but the per-tile GL/bind overhead is gone.
                 if (s_tbActive && !grassBlend)
                 {
-                    s_tbCur = Render::Terrain::TerrainBatchQuad(Texture, Render::Terrain::TB_ALPHATEST);
+                    // Record the terrain cell per vertex (only during the static bake) so
+                    // UploadStatic can stream grass colour from PrimaryTerrainLight — the
+                    // grass quad's -50/wind/height shift makes idx-from-pos unreliable.
+                    int* idxSlot = nullptr;
+                    s_tbCur = Render::Terrain::TerrainBatchQuad(
+                        Texture, Render::Terrain::TB_ALPHATEST,
+                        s_bakeRecording ? &idxSlot : nullptr);
+                    s_tbIdxCur = idxSlot;
                     const float* L0 = PrimaryTerrainLight[TerrainIndex1];
                     const float* L1 = PrimaryTerrainLight[TerrainIndex2];
                     const float* L2 = PrimaryTerrainLight[TerrainIndex3];
                     const float* L3 = PrimaryTerrainLight[TerrainIndex4];
-                    TBEmit(TerrainVertex[0], TerrainTextureCoord[0][0], TerrainTextureCoord[0][1], L0[0], L0[1], L0[2], 1.f);
-                    TBEmit(TerrainVertex[1], TerrainTextureCoord[1][0], TerrainTextureCoord[1][1], L1[0], L1[1], L1[2], 1.f);
-                    TBEmit(TerrainVertex[2], TerrainTextureCoord[2][0], TerrainTextureCoord[2][1], L2[0], L2[1], L2[2], 1.f);
-                    TBEmit(TerrainVertex[3], TerrainTextureCoord[3][0], TerrainTextureCoord[3][1], L3[0], L3[1], L3[2], 1.f);
+                    TBEmit(TerrainVertex[0], TerrainTextureCoord[0][0], TerrainTextureCoord[0][1], L0[0], L0[1], L0[2], 1.f, TerrainIndex1);
+                    TBEmit(TerrainVertex[1], TerrainTextureCoord[1][0], TerrainTextureCoord[1][1], L1[0], L1[1], L1[2], 1.f, TerrainIndex2);
+                    TBEmit(TerrainVertex[2], TerrainTextureCoord[2][0], TerrainTextureCoord[2][1], L2[0], L2[1], L2[2], 1.f, TerrainIndex3);
+                    TBEmit(TerrainVertex[3], TerrainTextureCoord[3][0], TerrainTextureCoord[3][1], L3[0], L3[1], L3[2], 1.f, TerrainIndex4);
                 }
                 else
                 {
@@ -3277,9 +3294,22 @@ void RenderTerrain(bool EditFlag)
             const bool sTop = g_Camera.TopViewEnable;
             ResetFrustrumBoundsFullTerrain();
             g_Camera.TopViewEnable = true;        // pass every tile in bounds
-            s_tbActive = true;
+            s_tbActive      = true;
+            s_bakeRecording = true;               // record terrain cell per vertex (grass)
             Render::Terrain::TerrainBatchBegin();
+            TerrainFlag = TERRAIN_MAP_NORMAL;
             RenderTerrainFrustrum(EditFlag);
+            // Bake the grass pass into the same buckets too (frozen wind, live colour via
+            // the recorded cell index), so it is view-independent like the normal pass.
+            if (TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
+            {
+                EnableAlphaTest();
+                TerrainFlag = TERRAIN_MAP_GRASS;
+                RenderTerrainFrustrum(EditFlag);
+                TerrainFlag = TERRAIN_MAP_NORMAL;
+            }
+            s_bakeRecording = false;
+            s_tbIdxCur = nullptr;
             Render::Terrain::TerrainBatchFlush();      // draw this frame from CPU buffers
             Render::Terrain::TerrainBatchUploadStatic(); // ...and upload them to GPU VBOs
             s_tbActive   = false;
@@ -3343,15 +3373,15 @@ void RenderTerrain(bool EditFlag)
     if (!EditFlag)
     {
         EnableAlphaTest();
-        if (TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
+        // In static-bake mode the grass is already baked into the VBOs (drawn by
+        // DrawStatic), so skip the per-frame grass pass entirely.
+        if (!s_terrStatic && TerrainGrassEnable && gMapManager.WorldActive != WD_7ATLANSE && !IsDoppelGanger3())
         {
             TerrainFlag = TERRAIN_MAP_GRASS;
             // Batch the grass pass into per-texture buckets too (alpha-test grass only;
             // alpha-blend grass stays immediate inside RenderTerrainFace). One
             // glDrawArrays/texture at flush instead of glBegin+BindTexture per tile.
-            // Disabled while static-bake is on: grass would TerrainBatchBegin() and
-            // clear the baked normal-pass buckets.
-            const bool grassBatch = !EditFlag && Render::Terrain::TerrainBatchEnabled() && !s_terrStatic;
+            const bool grassBatch = !EditFlag && Render::Terrain::TerrainBatchEnabled();
             if (grassBatch)
             {
                 s_tbActive = true;

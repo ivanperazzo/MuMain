@@ -38,7 +38,11 @@ namespace Render::Terrain
     // push_back, no bounds checks). A last-key cache skips the hash lookup for
     // runs of same-texture tiles (terrain is spatially coherent). The returned
     // pointer is valid until the next TerrainBatchQuad call on the SAME bucket.
-    float* TerrainBatchQuad(int glTexture, int mode);
+    // outIdxSlot (static-bake only): when non-null, also reserves 4 ints in the bucket's
+    // per-vertex terrain-cell array and returns a cursor to them via *outIdxSlot, so the
+    // caller can record the cell index of each emitted vertex (used for grass colour
+    // streaming, whose shifted geometry breaks idx-from-pos).
+    float* TerrainBatchQuad(int glTexture, int mode, int** outIdxSlot = nullptr);
 
     // Flush all buckets: opaque -> alphatest -> alphablend, one
     // glDrawArrays(GL_QUADS) each (BindTexture + state per bucket). Clears them.

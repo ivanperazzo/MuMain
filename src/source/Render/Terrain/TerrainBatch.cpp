@@ -108,11 +108,12 @@ namespace Render::Terrain
         for (auto& kv : s_buckets)
         {
             kv.second.data.clear();     // keep capacity, reuse across frames
+            kv.second.vtxIdx.clear();   // recorded cell indices (static-bake) reset too
             kv.second.vboVerts = 0;     // invalidate any prior static upload (re-bake)
         }
     }
 
-    float* TerrainBatchQuad(int glTexture, int mode)
+    float* TerrainBatchQuad(int glTexture, int mode, int** outIdxSlot)
     {
         const uint64_t k = Key(glTexture, mode);
         Bucket* b;
@@ -130,6 +131,12 @@ namespace Render::Terrain
         }
         const size_t old = b->data.size();
         b->data.resize(old + kFloatsPerQuad);   // capacity reused across frames
+        if (outIdxSlot)
+        {
+            const size_t oldIdx = b->vtxIdx.size();
+            b->vtxIdx.resize(oldIdx + 4);
+            *outIdxSlot = b->vtxIdx.data() + oldIdx;
+        }
         return b->data.data() + old;
     }
 
@@ -178,11 +185,15 @@ namespace Render::Terrain
             const size_t verts = b.data.size() / kFloatsPerVert;
 
             // De-interleave the per-frame walk output into a static pos/uv stream and a
-            // dynamic colour stream, and record each vertex's terrain cell (derived from
-            // its XY) so the colour can be refreshed from PrimaryTerrainLight each frame.
+            // dynamic colour stream. Each vertex's terrain cell (for per-frame colour
+            // streaming) comes either from the recorded vtxIdx (grass, whose shifted
+            // geometry breaks idx-from-pos) or is derived from the vertex XY (normal/
+            // alpha/blend tiles, which sit exactly on the grid).
+            const bool haveRecordedIdx = (b.vtxIdx.size() == verts);
             std::vector<float> posUv(verts * kPosUvFloats);
             b.colorScratch.assign(verts * kColorFloats, 1.f);
-            b.vtxIdx.resize(verts);
+            if (!haveRecordedIdx)
+                b.vtxIdx.assign(verts, 0);
             for (size_t v = 0; v < verts; ++v)
             {
                 const float* src = &b.data[v * kFloatsPerVert];
@@ -192,11 +203,14 @@ namespace Render::Terrain
                 float* col = &b.colorScratch[v * kColorFloats];
                 col[0] = src[5]; col[1] = src[6]; col[2] = src[7]; col[3] = src[8];  // baked rgba
 
-                int xi = (int)(src[0] / TERRAIN_SCALE + 0.5f);
-                int yi = (int)(src[1] / TERRAIN_SCALE + 0.5f);
-                if (xi < 0) xi = 0; else if (xi > TERRAIN_SIZE_MASK) xi = TERRAIN_SIZE_MASK;
-                if (yi < 0) yi = 0; else if (yi > TERRAIN_SIZE_MASK) yi = TERRAIN_SIZE_MASK;
-                b.vtxIdx[v] = TERRAIN_INDEX(xi, yi);
+                if (!haveRecordedIdx)
+                {
+                    int xi = (int)(src[0] / TERRAIN_SCALE + 0.5f);
+                    int yi = (int)(src[1] / TERRAIN_SCALE + 0.5f);
+                    if (xi < 0) xi = 0; else if (xi > TERRAIN_SIZE_MASK) xi = TERRAIN_SIZE_MASK;
+                    if (yi < 0) yi = 0; else if (yi > TERRAIN_SIZE_MASK) yi = TERRAIN_SIZE_MASK;
+                    b.vtxIdx[v] = TERRAIN_INDEX(xi, yi);
+                }
             }
 
             if (b.posUvVbo == 0) Render::GL::GenBuffers(1, &b.posUvVbo);
