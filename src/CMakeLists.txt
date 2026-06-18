@@ -68,6 +68,16 @@ if (MSVC)
   else()
     message(STATUS "Configuring for 32-bit (x86) build")
   endif()
+
+  # Always emit debug symbols (PDB) even in the optimized Release config, so any
+  # build is debuggable post-mortem with cdb/WinDbg. /Zi keeps full /O2 codegen
+  # (no runtime cost — same as RelWithDebInfo); /DEBUG writes Main.pdb next to the
+  # exe. Criterion: every build ships a PDB.
+  add_compile_options($<$<CONFIG:Release>:/Zi>)
+  add_link_options(
+    $<$<CONFIG:Release>:/DEBUG>
+    $<$<CONFIG:Release>:/OPT:REF>
+    $<$<CONFIG:Release>:/OPT:ICF>)
 endif()
 
 if (NOT CMAKE_BUILD_TYPE)
