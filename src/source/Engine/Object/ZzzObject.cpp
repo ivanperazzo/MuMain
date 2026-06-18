@@ -373,6 +373,15 @@ bool Calc_RenderObject(OBJECT* o, bool Translate, int Select, int ExtraMon)
     return true;
 }
 
+// Distance animation LOD: Phase G (GatherVisibleChars, serial) decides per char
+// whether to rebuild the bone pose this frame; the decision rides into the parallel
+// Phase B via this thread-local (set per worker right before RenderCharacter). When
+// set, Calc_ObjectAnimation reuses the cached o->BoneTransform instead of calling
+// BMD::Animation — the body still translates; only the limb pose is held one frame,
+// imperceptible at distance. No OBJECT layout change (avoids sizeof-sensitive code).
+namespace { thread_local bool t_AnimLodSkipBones = false; }
+void SetAnimLodSkipBones(bool skip) { t_AnimLodSkipBones = skip; }
+
 bool Calc_ObjectAnimation(OBJECT* o, bool Translate, int Select)
 {
     if (gMapManager.InChaosCastle() == true && Hero->Object.m_bActionStart)
@@ -392,7 +401,10 @@ bool Calc_ObjectAnimation(OBJECT* o, bool Translate, int Select)
 
     if (o->EnableBoneMatrix)
     {
-        b->Animation(o->BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
+        // Distance anim-LOD: skip the bone keyframe rebuild on off-schedule frames for
+        // far chars, reusing the cached pose. Only when a valid cache exists.
+        if (!(t_AnimLodSkipBones && o->BoneTransform != nullptr))
+            b->Animation(o->BoneTransform, o->AnimationFrame, o->PriorAnimationFrame, o->PriorAction, o->Angle, o->HeadAngle, false, !Translate);
     }
     else
     {
