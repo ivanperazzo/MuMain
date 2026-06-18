@@ -2,6 +2,7 @@
 
 #include "Render/Terrain/TerrainBatch.h"
 #include "Render/Textures/ZzzOpenglUtil.h"
+#include "Render/GL/GLLoader.h"   // Render::GL::GenBuffers/BindBuffer/BufferData (GL 1.5)
 
 #include <gl/glew.h>
 #include <cstdint>
@@ -20,6 +21,8 @@ namespace Render::Terrain
             int                glTexture = 0;
             int                mode = TB_OPAQUE;
             std::vector<float> data;        // interleaved, 9 floats/vertex
+            GLuint             vbo = 0;      // static-bake GPU buffer (0 = none)
+            GLsizei            vboVerts = 0; // verts uploaded to vbo (0 = skip in DrawStatic)
         };
 
         // key = (texture << 4) | mode  -> stable element refs across rehash, so
@@ -93,7 +96,10 @@ namespace Render::Terrain
         s_lastKey = ~0ull;
         s_lastBucket = nullptr;
         for (auto& kv : s_buckets)
-            kv.second.data.clear();   // keep capacity, reuse across frames
+        {
+            kv.second.data.clear();     // keep capacity, reuse across frames
+            kv.second.vboVerts = 0;     // invalidate any prior static upload (re-bake)
+        }
     }
 
     float* TerrainBatchQuad(int glTexture, int mode)
@@ -142,6 +148,56 @@ namespace Render::Terrain
         glDisableClientState(GL_VERTEX_ARRAY);
 
         // Restore a sane current colour (immediate-mode callers after us assume white).
+        glColor4f(1.f, 1.f, 1.f, 1.f);
+    }
+
+    void TerrainBatchUploadStatic()
+    {
+        for (auto& kv : s_buckets)
+        {
+            Bucket& b = kv.second;
+            if (b.data.empty())
+                continue;
+            if (b.vbo == 0)
+                Render::GL::GenBuffers(1, &b.vbo);
+            Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.vbo);
+            Render::GL::BufferData(GL_ARRAY_BUFFER,
+                         (GLsizeiptr)(b.data.size() * sizeof(float)),
+                         b.data.data(), GL_STATIC_DRAW);
+            b.vboVerts = (GLsizei)(b.data.size() / kFloatsPerVert);
+        }
+        Render::GL::BindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+
+    void TerrainBatchDrawStatic()
+    {
+        glEnableClientState(GL_VERTEX_ARRAY);
+        glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+        glEnableClientState(GL_COLOR_ARRAY);
+
+        const GLsizei stride = kFloatsPerVert * (GLsizei)sizeof(float);
+        for (int mode = TB_OPAQUE; mode <= TB_ALPHABLEND; ++mode)
+        {
+            for (auto& kv : s_buckets)
+            {
+                Bucket& b = kv.second;
+                if (b.mode != mode || b.vbo == 0 || b.vboVerts == 0)
+                    continue;
+                ApplyMode(b.mode);
+                BindTexture(b.glTexture);
+                Render::GL::BindBuffer(GL_ARRAY_BUFFER, b.vbo);
+                // Offsets are byte offsets into the bound VBO (not client pointers).
+                glVertexPointer(3, GL_FLOAT, stride, (const void*)(0));
+                glTexCoordPointer(2, GL_FLOAT, stride, (const void*)(3 * sizeof(float)));
+                glColorPointer(4, GL_FLOAT, stride, (const void*)(5 * sizeof(float)));
+                glDrawArrays(GL_QUADS, 0, b.vboVerts);
+            }
+        }
+        Render::GL::BindBuffer(GL_ARRAY_BUFFER, 0);
+
+        glDisableClientState(GL_COLOR_ARRAY);
+        glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+        glDisableClientState(GL_VERTEX_ARRAY);
         glColor4f(1.f, 1.f, 1.f, 1.f);
     }
 }

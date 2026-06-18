@@ -43,4 +43,11 @@ namespace Render::Terrain
     // Flush all buckets: opaque -> alphatest -> alphablend, one
     // glDrawArrays(GL_QUADS) each (BindTexture + state per bucket). Clears them.
     void TerrainBatchFlush();
+
+    // Static-bake (MU_TERRAINSTATIC): after a full-map walk filled the buckets, upload
+    // each to a GL_STATIC_DRAW VBO once. TerrainBatchDrawStatic then redraws straight
+    // from the GPU VBOs every frame (no per-frame CPU->GPU vertex copy), making the
+    // terrain normal pass view-independent. Geometry/colour are frozen at bake time.
+    void TerrainBatchUploadStatic();
+    void TerrainBatchDrawStatic();
 }

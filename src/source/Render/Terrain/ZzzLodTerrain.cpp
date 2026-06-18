@@ -3238,22 +3238,70 @@ void RenderTerrain(bool EditFlag)
     }
 
     TerrainFlag = TERRAIN_MAP_NORMAL;
-    // P2 (terrain-VBO): batch the normal pass into per-texture buckets, flushed
-    // as a handful of glDrawArrays below. The grass pass + editor stay legacy.
-    if (!EditFlag && Render::Terrain::TerrainBatchEnabled())
-    {
-        s_tbActive = true;
-        Render::Terrain::TerrainBatchBegin();
-    }
+
+    // MVP static-bake (MU_TERRAINSTATIC=1): walk the WHOLE map into the per-texture
+    // buckets ONCE, then every frame just re-draw those cached buckets (skip the
+    // per-tile walk). Makes the terrain normal pass view-INDEPENDENT (no per-tile
+    // frustum traversal / vertex assembly) at the cost of FROZEN lighting + geometry
+    // (water UV + fire-glow on the floor stop updating). Diagnostic ceiling demo to
+    // show the headroom before investing in per-frame colour streaming + a real GPU
+    // VBO. Re-bakes on map change. The grass pass stays per-frame (it would clear the
+    // shared buckets), so it is forced onto the immediate path while static is on.
+    static const bool s_terrStatic = [] {
+        char b[8] = {}; size_t n = 0;
+        return getenv_s(&n, b, sizeof(b), "MU_TERRAINSTATIC") == 0 && n > 0 && b[0] == '1';
+    }();
+    static bool s_baked      = false;
+    static int  s_bakedWorld = -1;
+
     // TEMP instrumentation (MU_TERRLOG=1): split the normal pass into walk (per-tile
-    // CPU assembly into buckets) vs flush (glDrawArrays + CPU->GPU vertex upload), so
-    // we know which half the view-dependent terrain cost lives in before optimizing.
+    // CPU assembly into buckets) vs flush (glDrawArrays + CPU->GPU vertex upload).
     static const bool s_terrLog = [] {
         char b[8] = {}; size_t n = 0;
         return getenv_s(&n, b, sizeof(b), "MU_TERRLOG") == 0 && n > 0 && b[0] == '1';
     }();
-    if (s_terrLog && s_tbActive)
+
+    const bool batchOn = !EditFlag && Render::Terrain::TerrainBatchEnabled();
+
+    if (s_terrStatic && batchOn)
     {
+        if (gMapManager.WorldActive != s_bakedWorld)
+            s_baked = false;   // map changed -> re-bake
+
+        if (!s_baked)
+        {
+            // Bake: force whole-map bounds + bypass per-tile frustum (TopViewEnable),
+            // walk once into the buckets, then KEEP them (flush draws but doesn't clear).
+            const int  sx = FrustrumBoundMinX, sy = FrustrumBoundMinY;
+            const int  ex = FrustrumBoundMaxX, ey = FrustrumBoundMaxY;
+            const bool sTop = g_Camera.TopViewEnable;
+            ResetFrustrumBoundsFullTerrain();
+            g_Camera.TopViewEnable = true;        // pass every tile in bounds
+            s_tbActive = true;
+            Render::Terrain::TerrainBatchBegin();
+            RenderTerrainFrustrum(EditFlag);
+            Render::Terrain::TerrainBatchFlush();      // draw this frame from CPU buffers
+            Render::Terrain::TerrainBatchUploadStatic(); // ...and upload them to GPU VBOs
+            s_tbActive   = false;
+            s_tbCur      = nullptr;
+            s_baked      = true;
+            s_bakedWorld = gMapManager.WorldActive;
+            FrustrumBoundMinX = sx; FrustrumBoundMinY = sy;
+            FrustrumBoundMaxX = ex; FrustrumBoundMaxY = ey;
+            g_Camera.TopViewEnable = sTop;
+            Render::GL::Log("[terr] static bake world=%d verts=%zu",
+                gMapManager.WorldActive, Render::Terrain::TerrainBatchVertexCount());
+        }
+        else
+        {
+            // Frozen: redraw straight from the GPU VBOs (no walk, no CPU->GPU copy).
+            Render::Terrain::TerrainBatchDrawStatic();
+        }
+    }
+    else if (s_terrLog && batchOn)
+    {
+        s_tbActive = true;
+        Render::Terrain::TerrainBatchBegin();
         auto t0 = std::chrono::steady_clock::now();
         RenderTerrainFrustrum(EditFlag);
         auto t1 = std::chrono::steady_clock::now();
@@ -3272,13 +3320,18 @@ void RenderTerrain(bool EditFlag)
     }
     else
     {
-    RenderTerrainFrustrum(EditFlag);
-    if (s_tbActive)
-    {
-        Render::Terrain::TerrainBatchFlush();
-        s_tbActive = false;
-        s_tbCur = nullptr;
-    }
+        if (batchOn)
+        {
+            s_tbActive = true;
+            Render::Terrain::TerrainBatchBegin();
+        }
+        RenderTerrainFrustrum(EditFlag);
+        if (s_tbActive)
+        {
+            Render::Terrain::TerrainBatchFlush();
+            s_tbActive = false;
+            s_tbCur = nullptr;
+        }
     }
     //
     if (EditFlag && SelectFlag)
@@ -3294,7 +3347,9 @@ void RenderTerrain(bool EditFlag)
             // Batch the grass pass into per-texture buckets too (alpha-test grass only;
             // alpha-blend grass stays immediate inside RenderTerrainFace). One
             // glDrawArrays/texture at flush instead of glBegin+BindTexture per tile.
-            const bool grassBatch = !EditFlag && Render::Terrain::TerrainBatchEnabled();
+            // Disabled while static-bake is on: grass would TerrainBatchBegin() and
+            // clear the baked normal-pass buckets.
+            const bool grassBatch = !EditFlag && Render::Terrain::TerrainBatchEnabled() && !s_terrStatic;
             if (grassBatch)
             {
                 s_tbActive = true;
